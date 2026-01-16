@@ -2,7 +2,7 @@
 name = "retromount"
 version = "0.1.0"
 edition = "2021"
-authors = ["Lloyd Smart <lloyd@lloydsmart.com>"]
+authors = ["Lloyd Smart <lloydsmart@users.noreply.github.com>"]
 description = "Modular FUSE-based filesystem for retro game archives"
 license = "GPL-3.0-only"
 repository = "https://github.com/lloydsmart/retromount"
@@ -15,20 +15,30 @@ serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 libfuse = "0.2"
 log = "0.4"
-env_logger = "0.10"
+env_logger = "0.11.8"
 thiserror = "1.0"  # For custom error types
 
 [dev-dependencies]
 tempfile = "3.3"
 
 [package.metadata.deb]
-maintainer = "Lloyd Smart <lloyd@lloydsmart.com>"
+maintainer = "Lloyd Smart <lloydsmart@users.noreply.github.com>"
 copyright = "2026, Lloyd Smart"
 license-file = ["LICENSE", "4"]
-depends = "$auto"
+depends = "$auto, fuse"
 section = "utils"
 priority = "optional"
 assets = [
     ["target/release/retromount", "usr/bin/", "755"],
     ["README.md", "usr/share/doc/retromount/", "644"],
+    ["retromount.yaml.example", "usr/share/doc/retromount/examples/", "644"],
 ]
+
+[features]
+default = []
+# Placeholder for future translator dependencies
+# chd_to_iso = ["dep:some_crate"]
+
+[profile.release]
+lto = true
+strip = true
