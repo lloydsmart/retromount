@@ -45,8 +45,12 @@ jobs:
       - name: Build Debian package
         run: cargo deb --no-build
 
+      - name: Ensure artifact directory exists
+        run: mkdir -p target/debian
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: retromount-deb
           path: target/debian/*.deb
+          if-no-files-found: error
