@@ -3,10 +3,24 @@ name: "CodeQL Advanced"
 on:
   push:
     branches: [ "main", "develop" ]
+    paths:
+      - '**/*.rs'          # Run if any Rust file changes
+      - '.github/workflows/**'  # Run if any workflow file changes
+    paths-ignore:
+      - '**/*.md'          # Skip if only markdown files change
+      - 'docs/**'          # Skip if only docs change
+      - 'README.md'
   pull_request:
     branches: [ "main", "develop" ]
+    paths:
+      - '**/*.rs'
+      - '.github/workflows/**'
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'README.md'
   schedule:
-    - cron: '36 0 * * 0'
+    - cron: '36 0 * * 0'   # Keep your scheduled run
 
 jobs:
   analyze:
