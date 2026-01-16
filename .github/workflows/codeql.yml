@@ -3,7 +3,7 @@ description: "Runs CodeQL security analysis for Rust and GitHub Actions on PRs, 
 
 on:
   push:
-    branches: [ "main", "develop" ]  # Only direct pushes to these branches
+    branches: [ "main", "develop" ]
     paths:
       - '**/*.rs'
       - '.github/workflows/**'
@@ -12,7 +12,7 @@ on:
       - '!docs/**'
       - '!README.md'
   pull_request:
-    branches: [ "main", "develop" ]  # PRs targeting these branches
+    branches: [ "main", "develop" ]
     paths:
       - '**/*.rs'
       - '.github/workflows/**'
