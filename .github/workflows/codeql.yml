@@ -1,4 +1,5 @@
 name: "CodeQL Advanced"
+description: "Runs CodeQL security analysis for Rust and GitHub Actions, but only when relevant files change."
 
 on:
   push:
