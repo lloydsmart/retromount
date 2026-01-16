@@ -1,4 +1,4 @@
-use log::{info, debug};
+use log::{debug, info};
 use serde::Deserialize;
 use std::path::PathBuf;
 use thiserror::Error;
