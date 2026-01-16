@@ -1,0 +1,34 @@
+[package]
+name = "retromount"
+version = "0.1.0"
+edition = "2021"
+authors = ["Lloyd Smart <lloyd@lloydsmart.com>"]
+description = "Modular FUSE-based filesystem for retro game archives"
+license = "GPL-3.0-only"
+repository = "https://github.com/lloydsmart/retromount"
+homepage = "https://github.com/lloydsmart/retromount"
+keywords = ["fuse", "retro", "filesystem", "emulation"]
+categories = ["filesystem", "emulators"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+libfuse = "0.2"
+log = "0.4"
+env_logger = "0.10"
+thiserror = "1.0"  # For custom error types
+
+[dev-dependencies]
+tempfile = "3.3"
+
+[package.metadata.deb]
+maintainer = "Lloyd Smart <lloyd@lloydsmart.com>"
+copyright = "2026, Lloyd Smart"
+license-file = ["LICENSE", "4"]
+depends = "$auto"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/retromount", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/retromount/", "644"],
+]

@@ -1,0 +1,5 @@
+views:
+  - name: "Star Trek TNG"
+    source: "/path/to/chd"
+    mount: "/mnt/retro/startrek"
+    translator: "chd2iso"
