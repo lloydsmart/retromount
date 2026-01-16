@@ -1,12 +1,27 @@
 name: "CodeQL Advanced"
+description: "Runs CodeQL security analysis for Rust and GitHub Actions on PRs, direct pushes to develop/main, and weekly for baseline checks."
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop" ]  # Only direct pushes to these branches
+    paths:
+      - '**/*.rs'
+      - '.github/workflows/**'
+      - '!.github/workflows/codeql-analysis.yml'
+      - '!**/*.md'
+      - '!docs/**'
+      - '!README.md'
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "develop" ]  # PRs targeting these branches
+    paths:
+      - '**/*.rs'
+      - '.github/workflows/**'
+      - '!.github/workflows/codeql-analysis.yml'
+      - '!**/*.md'
+      - '!docs/**'
+      - '!README.md'
   schedule:
-    - cron: '36 0 * * 0'
+    - cron: '36 0 * * 0'  # Weekly at 00:36 UTC
 
 jobs:
   analyze:
