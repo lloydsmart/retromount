@@ -29,10 +29,6 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libfuse-dev
 
-      - name: Install cargo-deb
-        if: runner.os == 'Linux'
-        run: cargo install cargo-deb
-
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -48,16 +44,31 @@ jobs:
       - name: Build (release)
         run: cargo build --release --all-targets --all-features --verbose
 
+  package-deb:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse-dev
+          cargo install cargo-deb
+
+      - name: Build release binary
+        run: cargo build --release --all-features --verbose
+
       - name: Build Debian package
-        if: runner.os == 'Linux'
         run: cargo deb --no-build
 
-      - name: Ensure artifact directory exists
-        if: runner.os == 'Linux'
-        run: mkdir -p target/debian
-
-      - name: Upload artifact
-        if: runner.os == 'Linux'
+      - name: Upload Debian artifact
         uses: actions/upload-artifact@v4
         with:
           name: retromount-deb
