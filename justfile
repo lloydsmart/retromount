@@ -1,4 +1,5 @@
 # Retromount development commands
+# Run `just --list` to see available recipes
 
 build:
     cargo build
@@ -33,7 +34,10 @@ run-config CONFIG="retromount.yaml":
     cargo run -- --config {{CONFIG}}
 
 debug:
-    cargo run
+    pwsh -NoProfile -Command "$env:RUST_LOG='debug'; cargo run"
+
+trace:
+    pwsh -NoProfile -Command "$env:RUST_LOG='trace'; cargo run"
 
 deb:
     cargo deb
