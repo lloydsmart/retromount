@@ -11,7 +11,12 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -21,33 +26,38 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install FUSE dependencies
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libfuse-dev
 
       - name: Install cargo-deb
+        if: runner.os == 'Linux'
         run: cargo install cargo-deb
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
       - name: Lint with Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build (debug)
-        run: cargo build --verbose
+        run: cargo build --all-targets --all-features --verbose
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --all-targets --all-features --verbose
 
       - name: Build (release)
-        run: cargo build --release --verbose
+        run: cargo build --release --all-targets --all-features --verbose
 
       - name: Build Debian package
+        if: runner.os == 'Linux'
         run: cargo deb --no-build
 
       - name: Ensure artifact directory exists
+        if: runner.os == 'Linux'
         run: mkdir -p target/debian
 
       - name: Upload artifact
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
           name: retromount-deb
