@@ -22,18 +22,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
         with:
           toolchain: stable
-          components: rustfmt, clippy
 
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 #  v2.8.2
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          shared-key: "retromount-release"
 
       - name: Build release
         run: cargo build --release
 
-      - name: Build Debian package
+      - name: Install packaging dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cargo-deb
-          cargo deb
+          sudo apt-get install -y libfuse-dev
+          cargo install cargo-deb
+
+      - name: Build Debian package
+        run: cargo deb --no-build
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
