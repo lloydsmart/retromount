@@ -38,9 +38,7 @@ impl Default for ReaderRegistry {
         let mut registry = Self::new();
 
         // Register built-in readers
-        registry.register(Box::new(
-            crate::readers::dir_reader::DirReaderFactory,
-        ));
+        registry.register(Box::new(crate::readers::dir_reader::DirReaderFactory));
 
         registry
     }
