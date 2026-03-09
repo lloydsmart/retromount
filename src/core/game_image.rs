@@ -11,8 +11,10 @@ pub struct GameImage {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
-    use crate::core::track::{Track, TrackType};
+    use crate::core::track::{Track, TrackSource, TrackType};
 
     #[test]
     fn creates_multi_disc_game_image() {
@@ -22,6 +24,8 @@ mod tests {
                 number: 1,
                 kind: TrackType::Data,
                 size: 2048,
+                sector_size: 2048,
+                source: TrackSource::File(PathBuf::from("disc1.iso")),
             }],
         };
 
@@ -31,6 +35,8 @@ mod tests {
                 number: 1,
                 kind: TrackType::Data,
                 size: 2048,
+                sector_size: 2048,
+                source: TrackSource::File(PathBuf::from("disc2.iso")),
             }],
         };
 

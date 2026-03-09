@@ -8,8 +8,10 @@ pub struct Disc {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
-    use crate::core::track::{Track, TrackType};
+    use crate::core::track::{Track, TrackSource, TrackType};
 
     #[test]
     fn creates_disc_with_tracks() {
@@ -20,11 +22,15 @@ mod tests {
                     number: 1,
                     kind: TrackType::Data,
                     size: 2048,
+                    sector_size: 2048,
+                    source: TrackSource::File(PathBuf::from("track01.bin")),
                 },
                 Track {
                     number: 2,
                     kind: TrackType::Audio,
                     size: 4096,
+                    sector_size: 2352,
+                    source: TrackSource::File(PathBuf::from("track02.wav")),
                 },
             ],
         };
