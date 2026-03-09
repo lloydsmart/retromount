@@ -1,9 +1,9 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
-use retromount::{RetroMountError, ViewConfig};
+use retromount::{RetromountError, ViewConfig};
 
-fn main() -> Result<(), RetroMountError> {
+fn main() -> Result<(), RetromountError> {
     env_logger::init();
 
     let config_path = PathBuf::from("retromount.yaml");
