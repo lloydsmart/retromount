@@ -1,9 +1,9 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
-use retromount::{RetromountError, ViewConfig};
 use retromount::core::reader::Reader;
 use retromount::readers::dir_reader::DirReader;
+use retromount::{RetromountError, ViewConfig};
 
 fn main() -> Result<(), RetromountError> {
     env_logger::init();

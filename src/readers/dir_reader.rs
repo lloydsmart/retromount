@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom, Result};
+use std::io::{Read, Result, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::core::reader::Reader;
