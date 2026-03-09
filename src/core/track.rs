@@ -16,7 +16,7 @@ pub enum TrackSource {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Track {
     pub number: u32,
     pub kind: TrackType,

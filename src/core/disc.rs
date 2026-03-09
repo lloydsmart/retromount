@@ -1,6 +1,6 @@
 use crate::core::track::Track;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Disc {
     pub number: u32,
     pub tracks: Vec<Track>,

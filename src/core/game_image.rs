@@ -1,7 +1,7 @@
 use crate::core::disc::Disc;
 use crate::core::platform::Platform;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameImage {
     pub id: String,
     pub title: String,
