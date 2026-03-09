@@ -2,6 +2,8 @@ use serde::Deserialize;
 use std::path::PathBuf;
 use thiserror::Error;
 
+pub mod core;
+
 #[derive(Debug, Deserialize)]
 pub struct ViewConfig {
     pub name: String,
