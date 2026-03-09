@@ -76,7 +76,7 @@ mod tests {
             path.extension().is_some_and(|ext| ext == "test")
         }
 
-        fn load(&self, _path: &Path) -> Result<GameImage, String> {
+        fn load(&self, _path: &Path) -> Result<GameImage, crate::error::RetromountError> {
             Ok(GameImage {
                 id: "test-game".to_string(),
                 title: "Test Game".to_string(),

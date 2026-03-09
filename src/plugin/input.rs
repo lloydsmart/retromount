@@ -9,5 +9,6 @@ pub trait InputPlugin: Send + Sync {
     fn detect(&self, path: &Path) -> bool;
 
     /// Load the image and convert it into the canonical GameImage model
-    fn load(&self, path: &Path) -> Result<GameImage, String>;
+    use crate::error::RetromountError;
+    fn load(&self, path: &Path) -> Result<GameImage, RetromountError>;
 }
