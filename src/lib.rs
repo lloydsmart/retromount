@@ -5,6 +5,7 @@ pub mod core;
 pub mod engine;
 pub mod error;
 pub mod plugin;
+pub mod readers;
 
 pub use error::RetromountError;
 
