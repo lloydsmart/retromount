@@ -26,7 +26,6 @@ jobs:
           toolchain: stable
       
       - name: Install sccache
-        if: always()
         run: cargo install sccache --locked
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
@@ -51,3 +50,8 @@ jobs:
           files: target/debian/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
+        
