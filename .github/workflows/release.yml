@@ -1,29 +1,39 @@
 name: Release
+
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
       - name: Build release
         run: cargo build --release
+
       - name: Build Debian package
         run: |
           sudo apt-get update
           sudo apt-get install -y cargo-deb
           cargo deb
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
         with:
           files: target/debian/*.deb
         env:

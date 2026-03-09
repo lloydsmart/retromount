@@ -1,12 +1,20 @@
 # Rust
 target/
-*.rs.bk
-Cargo.toml.orig
-Cargo.toml~
 
-# IDE
+# Rustfmt backups
+**/*.rs.bk
+
+# Cargo lock for binaries (keep if this is an application)
+Cargo.lock
+
+# VSCode
 .vscode/
+
+# JetBrains
 .idea/
 
-# System
+# macOS
 .DS_Store
+
+# Windows
+Thumbs.db
