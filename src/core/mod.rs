@@ -2,5 +2,7 @@ pub mod disc;
 pub mod game_image;
 pub mod platform;
 pub mod reader;
+pub mod reader_factory;
+pub mod reader_registry;
 pub mod track;
 pub mod virtual_file;

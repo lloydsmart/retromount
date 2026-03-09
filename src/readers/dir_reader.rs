@@ -3,6 +3,7 @@ use std::io::{Read, Result, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::core::reader::Reader;
+use crate::core::reader_factory::ReaderFactory;
 
 pub struct DirReader {
     file: File,
@@ -26,6 +27,18 @@ impl Reader for DirReader {
 
     fn size(&self) -> u64 {
         self.size
+    }
+}
+
+pub struct DirReaderFactory;
+
+impl ReaderFactory for DirReaderFactory {
+    fn supports(&self, path: &Path) -> bool {
+        path.is_file()
+    }
+
+    fn create(&self, path: &Path) -> Result<Box<dyn Reader>> {
+        Ok(Box::new(DirReader::open(path)?))
     }
 }
 
