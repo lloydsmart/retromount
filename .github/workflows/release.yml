@@ -26,20 +26,21 @@ jobs:
           toolchain: stable
       
       - name: Install sccache
-        run: cargo install sccache
+        if: always()
+        run: cargo install sccache --locked
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
           shared-key: "retromount-release"
 
       - name: Build release
-        run: cargo build --release
+        run: cargo build --release --all-features --verbose
 
       - name: Install packaging dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libfuse-dev
-          cargo install cargo-deb
+          cargo install cargo-deb --locked
 
       - name: Build Debian package
         run: cargo deb --no-build

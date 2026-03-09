@@ -24,7 +24,7 @@ jobs:
           components: rustfmt, clippy
       
       - name: Install sccache
-        run: cargo install sccache
+        run: cargo install sccache --locked
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -40,6 +40,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
       
       - name: sccache stats
+        if: always()
         run: sccache --show-stats
 
   test:
@@ -61,7 +62,7 @@ jobs:
           toolchain: stable
       
       - name: Install sccache
-        run: cargo install sccache
+        run: cargo install sccache --locked
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -81,6 +82,7 @@ jobs:
         run: cargo build --release --all-targets --all-features --verbose
       
       - name: sccache stats
+        if: always()
         run: sccache --show-stats
 
   package-deb:
@@ -98,7 +100,7 @@ jobs:
           toolchain: stable
 
       - name: Install sccache
-        run: cargo install sccache
+        run: cargo install sccache --locked
 
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
@@ -108,7 +110,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libfuse-dev
-          cargo install cargo-deb
+          cargo install cargo-deb --locked
 
       - name: Build release binary
         run: cargo build --release --all-features --verbose
@@ -124,5 +126,6 @@ jobs:
           if-no-files-found: error
       
       - name: sccache stats
+        if: always()
         run: sccache --show-stats
         
