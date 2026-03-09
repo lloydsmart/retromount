@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 pub mod core;
+pub mod plugin;
 
 #[derive(Debug, Deserialize)]
 pub struct ViewConfig {
