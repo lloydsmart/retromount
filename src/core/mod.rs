@@ -1,4 +1,5 @@
 pub mod disc;
+pub mod discovery;
 pub mod game_image;
 pub mod platform;
 pub mod reader;
