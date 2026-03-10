@@ -23,7 +23,11 @@ impl InputHandler for FileInputHandler {
         path.is_file()
     }
 
-    fn discover(&self, path: &Path) -> std::io::Result<Vec<VirtualFile>> {
+    fn discover(
+        &self,
+        _registry: &crate::core::input_registry::InputRegistry,
+        path: &Path,
+    ) -> std::io::Result<Vec<VirtualFile>> {
         let reader = self.reader_registry.open(path)?;
         let size = reader.size();
 
@@ -39,7 +43,6 @@ impl InputHandler for FileInputHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::reader::Reader;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -50,7 +53,10 @@ mod tests {
         tmp.write_all(data).expect("failed to write test data");
 
         let handler = FileInputHandler::new(ReaderRegistry::default());
-        let files = handler.discover(tmp.path()).expect("discovery failed");
+        let registry = crate::core::input_registry::InputRegistry::default();
+        let files = handler
+            .discover(&registry, tmp.path())
+            .expect("discovery failed");
 
         assert_eq!(files.len(), 1);
 
