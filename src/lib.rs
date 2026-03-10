@@ -4,6 +4,7 @@ use std::path::PathBuf;
 pub mod core;
 pub mod engine;
 pub mod error;
+pub mod inputs;
 pub mod plugin;
 pub mod readers;
 

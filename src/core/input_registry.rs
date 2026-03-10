@@ -39,6 +39,12 @@ impl InputRegistry {
 
 impl Default for InputRegistry {
     fn default() -> Self {
-        Self::new()
+        let mut registry = Self::new();
+
+        registry.register(Box::new(crate::inputs::file_input::FileInputHandler::new(
+            crate::core::reader_registry::ReaderRegistry::default(),
+        )));
+
+        registry
     }
 }
