@@ -39,6 +39,7 @@ impl Default for ReaderRegistry {
 
         // Register built-in readers
         registry.register(Box::new(crate::readers::dir_reader::DirReaderFactory));
+        registry.register(Box::new(crate::readers::zip_reader::ZipReaderFactory));
 
         registry
     }
