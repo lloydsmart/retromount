@@ -1,24 +1,50 @@
+use std::fs;
 use std::io::Result;
 use std::path::Path;
 
 use crate::core::reader_registry::ReaderRegistry;
 use crate::core::virtual_file::VirtualFile;
 
-/// Discover one or more VirtualFiles from a path.
+/// Discover VirtualFiles from a path.
 ///
-/// For now:
-/// - regular files produce a single VirtualFile
-/// - directories are not yet expanded
+/// Behaviour:
+/// - If `path` is a regular file → returns a single VirtualFile
+/// - If `path` is a directory → returns one VirtualFile per file inside
+///
+/// This is the first stage of RetroMount's ingestion pipeline.
 pub fn discover_virtual_files(registry: &ReaderRegistry, path: &Path) -> Result<Vec<VirtualFile>> {
-    let reader = registry.open(path)?;
-    let size = reader.size();
+    let mut files = Vec::new();
 
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string());
+    if path.is_file() {
+        let reader = registry.open(path)?;
+        let size = reader.size();
 
-    Ok(vec![VirtualFile::new(name, size, reader)])
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string());
+
+        files.push(VirtualFile::new(name, size, reader));
+    } else if path.is_dir() {
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let entry_path = entry.path();
+
+            if entry_path.is_file() {
+                let reader = registry.open(&entry_path)?;
+                let size = reader.size();
+
+                let name = entry_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| entry_path.display().to_string());
+
+                files.push(VirtualFile::new(name, size, reader));
+            }
+        }
+    }
+
+    Ok(files)
 }
 
 #[cfg(test)]
@@ -60,5 +86,25 @@ mod tests {
 
         assert_eq!(bytes, data.len());
         assert_eq!(buf, data);
+    }
+
+    #[test]
+    fn discovers_multiple_files_from_directory() {
+        use std::fs::File;
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().expect("failed to create temp dir");
+
+        let path_a = dir.path().join("a.bin");
+        let path_b = dir.path().join("b.bin");
+
+        File::create(&path_a).unwrap();
+        File::create(&path_b).unwrap();
+
+        let registry = ReaderRegistry::default();
+
+        let files = discover_virtual_files(&registry, dir.path()).expect("discovery failed");
+
+        assert_eq!(files.len(), 2);
     }
 }
