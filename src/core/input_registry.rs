@@ -26,7 +26,7 @@ impl InputRegistry {
     pub fn discover(&self, path: &Path) -> Result<Vec<VirtualFile>> {
         for handler in &self.handlers {
             if handler.supports(path) {
-                return handler.discover(path);
+                return handler.discover(self, path);
             }
         }
 
