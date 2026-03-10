@@ -1,5 +1,4 @@
 pub mod disc;
-pub mod discovery;
 pub mod game_image;
 pub mod input_handler;
 pub mod input_registry;
