@@ -1,3 +1,4 @@
+pub mod directory_input;
 pub mod file_input;
 
 use crate::core::input_registry::InputRegistry;
@@ -8,6 +9,7 @@ use crate::core::reader_registry::ReaderRegistry;
 /// Registration order matters:
 /// more specific handlers must be registered before more general ones.
 pub fn register_builtin_inputs(registry: &mut InputRegistry) {
+    registry.register(Box::new(directory_input::DirectoryInputHandler));
     registry.register(Box::new(file_input::FileInputHandler::new(
         ReaderRegistry::default(),
     )));
