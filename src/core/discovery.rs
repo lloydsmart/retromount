@@ -50,7 +50,6 @@ pub fn discover_virtual_files(registry: &ReaderRegistry, path: &Path) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::reader::Reader;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
