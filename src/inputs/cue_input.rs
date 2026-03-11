@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -40,9 +41,14 @@ impl InputHandler for CueInputHandler {
         let cue_dir = path.parent().unwrap_or_else(|| Path::new("."));
 
         let mut files = Vec::new();
+        let mut seen = HashSet::new();
 
         for referenced_name in parse_cue_file_entries(&cue_text) {
             let referenced_path = cue_dir.join(&referenced_name);
+
+            if !seen.insert(referenced_path.clone()) {
+                continue;
+            }
 
             let reader = self.reader_registry.open(&referenced_path)?;
             let size = reader.size();
@@ -148,6 +154,40 @@ FILE "track01.bin" BINARY
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "track01.bin");
         assert_eq!(files[0].size, 13);
+        assert_eq!(files[0].origin, bin_path);
+    }
+
+    #[test]
+    fn cue_input_handler_deduplicates_repeated_file_entries() {
+        let dir = TempDir::new().expect("failed to create temp dir");
+
+        let cue_path = dir.path().join("game.cue");
+        let bin_path = dir.path().join("track01.bin");
+
+        fs::write(
+            &cue_path,
+            r#"
+    FILE "track01.bin" BINARY
+    TRACK 01 MODE1/2352
+        INDEX 01 00:00:00
+    FILE "track01.bin" BINARY
+    TRACK 02 AUDIO
+        INDEX 01 00:00:00
+    "#,
+        )
+        .expect("failed to write cue file");
+
+        fs::write(&bin_path, b"fake-bin-data").expect("failed to write bin file");
+
+        let handler = CueInputHandler::new(ReaderRegistry::default());
+        let registry = InputRegistry::default();
+
+        let files = handler
+            .discover(&registry, &cue_path)
+            .expect("cue discovery failed");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "track01.bin");
         assert_eq!(files[0].origin, bin_path);
     }
 }
