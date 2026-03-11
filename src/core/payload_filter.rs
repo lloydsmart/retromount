@@ -1,7 +1,8 @@
 use crate::core::virtual_file::VirtualFile;
 
 pub fn filter_payload_files(files: Vec<VirtualFile>) -> Vec<VirtualFile> {
-    files.into_iter()
+    files
+        .into_iter()
         .filter(|vf| is_payload_file(&vf.name))
         .collect()
 }

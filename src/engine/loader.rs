@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 use crate::core::input_registry::InputRegistry;
-use crate::core::payload_filter::select_payload_files;
+use crate::core::payload_filter::filter_payload_files;
 use crate::core::virtual_file::VirtualFile;
 use crate::error::RetromountError;
 
@@ -24,7 +24,7 @@ impl Loader {
             }
         })?;
 
-        Ok(select_payload_files(files))
+        Ok(filter_payload_files(files))
     }
 }
 
