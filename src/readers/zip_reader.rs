@@ -3,7 +3,6 @@ use std::io::{Read, Result, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use crate::core::reader::Reader;
-use crate::core::reader_factory::ReaderFactory;
 
 pub struct ZipReader {
     archive_path: PathBuf,
