@@ -48,9 +48,9 @@ impl Default for InputRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
     use std::io::Write;
     use tempfile::{NamedTempFile, TempDir};
+    use zip::write::SimpleFileOptions;
 
     #[test]
     fn input_registry_discovers_single_file() {
@@ -69,22 +69,43 @@ mod tests {
     fn input_registry_discovers_directory_contents() {
         let dir = TempDir::new().expect("failed to create temp dir");
 
-        let file_a = dir.path().join("a.bin");
-        let file_b = dir.path().join("b.bin");
-
-        File::create(&file_a)
-            .expect("failed to create first file")
-            .write_all(b"aaa")
-            .expect("failed to write first file");
-
-        File::create(&file_b)
-            .expect("failed to create second file")
-            .write_all(b"bbb")
-            .expect("failed to write second file");
+        std::fs::write(dir.path().join("a.bin"), b"aaa").expect("failed to write first file");
+        std::fs::write(dir.path().join("b.bin"), b"bbb").expect("failed to write second file");
 
         let registry = InputRegistry::default();
         let files = registry.discover(dir.path()).expect("discovery failed");
 
         assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn input_registry_discovers_zip_contents() {
+        let mut tmp = NamedTempFile::new().expect("failed to create temp zip");
+
+        {
+            let mut zip = zip::ZipWriter::new(&mut tmp);
+            let options = SimpleFileOptions::default();
+
+            zip.start_file("game.sfc", options)
+                .expect("failed to start first zip entry");
+            zip.write_all(b"game-data")
+                .expect("failed to write first zip entry");
+
+            zip.start_file("readme.txt", options)
+                .expect("failed to start second zip entry");
+            zip.write_all(b"readme-data")
+                .expect("failed to write second zip entry");
+
+            zip.finish().expect("failed to finish zip");
+        }
+
+        let registry = InputRegistry::default();
+        let mut files = registry.discover(tmp.path()).expect("discovery failed");
+
+        files.sort_by(|a, b| a.name.cmp(&b.name));
+
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].name, "game.sfc");
+        assert_eq!(files[1].name, "readme.txt");
     }
 }
