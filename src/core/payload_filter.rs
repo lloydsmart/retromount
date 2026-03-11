@@ -7,7 +7,7 @@ pub fn filter_payload_files(files: Vec<VirtualFile>) -> Vec<VirtualFile> {
         .collect()
 }
 
-pub fn is_payload_file(name: &str) -> bool {
+fn is_payload_file(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
 
     if lower.starts_with("__macosx/") {
