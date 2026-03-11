@@ -78,7 +78,7 @@ impl InputHandler for ZipInputHandler {
 mod tests {
     use super::*;
     use std::io::Write;
-    use tempfile::{Builder, NamedTempFile};
+    use tempfile::NamedTempFile;
     use zip::write::SimpleFileOptions;
 
     #[test]
