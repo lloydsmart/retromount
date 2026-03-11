@@ -1,3 +1,4 @@
+pub mod cue;
 pub mod disc;
 pub mod game_image;
 pub mod input_handler;
