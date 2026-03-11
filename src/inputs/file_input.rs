@@ -36,7 +36,12 @@ impl InputHandler for FileInputHandler {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string());
 
-        Ok(vec![VirtualFile::new(name, size, reader)])
+        Ok(vec![VirtualFile::new(
+            name,
+            size,
+            path.to_path_buf(),
+            reader,
+        )])
     }
 }
 

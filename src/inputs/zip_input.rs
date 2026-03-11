@@ -62,7 +62,12 @@ impl InputHandler for ZipInputHandler {
             let size = entry.size();
             let reader = Box::new(ZipReader::open(path, &entry_name)?);
 
-            files.push(VirtualFile::new(entry_name, size, reader));
+            files.push(VirtualFile::new(
+                entry_name,
+                size,
+                path.to_path_buf(),
+                reader,
+            ));
         }
 
         Ok(files)
