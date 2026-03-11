@@ -49,7 +49,7 @@ impl Default for InputRegistry {
 mod tests {
     use super::*;
     use std::io::Write;
-    use tempfile::{NamedTempFile, TempDir};
+    use tempfile::{Builder, NamedTempFile, TempDir};
     use zip::write::SimpleFileOptions;
 
     #[test]
@@ -80,7 +80,10 @@ mod tests {
 
     #[test]
     fn input_registry_discovers_zip_contents() {
-        let mut tmp = NamedTempFile::new().expect("failed to create temp zip");
+        let mut tmp = Builder::new()
+            .suffix(".zip")
+            .tempfile()
+            .expect("failed to create temp zip");
 
         {
             let mut zip = zip::ZipWriter::new(&mut tmp);

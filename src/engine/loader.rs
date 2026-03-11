@@ -35,7 +35,7 @@ impl Default for Loader {
 mod tests {
     use super::*;
     use std::io::Write;
-    use tempfile::{NamedTempFile, TempDir};
+    use tempfile::{Builder, NamedTempFile, TempDir};
     use zip::write::SimpleFileOptions;
 
     #[test]
@@ -66,7 +66,10 @@ mod tests {
 
     #[test]
     fn discovers_zip_contents_using_default_registry() {
-        let mut tmp = NamedTempFile::new().expect("failed to create temp zip");
+        let mut tmp = Builder::new()
+            .suffix(".zip")
+            .tempfile()
+            .expect("failed to create temp zip");
 
         {
             let mut zip = zip::ZipWriter::new(&mut tmp);
