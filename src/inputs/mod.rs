@@ -12,6 +12,9 @@ use crate::core::reader_registry::ReaderRegistry;
 /// more specific handlers must be registered before more general ones.
 pub fn register_builtin_inputs(registry: &mut InputRegistry) {
     registry.register(Box::new(directory_input::DirectoryInputHandler));
+    registry.register(Box::new(cue_input::CueInputHandler::new(
+        ReaderRegistry::default(),
+    )));
     registry.register(Box::new(zip_input::ZipInputHandler));
     registry.register(Box::new(file_input::FileInputHandler::new(
         ReaderRegistry::default(),
