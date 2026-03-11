@@ -1,8 +1,12 @@
+use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
 
+use crate::core::cue::cue_to_game_image;
+use crate::core::game_image::GameImage;
 use crate::core::input_registry::InputRegistry;
 use crate::core::payload_filter::filter_payload_files;
+use crate::core::platform::Platform;
 use crate::core::virtual_file::VirtualFile;
 use crate::error::RetromountError;
 
@@ -25,6 +29,24 @@ impl Loader {
         })?;
 
         Ok(filter_payload_files(files))
+    }
+
+    pub fn load_game_image(
+        &self,
+        path: &Path,
+        platform: Platform,
+    ) -> Result<GameImage, RetromountError> {
+        if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("cue"))
+        {
+            let cue_text = fs::read_to_string(path)
+                .map_err(|err| RetromountError::LoadError(err.to_string()))?;
+
+            return Ok(cue_to_game_image(path, &cue_text, 1, platform));
+        }
+
+        Err(RetromountError::UnsupportedFormat)
     }
 }
 
@@ -173,5 +195,46 @@ mod tests {
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "track01.bin");
         assert_eq!(files[0].origin, bin_path);
+    }
+
+    #[test]
+    fn loads_game_image_from_cue() {
+        let dir = tempfile::TempDir::new().expect("failed to create temp dir");
+
+        let cue_path = dir.path().join("Ridge Racer.cue");
+        let bin_path = dir.path().join("track01.bin");
+
+        std::fs::write(
+            &cue_path,
+            r#"
+    FILE "track01.bin" BINARY
+    TRACK 01 MODE1/2352
+        INDEX 01 00:00:00
+    "#,
+        )
+        .expect("failed to write cue file");
+
+        std::fs::write(&bin_path, b"fake-bin-data").expect("failed to write bin file");
+
+        let loader = Loader::default();
+        let game = loader
+            .load_game_image(&cue_path, Platform::PlayStation)
+            .expect("game image load failed");
+
+        assert_eq!(game.title, "Ridge Racer");
+        assert_eq!(game.platform, Platform::PlayStation);
+        assert_eq!(game.discs.len(), 1);
+        assert_eq!(game.discs[0].tracks.len(), 1);
+        assert_eq!(game.discs[0].tracks[0].number, 1);
+    }
+
+    #[test]
+    fn returns_unsupported_format_for_non_cue_game_image_load() {
+        let tmp = tempfile::NamedTempFile::new().expect("failed to create temp file");
+
+        let loader = Loader::default();
+        let result = loader.load_game_image(tmp.path(), Platform::PlayStation);
+
+        assert!(matches!(result, Err(RetromountError::UnsupportedFormat)));
     }
 }
