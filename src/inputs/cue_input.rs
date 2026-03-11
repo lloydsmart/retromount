@@ -51,7 +51,7 @@ impl InputHandler for CueInputHandler {
             }
 
             let reader = self.reader_registry.open(&referenced_path)?;
-            let size = reader.size();
+            let size = reader.len();
 
             let name = referenced_path
                 .file_name()

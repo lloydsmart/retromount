@@ -12,6 +12,10 @@ pub trait Reader: Send + Sync {
     /// Returns number of bytes read.
     fn read_at(&mut self, offset: u64, buf: &mut [u8]) -> Result<usize>;
 
-    /// Return the total size of the underlying data stream.
-    fn size(&self) -> u64;
+    /// Return the total length of the underlying data stream.
+    fn len(&self) -> u64;
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }

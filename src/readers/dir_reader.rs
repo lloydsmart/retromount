@@ -25,7 +25,7 @@ impl Reader for DirReader {
         self.file.read(buf)
     }
 
-    fn size(&self) -> u64 {
+    fn len(&self) -> u64 {
         self.size
     }
 }
@@ -61,7 +61,7 @@ mod tests {
         let mut reader = DirReader::open(tmp.path()).expect("failed to open reader");
 
         // Verify size
-        assert_eq!(reader.size(), data.len() as u64);
+        assert_eq!(reader.len(), data.len() as u64);
 
         // Read data
         let mut buf = vec![0u8; data.len()];

@@ -29,7 +29,7 @@ impl InputHandler for FileInputHandler {
         path: &Path,
     ) -> std::io::Result<Vec<VirtualFile>> {
         let reader = self.reader_registry.open(path)?;
-        let size = reader.size();
+        let size = reader.len();
 
         let name = path
             .file_name()

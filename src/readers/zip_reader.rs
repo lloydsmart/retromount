@@ -68,7 +68,7 @@ impl Reader for ZipReader {
         entry.read(buf)
     }
 
-    fn size(&self) -> u64 {
+    fn len(&self) -> u64 {
         self.size
     }
 }
@@ -99,7 +99,7 @@ mod tests {
         let mut reader =
             ZipReader::open(tmp.path(), "test.rom").expect("failed to open zip reader");
 
-        assert_eq!(reader.size(), 14);
+        assert_eq!(reader.len(), 14);
 
         let mut buf = vec![0u8; 14];
         let bytes = reader
