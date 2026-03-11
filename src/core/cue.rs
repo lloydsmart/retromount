@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use crate::core::disc::Disc;
+use crate::core::track::{Track, TrackSource, TrackType};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CueFileEntry {
@@ -44,6 +47,46 @@ pub fn parse_cue(cue_text: &str) -> Vec<CueFileEntry> {
     }
 
     files
+}
+
+pub fn cue_to_disc(cue_text: &str, cue_dir: &Path, disc_number: u32) -> Disc {
+    let parsed = parse_cue(cue_text);
+    let mut tracks = Vec::new();
+
+    for file_entry in parsed {
+        let source_path = cue_dir.join(&file_entry.path);
+
+        for track_entry in file_entry.tracks {
+            let (kind, sector_size) = cue_track_mode_to_model(&track_entry.mode);
+
+            tracks.push(Track {
+                number: u32::from(track_entry.number),
+                kind,
+                size: 0,
+                sector_size,
+                source: TrackSource::File(source_path.clone()),
+            });
+        }
+    }
+
+    Disc {
+        number: disc_number,
+        tracks,
+    }
+}
+
+fn cue_track_mode_to_model(mode: &str) -> (TrackType, u32) {
+    let upper = mode.to_ascii_uppercase();
+
+    if upper == "AUDIO" {
+        return (TrackType::Audio, 2352);
+    }
+
+    if let Some(sector_size) = upper.split('/').nth(1).and_then(|s| s.parse::<u32>().ok()) {
+        return (TrackType::Data, sector_size);
+    }
+
+    (TrackType::Data, 2048)
 }
 
 fn parse_file_line(line: &str) -> Option<String> {
@@ -108,5 +151,53 @@ FILE "track02.bin" BINARY
         assert_eq!(parsed[1].tracks.len(), 1);
         assert_eq!(parsed[1].tracks[0].number, 2);
         assert_eq!(parsed[1].tracks[0].mode, "AUDIO");
+    }
+
+    #[test]
+    fn converts_cue_to_disc_model() {
+        let cue = r#"
+FILE "track01.bin" BINARY
+  TRACK 01 MODE1/2352
+    INDEX 01 00:00:00
+FILE "track02.bin" BINARY
+  TRACK 02 AUDIO
+    INDEX 01 00:00:00
+"#;
+
+        let disc = cue_to_disc(cue, Path::new("/roms/ps1/game"), 1);
+
+        assert_eq!(disc.number, 1);
+        assert_eq!(disc.tracks.len(), 2);
+
+        assert_eq!(disc.tracks[0].number, 1);
+        assert_eq!(disc.tracks[0].kind, TrackType::Data);
+        assert_eq!(disc.tracks[0].sector_size, 2352);
+        assert_eq!(
+            disc.tracks[0].source,
+            TrackSource::File(PathBuf::from("/roms/ps1/game/track01.bin"))
+        );
+
+        assert_eq!(disc.tracks[1].number, 2);
+        assert_eq!(disc.tracks[1].kind, TrackType::Audio);
+        assert_eq!(disc.tracks[1].sector_size, 2352);
+        assert_eq!(
+            disc.tracks[1].source,
+            TrackSource::File(PathBuf::from("/roms/ps1/game/track02.bin"))
+        );
+    }
+
+    #[test]
+    fn defaults_unknown_data_mode_to_2048_sector_size() {
+        let cue = r#"
+FILE "track01.bin" BINARY
+  TRACK 01 MODE1
+    INDEX 01 00:00:00
+"#;
+
+        let disc = cue_to_disc(cue, Path::new("."), 1);
+
+        assert_eq!(disc.tracks.len(), 1);
+        assert_eq!(disc.tracks[0].kind, TrackType::Data);
+        assert_eq!(disc.tracks[0].sector_size, 2048);
     }
 }
