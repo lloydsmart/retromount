@@ -1,3 +1,4 @@
+pub mod cue_input;
 pub mod directory_input;
 pub mod file_input;
 pub mod zip_input;

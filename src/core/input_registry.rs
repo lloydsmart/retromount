@@ -107,4 +107,31 @@ mod tests {
         assert_eq!(files[0].name, "game.sfc");
         assert_eq!(files[1].name, "readme.txt");
     }
+
+    #[test]
+    fn input_registry_discovers_cue_referenced_files() {
+        let dir = tempfile::TempDir::new().expect("failed to create temp dir");
+
+        let cue_path = dir.path().join("game.cue");
+        let bin_path = dir.path().join("track01.bin");
+
+        std::fs::write(
+            &cue_path,
+            r#"
+    FILE "track01.bin" BINARY
+    TRACK 01 MODE1/2352
+        INDEX 01 00:00:00
+    "#,
+        )
+        .expect("failed to write cue file");
+
+        std::fs::write(&bin_path, b"fake-bin-data").expect("failed to write bin file");
+
+        let registry = InputRegistry::default();
+        let files = registry.discover(&cue_path).expect("discovery failed");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "track01.bin");
+        assert_eq!(files[0].origin, bin_path);
+    }
 }
