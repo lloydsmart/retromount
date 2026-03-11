@@ -205,12 +205,15 @@ FILE "missing.bin" BINARY
         let handler = CueInputHandler::new(ReaderRegistry::default());
         let registry = InputRegistry::default();
 
-        let err = handler
-            .discover(&registry, &cue_path)
-            .expect_err("expected missing-file error");
+        let result = handler.discover(&registry, &cue_path);
 
-        assert_eq!(err.kind(), ErrorKind::NotFound);
-        assert!(err.to_string().contains("references missing file"));
-        assert!(err.to_string().contains("missing.bin"));
+        match result {
+            Ok(_) => panic!("expected missing-file error"),
+            Err(err) => {
+                assert_eq!(err.kind(), ErrorKind::NotFound);
+                assert!(err.to_string().contains("references missing file"));
+                assert!(err.to_string().contains("missing.bin"));
+            }
+        }
     }
 }
