@@ -1,7 +1,6 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
-use retromount::core::platform::Platform;
 use retromount::engine::loader::Loader;
 use retromount::{RetromountError, ViewConfig};
 
@@ -28,7 +27,7 @@ fn main() -> Result<(), RetromountError> {
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("cue"))
         {
-            let game = loader.load_game_image(&view.source, Platform::PlayStation)?;
+            let game = loader.load_game_image(&view.source, view.platform.clone())?;
 
             info!("  GameImage:");
             info!("    ID: {}", game.id);
