@@ -2,6 +2,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 
 use crate::core::input_registry::InputRegistry;
+use crate::core::payload_filter::select_payload_files;
 use crate::core::virtual_file::VirtualFile;
 use crate::error::RetromountError;
 
@@ -15,13 +16,15 @@ impl Loader {
     }
 
     pub fn discover_path(&self, path: &Path) -> Result<Vec<VirtualFile>, RetromountError> {
-        self.registry.discover(path).map_err(|err| {
+        let files = self.registry.discover(path).map_err(|err| {
             if err.kind() == ErrorKind::Unsupported {
                 RetromountError::UnsupportedFormat
             } else {
                 RetromountError::LoadError(err.to_string())
             }
-        })
+        })?;
+
+        Ok(select_payload_files(files))
     }
 }
 
@@ -93,9 +96,8 @@ mod tests {
 
         files.sort_by(|a, b| a.name.cmp(&b.name));
 
-        assert_eq!(files.len(), 2);
+        assert_eq!(files.len(), 1);
         assert_eq!(files[0].name, "game.sfc");
-        assert_eq!(files[1].name, "readme.txt");
     }
 
     #[test]
@@ -108,5 +110,41 @@ mod tests {
         let result = loader.discover_path(tmp.path());
 
         assert!(matches!(result, Err(RetromountError::UnsupportedFormat)));
+    }
+
+    #[test]
+    fn filters_ancillary_files_from_zip_contents() {
+        let mut tmp = tempfile::Builder::new()
+            .suffix(".zip")
+            .tempfile()
+            .expect("failed to create temp zip");
+
+        {
+            let mut zip = zip::ZipWriter::new(&mut tmp);
+            let options = zip::write::SimpleFileOptions::default();
+
+            zip.start_file("game.sfc", options)
+                .expect("failed to start first zip entry");
+            zip.write_all(b"game-data")
+                .expect("failed to write first zip entry");
+
+            zip.start_file("readme.txt", options)
+                .expect("failed to start second zip entry");
+            zip.write_all(b"readme-data")
+                .expect("failed to write second zip entry");
+
+            zip.start_file("release.nfo", options)
+                .expect("failed to start third zip entry");
+            zip.write_all(b"nfo-data")
+                .expect("failed to write third zip entry");
+
+            zip.finish().expect("failed to finish zip");
+        }
+
+        let loader = Loader::default();
+        let files = loader.discover_path(tmp.path()).expect("discovery failed");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "game.sfc");
     }
 }
