@@ -86,17 +86,13 @@ mod tests {
             let mut zip = zip::ZipWriter::new(&mut tmp);
             let options = SimpleFileOptions::default();
 
-            zip.start_file("game.sfc", options)
-                .expect("failed to start first zip entry");
-            zip.write_all(b"game-data")
-                .expect("failed to write first zip entry");
+            zip.start_file("game.sfc", options).unwrap();
+            zip.write_all(b"game-data").unwrap();
 
-            zip.start_file("readme.txt", options)
-                .expect("failed to start second zip entry");
-            zip.write_all(b"readme-data")
-                .expect("failed to write second zip entry");
+            zip.start_file("readme.txt", options).unwrap();
+            zip.write_all(b"readme-data").unwrap();
 
-            zip.finish().expect("failed to finish zip");
+            zip.finish().unwrap();
         }
 
         let registry = InputRegistry::default();

@@ -51,50 +51,6 @@ impl Reader for ZipReader {
     }
 }
 
-pub struct ZipReaderFactory;
-
-impl ReaderFactory for ZipReaderFactory {
-    fn supports(&self, path: &Path) -> bool {
-        path.is_file()
-            && path
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
-    }
-
-    fn create(&self, path: &Path) -> Result<Box<dyn Reader>> {
-        let file = File::open(path)?;
-        let mut archive = zip::ZipArchive::new(file)?;
-
-        if archive.is_empty() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("ZIP archive is empty: {}", path.display()),
-            ));
-        }
-
-        let first_file_name = {
-            let mut selected_name = None;
-
-            for i in 0..archive.len() {
-                let entry = archive.by_index(i)?;
-                if entry.is_file() {
-                    selected_name = Some(entry.name().to_string());
-                    break;
-                }
-            }
-
-            selected_name.ok_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("ZIP archive contains no files: {}", path.display()),
-                )
-            })?
-        };
-
-        Ok(Box::new(ZipReader::open(path, &first_file_name)?))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
