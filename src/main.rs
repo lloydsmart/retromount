@@ -1,6 +1,7 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
+use retromount::core::platform::Platform;
 use retromount::engine::loader::Loader;
 use retromount::{RetromountError, ViewConfig};
 
@@ -22,17 +23,42 @@ fn main() -> Result<(), RetromountError> {
         info!("  Source: {}", view.source.display());
         info!("  Mount: {}", view.mount.display());
 
-        let files = loader.discover_path(&view.source)?;
+        if view
+            .source
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("cue"))
+        {
+            let game = loader.load_game_image(&view.source, Platform::PlayStation)?;
 
-        info!("  Discovered {} payload file(s)", files.len());
+            info!("  GameImage:");
+            info!("    ID: {}", game.id);
+            info!("    Title: {}", game.title);
+            info!("    Platform: {:?}", game.platform);
+            info!("    Discs: {}", game.discs.len());
 
-        for file in &files {
-            info!(
-                "    - {} ({} bytes) [origin: {}]",
-                file.name,
-                file.size,
-                file.origin.display()
-            );
+            for disc in &game.discs {
+                info!("    Disc {}: {} track(s)", disc.number, disc.tracks.len());
+
+                for track in &disc.tracks {
+                    info!(
+                        "      Track {}: {:?}, sector size {}, size {}",
+                        track.number, track.kind, track.sector_size, track.size
+                    );
+                }
+            }
+        } else {
+            let files = loader.discover_path(&view.source)?;
+
+            info!("  Discovered {} payload file(s)", files.len());
+
+            for file in &files {
+                info!(
+                    "    - {} ({} bytes) [origin: {}]",
+                    file.name,
+                    file.size,
+                    file.origin.display()
+                );
+            }
         }
     }
 
