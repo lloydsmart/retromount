@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::core::cue::cue_to_game_image;
 use crate::core::game_image::GameImage;
 use crate::core::input_registry::InputRegistry;
-use crate::core::payload_filter::filter_payload_files;
+use crate::core::junk_filter::filter_universal_junk;
 use crate::core::platform::Platform;
 use crate::core::track::TrackSource;
 use crate::core::virtual_file::VirtualFile;
@@ -28,8 +28,9 @@ impl Loader {
                 RetromountError::LoadError(err.to_string())
             }
         })?;
-
-        Ok(filter_payload_files(files))
+        // The loader only strips universally unwanted junk files here.
+        // Richer filtering decisions belong to output-specific policies.
+        Ok(filter_universal_junk(files))
     }
 
     fn hydrate_game_image_track_sizes(
@@ -139,8 +140,9 @@ mod tests {
 
         files.sort_by(|a, b| a.name.cmp(&b.name));
 
-        assert_eq!(files.len(), 1);
+        assert_eq!(files.len(), 2);
         assert_eq!(files[0].name, "game.sfc");
+        assert_eq!(files[1].name, "readme.txt");
     }
 
     #[test]
@@ -156,7 +158,7 @@ mod tests {
     }
 
     #[test]
-    fn filters_ancillary_files_from_zip_contents() {
+    fn filters_only_universal_junk_from_zip_contents() {
         let mut tmp = tempfile::Builder::new()
             .suffix(".zip")
             .tempfile()
@@ -175,19 +177,22 @@ mod tests {
             zip.write_all(b"readme-data")
                 .expect("failed to write second zip entry");
 
-            zip.start_file("release.nfo", options)
+            zip.start_file(".DS_Store", options)
                 .expect("failed to start third zip entry");
-            zip.write_all(b"nfo-data")
+            zip.write_all(b"junk-data")
                 .expect("failed to write third zip entry");
 
             zip.finish().expect("failed to finish zip");
         }
 
         let loader = Loader::default();
-        let files = loader.discover_path(tmp.path()).expect("discovery failed");
+        let mut files = loader.discover_path(tmp.path()).expect("discovery failed");
 
-        assert_eq!(files.len(), 1);
+        files.sort_by(|a, b| a.name.cmp(&b.name));
+
+        assert_eq!(files.len(), 2);
         assert_eq!(files[0].name, "game.sfc");
+        assert_eq!(files[1].name, "readme.txt");
     }
 
     #[test]
