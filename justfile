@@ -15,11 +15,11 @@ set windows-shell := ["pwsh.exe", "-NoLogo", "-NoProfile", "-Command"]
 
 # Build the project in debug mode
 build:
-    cargo build
+    cargo build --all-targets --all-features --verbose
 
 # Build the project in release mode
 release:
-    cargo build --release
+    cargo build --release --all-targets --all-features --verbose
 
 # Remove build artifacts
 clean:
@@ -29,6 +29,10 @@ clean:
 # ------------------------------------------------
 # Code quality
 # ------------------------------------------------
+
+# Apply automatic formatting fixes
+fix:
+    cargo fmt
 
 # Format code
 fmt:
@@ -44,7 +48,7 @@ lint:
 
 # Run tests
 test:
-    cargo test
+    cargo test --all-targets --all-features --verbose
 
 # Run all local quality checks (recommended before committing)
 check:
@@ -84,8 +88,8 @@ deb:
 
 # Build release binary and Debian package
 release-deb:
-    cargo build --release
-    cargo deb
+    just release
+    cargo deb --no-build
 
 
 # ------------------------------------------------
@@ -94,7 +98,7 @@ release-deb:
 
 # Run the same checks that CI performs
 ci:
-    just fmt-check
-    just lint
-    just test
-    cargo build --release
+    just check
+    just build
+    just release
+    

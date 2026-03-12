@@ -1,10 +1,13 @@
 use serde::Deserialize;
 use std::path::PathBuf;
 
+use crate::core::platform::Platform;
+
 pub mod core;
 pub mod engine;
 pub mod error;
-pub mod plugin;
+pub mod inputs;
+pub mod readers;
 
 pub use error::RetromountError;
 
@@ -13,4 +16,5 @@ pub struct ViewConfig {
     pub name: String,
     pub source: PathBuf,
     pub mount: PathBuf,
+    pub platform: Platform,
 }

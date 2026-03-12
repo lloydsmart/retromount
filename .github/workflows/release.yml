@@ -15,22 +15,37 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
+        with:
+          toolchain: stable
+      
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+        with:
+          version: v0.10.0
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          shared-key: "retromount-release"
 
       - name: Build release
-        run: cargo build --release
+        run: cargo build --release --all-features --verbose
 
-      - name: Build Debian package
+      - name: Install packaging dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cargo-deb
-          cargo deb
+          sudo apt-get install -y libfuse-dev
+          cargo install cargo-deb --locked
+
+      - name: Build Debian package
+        run: cargo deb --no-build
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
@@ -38,3 +53,8 @@ jobs:
           files: target/debian/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
+        

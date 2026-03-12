@@ -1,4 +1,12 @@
+pub mod cue;
 pub mod disc;
 pub mod game_image;
+pub mod input_handler;
+pub mod input_registry;
+pub mod junk_filter;
 pub mod platform;
+pub mod reader;
+pub mod reader_factory;
+pub mod reader_registry;
 pub mod track;
+pub mod virtual_file;

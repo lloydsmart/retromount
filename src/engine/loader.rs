@@ -1,86 +1,290 @@
+use std::fs;
+use std::io::ErrorKind;
 use std::path::Path;
 
+use crate::core::cue::cue_to_game_image;
 use crate::core::game_image::GameImage;
+use crate::core::input_registry::InputRegistry;
+use crate::core::junk_filter::filter_universal_junk;
+use crate::core::platform::Platform;
+use crate::core::track::TrackSource;
+use crate::core::virtual_file::VirtualFile;
 use crate::error::RetromountError;
-use crate::plugin::registry::PluginRegistry;
 
-pub struct Loader<'a> {
-    registry: &'a PluginRegistry,
+pub struct Loader {
+    registry: InputRegistry,
 }
 
-impl<'a> Loader<'a> {
-    pub fn new(registry: &'a PluginRegistry) -> Self {
+impl Loader {
+    pub fn new(registry: InputRegistry) -> Self {
         Self { registry }
     }
 
-    pub fn load_path(&self, path: &Path) -> Result<GameImage, RetromountError> {
-        let plugin = self
-            .registry
-            .detect_input(path)
-            .ok_or(RetromountError::UnsupportedFormat)?;
+    pub fn discover_path(&self, path: &Path) -> Result<Vec<VirtualFile>, RetromountError> {
+        let files = self.registry.discover(path).map_err(|err| {
+            if err.kind() == ErrorKind::Unsupported {
+                RetromountError::UnsupportedFormat
+            } else {
+                RetromountError::LoadError(err.to_string())
+            }
+        })?;
+        // The loader only strips universally unwanted junk files here.
+        // Richer filtering decisions belong to output-specific policies.
+        Ok(filter_universal_junk(files))
+    }
 
-        plugin.load(path)
+    fn hydrate_game_image_track_sizes(
+        &self,
+        mut game: GameImage,
+    ) -> Result<GameImage, RetromountError> {
+        for disc in &mut game.discs {
+            for track in &mut disc.tracks {
+                match &track.source {
+                    TrackSource::File(path) => {
+                        let metadata = fs::metadata(path)
+                            .map_err(|err| RetromountError::LoadError(err.to_string()))?;
+                        track.size = metadata.len();
+                    }
+                    TrackSource::OffsetFile { length, .. } => {
+                        track.size = *length;
+                    }
+                }
+            }
+        }
+
+        Ok(game)
+    }
+
+    pub fn load_game_image(
+        &self,
+        path: &Path,
+        platform: Platform,
+    ) -> Result<GameImage, RetromountError> {
+        if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("cue"))
+        {
+            let cue_text = fs::read_to_string(path)
+                .map_err(|err| RetromountError::LoadError(err.to_string()))?;
+            let game = cue_to_game_image(path, &cue_text, 1, platform);
+            return self.hydrate_game_image_track_sizes(game);
+        }
+
+        Err(RetromountError::UnsupportedFormat)
+    }
+}
+
+impl Default for Loader {
+    fn default() -> Self {
+        Self::new(InputRegistry::default())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use super::*;
+    use std::io::Write;
+    use tempfile::{Builder, NamedTempFile, TempDir};
+    use zip::write::SimpleFileOptions;
 
-    use crate::core::disc::Disc;
-    use crate::core::game_image::GameImage;
-    use crate::core::platform::Platform;
-    use crate::error::RetromountError;
-    use crate::plugin::input::InputPlugin;
-    use crate::plugin::registry::PluginRegistry;
+    #[test]
+    fn discovers_single_file_using_default_registry() {
+        let mut tmp = NamedTempFile::new().expect("failed to create temp file");
+        tmp.write_all(b"retromount")
+            .expect("failed to write test data");
+        let loader = Loader::default();
+        let files = loader.discover_path(tmp.path()).expect("discovery failed");
 
-    use super::Loader;
-
-    struct TestInputPlugin;
-
-    impl InputPlugin for TestInputPlugin {
-        fn name(&self) -> &'static str {
-            "test-input"
-        }
-
-        fn detect(&self, path: &Path) -> bool {
-            path.extension().is_some_and(|ext| ext == "test")
-        }
-
-        fn load(&self, _path: &Path) -> Result<GameImage, RetromountError> {
-            Ok(GameImage {
-                id: "test-game".to_string(),
-                title: "Test Game".to_string(),
-                platform: Platform::GenericCD,
-                discs: vec![Disc {
-                    number: 1,
-                    tracks: vec![],
-                }],
-            })
-        }
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].size, 10);
     }
 
     #[test]
-    fn loads_game_image_using_detected_plugin() {
-        let mut registry = PluginRegistry::new();
-        registry.register_input(TestInputPlugin);
+    fn discovers_directory_contents_using_default_registry() {
+        let dir = TempDir::new().expect("failed to create temp dir");
 
-        let loader = Loader::new(&registry);
-        let image = loader.load_path(Path::new("game.test")).unwrap();
+        std::fs::write(dir.path().join("a.bin"), b"aaa").expect("failed to write first file");
+        std::fs::write(dir.path().join("b.bin"), b"bbb").expect("failed to write second file");
 
-        assert_eq!(image.id, "test-game");
-        assert_eq!(image.title, "Test Game");
-        assert_eq!(image.platform, Platform::GenericCD);
-        assert_eq!(image.discs.len(), 1);
+        let loader = Loader::default();
+        let files = loader.discover_path(dir.path()).expect("discovery failed");
+
+        assert_eq!(files.len(), 2);
     }
 
     #[test]
-    fn returns_unsupported_format_when_no_plugin_matches() {
-        let registry = PluginRegistry::new();
-        let loader = Loader::new(&registry);
+    fn discovers_zip_contents_using_default_registry() {
+        let mut tmp = Builder::new()
+            .suffix(".zip")
+            .tempfile()
+            .expect("failed to create temp zip");
+        {
+            let mut zip = zip::ZipWriter::new(&mut tmp);
+            let options = SimpleFileOptions::default();
 
-        let result = loader.load_path(Path::new("game.unknown"));
+            zip.start_file("game.sfc", options)
+                .expect("failed to start first zip entry");
+            zip.write_all(b"game-data")
+                .expect("failed to write first zip entry");
+
+            zip.start_file("readme.txt", options)
+                .expect("failed to start second zip entry");
+            zip.write_all(b"readme-data")
+                .expect("failed to write second zip entry");
+
+            zip.finish().expect("failed to finish zip");
+        }
+
+        let loader = Loader::default();
+        let mut files = loader.discover_path(tmp.path()).expect("discovery failed");
+
+        files.sort_by(|a, b| a.name.cmp(&b.name));
+
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].name, "game.sfc");
+        assert_eq!(files[1].name, "readme.txt");
+    }
+
+    #[test]
+    fn returns_unsupported_format_when_registry_has_no_matching_handler() {
+        let mut tmp = NamedTempFile::new().expect("failed to create temp file");
+        tmp.write_all(b"retromount")
+            .expect("failed to write test data");
+
+        let loader = Loader::new(InputRegistry::new());
+        let result = loader.discover_path(tmp.path());
 
         assert!(matches!(result, Err(RetromountError::UnsupportedFormat)));
+    }
+
+    #[test]
+    fn filters_only_universal_junk_from_zip_contents() {
+        let mut tmp = tempfile::Builder::new()
+            .suffix(".zip")
+            .tempfile()
+            .expect("failed to create temp zip");
+        {
+            let mut zip = zip::ZipWriter::new(&mut tmp);
+            let options = zip::write::SimpleFileOptions::default();
+
+            zip.start_file("game.sfc", options)
+                .expect("failed to start first zip entry");
+            zip.write_all(b"game-data")
+                .expect("failed to write first zip entry");
+
+            zip.start_file("readme.txt", options)
+                .expect("failed to start second zip entry");
+            zip.write_all(b"readme-data")
+                .expect("failed to write second zip entry");
+
+            zip.start_file(".DS_Store", options)
+                .expect("failed to start third zip entry");
+            zip.write_all(b"junk-data")
+                .expect("failed to write third zip entry");
+
+            zip.finish().expect("failed to finish zip");
+        }
+
+        let loader = Loader::default();
+        let mut files = loader.discover_path(tmp.path()).expect("discovery failed");
+
+        files.sort_by(|a, b| a.name.cmp(&b.name));
+
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].name, "game.sfc");
+        assert_eq!(files[1].name, "readme.txt");
+    }
+
+    #[test]
+    fn discovers_cue_referenced_files_using_default_registry() {
+        let dir = tempfile::TempDir::new().expect("failed to create temp dir");
+        let cue_path = dir.path().join("game.cue");
+        let bin_path = dir.path().join("track01.bin");
+
+        std::fs::write(
+            &cue_path,
+            r#"
+    FILE "track01.bin" BINARY
+    TRACK 01 MODE1/2352
+        INDEX 01 00:00:00
+    "#,
+        )
+        .expect("failed to write cue file");
+
+        std::fs::write(&bin_path, b"fake-bin-data").expect("failed to write bin file");
+
+        let loader = Loader::default();
+        let files = loader.discover_path(&cue_path).expect("discovery failed");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "track01.bin");
+        assert_eq!(files[0].origin, bin_path);
+    }
+
+    #[test]
+    fn loads_game_image_from_cue() {
+        let dir = tempfile::TempDir::new().expect("failed to create temp dir");
+        let cue_path = dir.path().join("Ridge Racer.cue");
+        let bin_path = dir.path().join("track01.bin");
+
+        std::fs::write(
+            &cue_path,
+            r#"
+    FILE "track01.bin" BINARY
+    TRACK 01 MODE1/2352
+        INDEX 01 00:00:00
+    "#,
+        )
+        .expect("failed to write cue file");
+
+        std::fs::write(&bin_path, b"fake-bin-data").expect("failed to write bin file");
+
+        let loader = Loader::default();
+        let game = loader
+            .load_game_image(&cue_path, Platform::PlayStation)
+            .expect("game image load failed");
+
+        assert_eq!(game.title, "Ridge Racer");
+        assert_eq!(game.platform, Platform::PlayStation);
+        assert_eq!(game.discs.len(), 1);
+        assert_eq!(game.discs[0].tracks.len(), 1);
+        assert_eq!(game.discs[0].tracks[0].number, 1);
+        assert_eq!(game.discs[0].tracks[0].size, 13);
+    }
+
+    #[test]
+    fn returns_unsupported_format_for_non_cue_game_image_load() {
+        let tmp = tempfile::NamedTempFile::new().expect("failed to create temp file");
+        let loader = Loader::default();
+        let result = loader.load_game_image(tmp.path(), Platform::PlayStation);
+
+        assert!(matches!(result, Err(RetromountError::UnsupportedFormat)));
+    }
+
+    #[test]
+    fn returns_load_error_for_missing_cue_track_file() {
+        let dir = tempfile::TempDir::new().expect("failed to create temp dir");
+        let cue_path = dir.path().join("Broken Game.cue");
+
+        std::fs::write(
+            &cue_path,
+            r#" 
+    FILE "missing.bin" BINARY
+    TRACK 01 MODE1/2352
+        INDEX 01 00:00:00
+    "#,
+        )
+        .expect("failed to write cue file");
+
+        let loader = Loader::default();
+        let result = loader.load_game_image(&cue_path, Platform::PlayStation);
+
+        match result {
+            Ok(_) => panic!("expected load error"),
+            Err(RetromountError::LoadError(message)) => {
+                assert!(message.contains("No such file") || message.contains("cannot find"));
+            }
+            Err(other) => panic!("unexpected error: {:?}", other),
+        }
     }
 }
