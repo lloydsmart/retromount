@@ -1,196 +1,244 @@
-# Retromount
+# RetroMount
 
-**Retromount** is a modular FUSE-based filesystem that presents retro game archives in the formats emulators expect — without duplicating or converting your collection.
+![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)
+![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
-Instead of maintaining multiple copies of the same games in different formats, Retromount mounts **virtual views** of your library where files are translated on demand.
+> A virtual filesystem for retro game collections that dynamically transforms ROMs and disc images into emulator-friendly formats without duplicating files.
+
+RetroMount is an experimental Rust project for building a **virtual filesystem over retro game collections**.
+
+It allows ROMs, disc images, and archives to be **mounted into alternative filesystem layouts on-the-fly**, enabling different devices and emulators to view the same underlying collection in different formats without duplicating files.
+
+For example:
+
+- Present CHD images as ISO files
+- Extract ROMs from ZIP archives transparently
+- Convert disc images into emulator-friendly layouts
+- Provide platform-specific views for systems like MiSTer or Batocera
+
+The long-term goal is a flexible **input → transformation → output pipeline** backed by a FUSE filesystem.
+
+---
+
+# What Problem Does RetroMount Solve?
+
+Retro game collections are often stored in formats that are not ideal for every device or emulator.
+
+For example:
+
+| Storage format | Works well for | Problems |
+|----------------|---------------|----------|
+| ZIP archives | ROM management | Many emulators cannot read zipped files |
+| CHD images | Space-efficient storage | Some tools require ISO/BIN files |
+| CUE/BIN discs | Accurate disc representation | Some systems prefer CHD |
+| Raw ROM sets | Simple emulators | Hard to manage at scale |
+
+Traditionally, users solve this by **duplicating their collection in multiple formats**:
+
+```
+ROMs/
+  snes/
+    game.zip
+    game.sfc
+```
+
+or
+
+```
+PS1/
+  game.chd
+  game.iso
+```
+
+This wastes storage space and creates maintenance headaches.
+
+RetroMount solves this by providing a **virtual filesystem layer** that can dynamically transform game data into the format required by the target system.
 
 Example:
 
-| Stored on disk | Exposed to emulator |
-|----------------|---------------------|
-| `game.chd`     | `game.iso`          |
-| `rom.zip`      | `rom.sfc`           |
+```
+Storage (single copy)
+    │
+    ▼
+/roms/ps1/game.chd
+```
 
-The original files remain unchanged; Retromount performs the translation dynamically through a modular plugin system.
+RetroMount can present that same file as:
 
----
+```
+/mnt/mister/ps1/game.cue
+/mnt/batocera/ps1/game.chd
+/mnt/tools/ps1/game.iso
+```
 
-## Why Retromount?
-
-Retro collections are often stored in archival formats to save space or preserve integrity, but emulators frequently require different formats.
-
-Typical workflows involve:
-
-- batch converting files
-- extracting archives
-- maintaining duplicate libraries
-
-Retromount solves this by acting as a **translation layer between storage and emulators**, allowing collections to remain in their preferred archival format while still appearing exactly how software expects.
+All backed by **one underlying file**.
 
 ---
 
-## Key Features
+# Project Status
 
-- **FUSE-based virtual filesystem**
-- **On-demand format translation**
-- **Plugin-based translator architecture**
-- **Multiple simultaneous views of the same library**
-- **No duplicate storage required**
+RetroMount is under active development.
+
+Current development is focused on building the **core ingestion and discovery pipeline** before implementing the FUSE filesystem and output translators.
+
+### Completed (Phase 2)
+
+The project now supports:
+
+**Input discovery**
+
+- Directory sources
+- ZIP archives
+- Individual files
+- CUE/BIN disc images
+
+**Core models**
+
+- `VirtualFile` abstraction for discovered files
+- `Track`, `Disc`, and `GameImage` models for disc-based systems
+
+**Loader pipeline**
+
+- Input handler registry
+- Reader abstraction for accessing underlying data
+- Loader for discovering payload files or loading disc images
+
+**CUE support**
+
+- Parsing CUE sheets
+- Resolving referenced files
+- Track ordering and deduplication
+- Track size hydration from actual file metadata
+- Generation of `GameImage` objects for disc-based systems
+
+**Configuration**
+
+- YAML configuration file
+- Platform-aware views
+- Flexible platform parsing (`ps1`, `playstation`, etc.)
 
 ---
 
-## Core Concepts
+# Example Configuration
 
-Retromount separates three concepts:
+Create a file called `retromount.yaml`:
 
-### Storage
+```yaml
+- name: ps1
+  source: /roms/ps1/Ridge Racer.cue
+  mount: /mnt/retromount/ps1
+  platform: ps1
 
-Where the original files live.
+- name: snes
+  source: /roms/snes
+  mount: /mnt/retromount/snes
+  platform: snes
+
+- name: megadrive
+  source: /roms/megadrive
+  mount: /mnt/retromount/megadrive
+  platform: megadrive
+```
+
+Fields:
+
+| Field | Description |
+|------|-------------|
+| `name` | Logical name for the mounted view |
+| `source` | Source directory, archive, or disc image |
+| `mount` | Mount point for the virtual filesystem |
+| `platform` | Target platform (e.g. `ps1`, `snes`, `megadrive`) |
+
+Platform names are **case-insensitive** and accept friendly aliases.
+
+---
+
+# Architecture Overview
+
+The ingestion pipeline currently looks like this:
+
+```
+Input Source
+     │
+     ▼
+InputHandler
+     │
+     ▼
+InputRegistry
+     │
+     ▼
+Loader
+     │
+ ┌───┴───────────────┐
+ │                   │
+ ▼                   ▼
+VirtualFile list     GameImage
+(file-oriented)      (disc-oriented)
+```
+
+### Input handlers
+
+Input handlers are responsible for discovering files from a source.
 
 Examples:
 
-- CHD archives
-- ZIP ROM sets
-- raw disc images
+- `DirectoryInputHandler`
+- `ZipInputHandler`
+- `FileInputHandler`
+- `CueInputHandler`
 
-### Translators
+### Readers
 
-Modules that convert between formats.
+Readers provide access to underlying data streams:
 
-Examples:
+- `DirReader`
+- `ZipReader`
 
-```
-CHD → ISO
-ZIP → ROM
-BIN/CUE → ISO
-```
+### Core models
 
-### Views
-
-A mounted filesystem that exposes translated files.
-
-Example configuration:
-
-```yaml
-- name: ps2
-  source: /roms/ps2_chd
-  mount: /mnt/ps2_iso
-  translator: chd_to_iso
-```
-
-This would allow:
+Disc-based systems use structured models:
 
 ```
-/roms/ps2_chd/game.chd
+GameImage
+ └─ Disc
+     └─ Track
 ```
 
-to appear as:
-
-```
-/mnt/ps2_iso/game.iso
-```
+This enables accurate representation of multi-track disc formats.
 
 ---
 
-## Architecture
+# Filtering
 
-Retromount is designed around a **modular plugin architecture**.
+RetroMount only removes **universally unwanted junk files** during discovery:
 
-```
-           +---------------------+
-           |  Emulator / Client  |
-           +----------+----------+
-                      |
-                      v
-                FUSE Filesystem
-                      |
-          +-----------+------------+
-          |                        |
-     Translators              Config Engine
-          |
-          v
-     Source Storage
-```
+- `__MACOSX/`
+- `.DS_Store`
+- `Thumbs.db`
 
-Future translators may include:
+Other sidecar files such as `.nfo`, `.txt`, or cover art are preserved.
 
-- CHD → ISO
-- ZIP → ROM extraction
-- archive passthrough
-- format normalization
-- emulator-specific views
+Output-specific filtering will be implemented in the **view/output layer** in a later phase.
 
 ---
 
-## Status
+# Roadmap
 
-⚠ **Early development**
+### Phase 3 (next)
 
-Retromount is currently in the **initial scaffolding stage**.
+Planned work:
 
-Planned milestones:
-
-1. Core configuration system
-2. Basic FUSE filesystem
-3. Translator plugin interface
-4. First translator: **CHD → ISO**
-5. Multi-view support
-6. Performance optimisation
-
----
-
-## Building
-
-Requirements:
-
-- Rust (stable)
-- libfuse development libraries
-
-Ubuntu / Debian:
-
-```bash
-sudo apt install libfuse-dev
-```
-
-Build:
-
-```bash
-cargo build
-```
-
-Run:
-
-```bash
-cargo run
-```
+- Output translator system
+- View policies for different platforms
+- FUSE filesystem integration
+- Disc format translators (e.g. CHD → ISO)
+- Output policies for targets like:
+  - MiSTer
+  - Batocera
+  - RetroNAS
 
 ---
 
-## Example Configuration
-
-`retromount.yaml`
-
-```yaml
-- name: ps2
-  source: /roms/ps2_chd
-  mount: /mnt/ps2_iso
-  translator: chd_to_iso
-```
-
----
-
-## Goals
-
-Retromount aims to:
-
-- eliminate duplicate ROM storage
-- support large retro collections
-- integrate cleanly with emulators
-- support multiple output formats simultaneously
-- remain lightweight and fast
-
----
-
-## License
+# License
 
 GPL-3.0

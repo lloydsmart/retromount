@@ -1,7 +1,7 @@
 # Example RetroMount configuration
 #
 # Copy this file to `retromount.yaml` and adjust paths for your system.
-# platform must match a value in the Platform enum
+# platform accepts friendly names like ps1, snes, megadrive, playstation, etc.
 
 - name: ps1
   source: /roms/ps1/Ridge Racer.cue
