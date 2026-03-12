@@ -16,7 +16,7 @@ serde_yaml = "0.9"
 log = "0.4"
 env_logger = "0.11.9"
 thiserror = "2.0"  # For custom error types
-zip = "2"
+zip = "8"
 
 [target.'cfg(unix)'.dependencies]
 fuse = "0.3.1"
