@@ -17,7 +17,7 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
         with:
@@ -29,7 +29,7 @@ jobs:
         with:
           version: v0.10.0
 
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+      - uses: Swatinem/rust-cache@c676846f29d98ff6b0106d3608c7ffd4048af17b # v2.9.0
         with:
           shared-key: "retromount-lint"
 
@@ -59,7 +59,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
         with:
@@ -70,7 +70,7 @@ jobs:
         with:
           version: v0.10.0
 
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+      - uses: Swatinem/rust-cache@c676846f29d98ff6b0106d3608c7ffd4048af17b # v2.9.0
         with:
           shared-key: "retromount-test-${{ matrix.os }}"
 
@@ -100,7 +100,7 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
         with:
@@ -111,7 +111,7 @@ jobs:
         with:
           version: v0.10.0
 
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+      - uses: Swatinem/rust-cache@c676846f29d98ff6b0106d3608c7ffd4048af17b # v2.9.0
         with:
           shared-key: "retromount-release"
 
@@ -128,7 +128,7 @@ jobs:
         run: cargo deb --no-build
 
       - name: Upload Debian artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: retromount-deb
           path: target/debian/*.deb
