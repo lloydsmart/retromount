@@ -9,7 +9,7 @@ pub struct ZipReader {
     entry_name: String,
     size: u64,
     is_stored: bool,
-    data_start: u64,
+    data_start: Option<u64>,
 }
 
 impl ZipReader {
@@ -38,8 +38,18 @@ impl Reader for ZipReader {
         }
 
         if self.is_stored {
+            let data_start = self.data_start.ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "ZIP entry '{}' does not expose a data start offset",
+                        self.entry_name
+                    ),
+                )
+            })?;
+
             let mut file = File::open(&self.archive_path)?;
-            file.seek(SeekFrom::Start(self.data_start + offset))?;
+            file.seek(SeekFrom::Start(data_start + offset))?;
             return file.read(buf);
         }
 
