@@ -7,6 +7,7 @@ use crate::core::game_image::GameImage;
 use crate::core::input_registry::InputRegistry;
 use crate::core::payload_filter::filter_payload_files;
 use crate::core::platform::Platform;
+use crate::core::track::TrackSource;
 use crate::core::virtual_file::VirtualFile;
 use crate::error::RetromountError;
 
@@ -31,6 +32,28 @@ impl Loader {
         Ok(filter_payload_files(files))
     }
 
+    fn hydrate_game_image_track_sizes(
+        &self,
+        mut game: GameImage,
+    ) -> Result<GameImage, RetromountError> {
+        for disc in &mut game.discs {
+            for track in &mut disc.tracks {
+                match &track.source {
+                    TrackSource::File(path) => {
+                        let metadata = fs::metadata(path)
+                            .map_err(|err| RetromountError::LoadError(err.to_string()))?;
+                        track.size = metadata.len();
+                    }
+                    TrackSource::OffsetFile { length, .. } => {
+                        track.size = *length;
+                    }
+                }
+            }
+        }
+
+        Ok(game)
+    }
+
     pub fn load_game_image(
         &self,
         path: &Path,
@@ -42,8 +65,8 @@ impl Loader {
         {
             let cue_text = fs::read_to_string(path)
                 .map_err(|err| RetromountError::LoadError(err.to_string()))?;
-
-            return Ok(cue_to_game_image(path, &cue_text, 1, platform));
+            let game = cue_to_game_image(path, &cue_text, 1, platform);
+            return self.hydrate_game_image_track_sizes(game);
         }
 
         Err(RetromountError::UnsupportedFormat)
@@ -68,7 +91,6 @@ mod tests {
         let mut tmp = NamedTempFile::new().expect("failed to create temp file");
         tmp.write_all(b"retromount")
             .expect("failed to write test data");
-
         let loader = Loader::default();
         let files = loader.discover_path(tmp.path()).expect("discovery failed");
 
@@ -95,7 +117,6 @@ mod tests {
             .suffix(".zip")
             .tempfile()
             .expect("failed to create temp zip");
-
         {
             let mut zip = zip::ZipWriter::new(&mut tmp);
             let options = SimpleFileOptions::default();
@@ -140,7 +161,6 @@ mod tests {
             .suffix(".zip")
             .tempfile()
             .expect("failed to create temp zip");
-
         {
             let mut zip = zip::ZipWriter::new(&mut tmp);
             let options = zip::write::SimpleFileOptions::default();
@@ -173,7 +193,6 @@ mod tests {
     #[test]
     fn discovers_cue_referenced_files_using_default_registry() {
         let dir = tempfile::TempDir::new().expect("failed to create temp dir");
-
         let cue_path = dir.path().join("game.cue");
         let bin_path = dir.path().join("track01.bin");
 
@@ -200,7 +219,6 @@ mod tests {
     #[test]
     fn loads_game_image_from_cue() {
         let dir = tempfile::TempDir::new().expect("failed to create temp dir");
-
         let cue_path = dir.path().join("Ridge Racer.cue");
         let bin_path = dir.path().join("track01.bin");
 
@@ -226,15 +244,42 @@ mod tests {
         assert_eq!(game.discs.len(), 1);
         assert_eq!(game.discs[0].tracks.len(), 1);
         assert_eq!(game.discs[0].tracks[0].number, 1);
+        assert_eq!(game.discs[0].tracks[0].size, 13);
     }
 
     #[test]
     fn returns_unsupported_format_for_non_cue_game_image_load() {
         let tmp = tempfile::NamedTempFile::new().expect("failed to create temp file");
-
         let loader = Loader::default();
         let result = loader.load_game_image(tmp.path(), Platform::PlayStation);
 
         assert!(matches!(result, Err(RetromountError::UnsupportedFormat)));
+    }
+
+    #[test]
+    fn returns_load_error_for_missing_cue_track_file() {
+        let dir = tempfile::TempDir::new().expect("failed to create temp dir");
+        let cue_path = dir.path().join("Broken Game.cue");
+
+        std::fs::write(
+            &cue_path,
+            r#" 
+    FILE "missing.bin" BINARY
+    TRACK 01 MODE1/2352
+        INDEX 01 00:00:00
+    "#,
+        )
+        .expect("failed to write cue file");
+
+        let loader = Loader::default();
+        let result = loader.load_game_image(&cue_path, Platform::PlayStation);
+
+        match result {
+            Ok(_) => panic!("expected load error"),
+            Err(RetromountError::LoadError(message)) => {
+                assert!(message.contains("No such file") || message.contains("cannot find"));
+            }
+            Err(other) => panic!("unexpected error: {:?}", other),
+        }
     }
 }
