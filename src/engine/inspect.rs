@@ -13,6 +13,7 @@ use super::preview::{build_input_source, write_vfs_tree};
 
 pub fn run_phase3_inspect(path: &Path) -> Result<(), RetromountError> {
     let source = build_input_source(path)?;
+    let kind = source.kind();
 
     let identifier = BasicInputIdentifier::new();
     let decoder = BasicInputDecoder::new();
@@ -23,7 +24,7 @@ pub fn run_phase3_inspect(path: &Path) -> Result<(), RetromountError> {
     let stdout = io::stdout();
     let mut handle = stdout.lock();
 
-    write_inspect_report(&mut handle, path, &trace)?;
+    write_inspect_report(&mut handle, path, kind.as_str(), &trace)?;
 
     Ok(())
 }
@@ -31,10 +32,12 @@ pub fn run_phase3_inspect(path: &Path) -> Result<(), RetromountError> {
 pub fn write_inspect_report<W: Write>(
     writer: &mut W,
     path: &Path,
+    input_kind: &str,
     trace: &PipelineTrace,
 ) -> io::Result<()> {
     writeln!(writer, "Input:")?;
     writeln!(writer, "  Path: {}", path.display())?;
+    writeln!(writer, "  Type: {}", input_kind)?;
     writeln!(writer, "  Objects: {}", trace.objects.len())?;
     writeln!(writer)?;
 
@@ -138,12 +141,13 @@ mod tests {
         };
 
         let mut output = Vec::new();
-        write_inspect_report(&mut output, Path::new("/tmp/library.zip"), &trace).unwrap();
+        write_inspect_report(&mut output, Path::new("/tmp/library.zip"), "Zip", &trace).unwrap();
 
         let rendered = String::from_utf8(output).unwrap();
 
         assert!(rendered.contains("Input:"));
         assert!(rendered.contains("Path: /tmp/library.zip"));
+        assert!(rendered.contains("Type: Zip"));
         assert!(rendered.contains("Objects: 1"));
         assert!(rendered.contains("Decoded:"));
         assert!(rendered.contains("Identity: File"));
