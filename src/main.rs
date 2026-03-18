@@ -17,7 +17,7 @@ fn main() -> Result<(), RetromountError> {
             run_phase3_preview(&path)
         }
         _ => Err(RetromountError::LoadError(
-            "usage: retromount [phase3-preview <path>]".to_string(),
+            "usage:\n  retromount\n  retromount phase3-preview <path>".to_string(),
         )),
     }
 }
