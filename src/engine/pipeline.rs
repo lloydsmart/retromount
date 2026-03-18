@@ -74,7 +74,6 @@ mod tests {
     use super::*;
     use std::fs;
 
-    use crate::core::content::ContentKind;
     use crate::input::basic_decoder::BasicInputDecoder;
     use crate::input::basic_identifier::BasicInputIdentifier;
     use crate::input::directory_source::DirectoryInputSource;
