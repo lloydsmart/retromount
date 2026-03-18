@@ -95,10 +95,7 @@ mod tests {
         write_vfs_tree(&mut output, &root).unwrap();
 
         let rendered = String::from_utf8(output).unwrap();
-        assert_eq!(
-            rendered,
-            "/\n  mario.sfc\n  readme.txt\n  blob.dat.bin\n"
-        );
+        assert_eq!(rendered, "/\n  mario.sfc\n  readme.txt\n  blob.dat.bin\n");
     }
 
     #[test]
