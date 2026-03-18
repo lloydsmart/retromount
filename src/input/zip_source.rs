@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::core::source::{SourceObject, SourceRef};
-use crate::input::source::InputSource;
+use crate::input::source::{InputSource, InputSourceKind};
 
 #[derive(Debug, Clone)]
 pub struct ZipInputSource {
@@ -23,6 +23,10 @@ impl ZipInputSource {
 }
 
 impl InputSource for ZipInputSource {
+    fn kind(&self) -> InputSourceKind {
+        InputSourceKind::Zip
+    }
+
     fn enumerate(&self) -> Result<Vec<SourceObject>, io::Error> {
         let file = File::open(&self.archive_path)?;
         let mut archive = zip::ZipArchive::new(file)
@@ -84,6 +88,16 @@ mod tests {
         zip.add_directory("empty_dir/", options).unwrap();
 
         zip.finish().unwrap();
+    }
+
+    #[test]
+    fn reports_zip_kind() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let zip_path = temp_dir.path().join("test.zip");
+        create_test_zip(&zip_path);
+
+        let source = ZipInputSource::new(&zip_path);
+        assert_eq!(source.kind(), InputSourceKind::Zip);
     }
 
     #[test]
