@@ -25,8 +25,8 @@ impl ZipInputSource {
 impl InputSource for ZipInputSource {
     fn enumerate(&self) -> Result<Vec<SourceObject>, io::Error> {
         let file = File::open(&self.archive_path)?;
-        let mut archive =
-            zip::ZipArchive::new(file).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        let mut archive = zip::ZipArchive::new(file)
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
 
         let mut objects = Vec::new();
 
