@@ -40,7 +40,7 @@ impl InputDecoder for BasicInputDecoder {
 
         let content = match identity {
             InputIdentity::Text => Content::Text(TextContent {
-                id,
+                id: ContentId::new(file_stem_or_name(path, &object.name)),
                 source: object.source.clone(),
                 size: metadata.len(),
             }),
