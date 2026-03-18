@@ -44,7 +44,9 @@ impl OutputEncoder for BasicEncoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::content::{BytesContent, Content, ContentId, DiscContent, RomContent, TextContent};
+    use crate::core::content::{
+        BytesContent, Content, ContentId, DiscContent, RomContent, TextContent,
+    };
     use crate::core::source::SourceRef;
 
     #[test]

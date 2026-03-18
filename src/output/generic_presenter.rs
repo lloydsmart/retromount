@@ -28,9 +28,10 @@ where
             .iter()
             .filter(|item| self.encoder.can_encode(item))
             .filter_map(|item| {
-                self.encoder.encode(item).ok().map(|encoded| {
-                    VfsNode::File(VfsFile::new(encoded.name, encoded.size))
-                })
+                self.encoder
+                    .encode(item)
+                    .ok()
+                    .map(|encoded| VfsNode::File(VfsFile::new(encoded.name, encoded.size)))
             })
             .collect();
 
@@ -41,7 +42,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::content::{BytesContent, Content, ContentId, DiscContent, RomContent, TextContent};
+    use crate::core::content::{
+        BytesContent, Content, ContentId, DiscContent, RomContent, TextContent,
+    };
     use crate::core::source::SourceRef;
     use crate::output::basic_encoder::BasicEncoder;
 
