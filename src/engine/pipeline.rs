@@ -151,7 +151,12 @@ mod tests {
 
         assert_eq!(trace.objects.len(), 3);
 
-        let names: Vec<&str> = trace.presented.children.iter().map(|node| node.name()).collect();
+        let names: Vec<&str> = trace
+            .presented
+            .children
+            .iter()
+            .map(|node| node.name())
+            .collect();
         assert_eq!(names, vec!["blob.dat.bin", "mario.sfc", "readme.txt"]);
 
         assert_eq!(trace.objects[0].object.name, "blob.dat");
@@ -207,7 +212,12 @@ mod tests {
 
         assert_eq!(trace.objects.len(), 3);
 
-        let names: Vec<&str> = trace.presented.children.iter().map(|node| node.name()).collect();
+        let names: Vec<&str> = trace
+            .presented
+            .children
+            .iter()
+            .map(|node| node.name())
+            .collect();
         assert_eq!(names, vec!["blob.dat.bin", "readme.txt", "sonic.bin"]);
 
         assert_eq!(trace.objects[0].object.name, "blob.dat");
