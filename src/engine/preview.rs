@@ -29,7 +29,7 @@ pub fn run_phase3_preview(path: &Path) -> Result<(), RetromountError> {
     Ok(())
 }
 
-fn build_input_source(path: &Path) -> Result<Box<dyn InputSource>, RetromountError> {
+pub fn build_input_source(path: &Path) -> Result<Box<dyn InputSource>, RetromountError> {
     if path.is_dir() {
         return Ok(Box::new(DirectoryInputSource::new(path)));
     }
