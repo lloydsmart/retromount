@@ -23,9 +23,10 @@ impl InputIdentifier for BasicInputIdentifier {
 
         let identity = match path.extension().and_then(|ext| ext.to_str()) {
             Some(ext) if ext.eq_ignore_ascii_case("cue") => InputIdentity::DiscImage,
-            Some(ext) if ext.eq_ignore_ascii_case("txt")
-                || ext.eq_ignore_ascii_case("md")
-                || ext.eq_ignore_ascii_case("nfo") =>
+            Some(ext)
+                if ext.eq_ignore_ascii_case("txt")
+                    || ext.eq_ignore_ascii_case("md")
+                    || ext.eq_ignore_ascii_case("nfo") =>
             {
                 InputIdentity::Text
             }
