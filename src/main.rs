@@ -2,11 +2,27 @@ use log::{debug, info};
 use std::path::PathBuf;
 
 use retromount::engine::loader::Loader;
+use retromount::engine::preview::run_phase3_preview;
 use retromount::{RetromountError, ViewConfig};
 
 fn main() -> Result<(), RetromountError> {
     env_logger::init();
 
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+
+    match args.as_slice() {
+        [] => run_configured_views(),
+        [command, path] if command.to_string_lossy() == "phase3-preview" => {
+            let path = PathBuf::from(path);
+            run_phase3_preview(&path)
+        }
+        _ => Err(RetromountError::LoadError(
+            "usage:\n  retromount\n  retromount phase3-preview <path>".to_string(),
+        )),
+    }
+}
+
+fn run_configured_views() -> Result<(), RetromountError> {
     let config_path = PathBuf::from("retromount.yaml");
     debug!("Loading config from: {:?}", config_path);
 
