@@ -54,4 +54,40 @@ mod tests {
         let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["blob.dat.bin", "mario.sfc", "readme.txt"]);
     }
+
+    #[test]
+    fn runs_end_to_end_zip_pipeline() {
+        use std::fs::File;
+        use std::io::Write;
+
+        use crate::input::zip_source::ZipInputSource;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let zip_path = temp_dir.path().join("library.zip");
+
+        let file = File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+
+        zip.start_file("roms/sonic.bin", options).unwrap();
+        zip.write_all(b"rom").unwrap();
+
+        zip.start_file("docs/readme.txt", options).unwrap();
+        zip.write_all(b"hello").unwrap();
+
+        zip.start_file("misc/blob.dat", options).unwrap();
+        zip.write_all(b"xyz").unwrap();
+
+        zip.finish().unwrap();
+
+        let source = ZipInputSource::new(&zip_path);
+        let identifier = BasicInputIdentifier::new();
+        let decoder = BasicInputDecoder::new();
+        let presenter = GenericPresenter::new(BasicEncoder::new());
+
+        let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
+
+        let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["blob.dat.bin", "readme.txt", "sonic.bin"]);
+    }
 }
