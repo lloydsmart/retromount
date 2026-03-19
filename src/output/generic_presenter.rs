@@ -89,7 +89,7 @@ mod tests {
             vec![
                 "bios.bin",
                 "Sonic the Hedgehog.bin",
-                "Metal Gear Solid (Disc 1).cue",
+                "Final Fantasy VII (Disc 1).cue",
                 "manifest.txt",
             ]
         );
