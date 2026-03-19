@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum VfsNode {
     Directory(VfsDirectory),
     File(VfsFile),
@@ -13,7 +15,7 @@ impl VfsNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VfsDirectory {
     pub name: String,
     pub children: Vec<VfsNode>,
@@ -35,7 +37,7 @@ impl VfsDirectory {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VfsFile {
     pub name: String,
     pub size: u64,

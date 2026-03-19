@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::core::source::{SourceObject, SourceRef};
-use crate::input::source::InputSource;
+use crate::input::source::{InputSource, InputSourceKind};
 
 #[derive(Debug, Clone)]
 pub struct DirectoryInputSource {
@@ -21,6 +21,10 @@ impl DirectoryInputSource {
 }
 
 impl InputSource for DirectoryInputSource {
+    fn kind(&self) -> InputSourceKind {
+        InputSourceKind::Directory
+    }
+
     fn enumerate(&self) -> Result<Vec<SourceObject>, io::Error> {
         let mut objects = Vec::new();
 
@@ -45,6 +49,14 @@ impl InputSource for DirectoryInputSource {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn reports_directory_kind() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let source = DirectoryInputSource::new(temp_dir.path());
+
+        assert_eq!(source.kind(), InputSourceKind::Directory);
+    }
 
     #[test]
     fn enumerates_regular_files_in_directory() {

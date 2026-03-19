@@ -1,6 +1,7 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
+use retromount::engine::inspect::run_phase3_inspect;
 use retromount::engine::loader::Loader;
 use retromount::engine::preview::run_phase3_preview;
 use retromount::{RetromountError, ViewConfig};
@@ -16,8 +17,20 @@ fn main() -> Result<(), RetromountError> {
             let path = PathBuf::from(path);
             run_phase3_preview(&path)
         }
+        [command, path] if command.to_string_lossy() == "inspect" => {
+            let path = PathBuf::from(path);
+            run_phase3_inspect(&path, false)
+        }
+        [command, path, flag]
+            if command.to_string_lossy() == "inspect"
+                && flag.to_string_lossy() == "--json" =>
+        {
+            let path = PathBuf::from(path);
+            run_phase3_inspect(&path, true)
+        }
         _ => Err(RetromountError::LoadError(
-            "usage:\n  retromount\n  retromount phase3-preview <path>".to_string(),
+            "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path> [--json]"
+                .to_string(),
         )),
     }
 }

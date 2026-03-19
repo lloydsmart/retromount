@@ -1,9 +1,10 @@
+use serde::Serialize;
 use std::fmt;
 use std::sync::Arc;
 
 use crate::core::source::SourceRef;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum ContentKind {
     Bytes,
     Rom,
@@ -11,7 +12,7 @@ pub enum ContentKind {
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ContentId(pub Arc<str>);
 
 impl ContentId {
@@ -26,7 +27,7 @@ impl fmt::Display for ContentId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum Content {
     Bytes(BytesContent),
     Rom(RomContent),
@@ -54,14 +55,14 @@ impl Content {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BytesContent {
     pub id: ContentId,
     pub source: SourceRef,
     pub size: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RomContent {
     pub id: ContentId,
     pub source: SourceRef,
@@ -69,7 +70,7 @@ pub struct RomContent {
     pub size: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DiscContent {
     pub id: ContentId,
     pub source: SourceRef,
@@ -77,7 +78,7 @@ pub struct DiscContent {
     pub disc_number: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TextContent {
     pub id: ContentId,
     pub source: SourceRef,
