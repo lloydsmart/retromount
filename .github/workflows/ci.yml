@@ -16,7 +16,6 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     env:
-      RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
 
     steps:
@@ -38,9 +37,13 @@ jobs:
           fi
 
       - name: Check formatting
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo fmt --all -- --check
 
       - name: Lint with Clippy
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
       - name: sccache stats
@@ -51,7 +54,6 @@ jobs:
     needs: lint
     runs-on: ${{ matrix.os }}
     env:
-      RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
 
     strategy:
@@ -78,6 +80,8 @@ jobs:
           fi
 
       - name: Run tests
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo test --locked --all-targets --all-features --verbose
 
       - name: sccache stats
@@ -88,7 +92,6 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     env:
-      RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
 
     steps:
@@ -109,6 +112,8 @@ jobs:
           fi
 
       - name: Build release binary
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo build --locked --release --all-features --verbose
 
       - name: sccache stats
@@ -120,7 +125,6 @@ jobs:
     needs: [test, build-release-linux]
     runs-on: ubuntu-latest
     env:
-      RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: "true"
 
     steps:
@@ -148,9 +152,13 @@ jobs:
           locked: true
 
       - name: Build release binary
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo build --locked --release --all-features --verbose
 
       - name: Build Debian package
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo deb --no-build
 
       - name: Upload Debian artifact
