@@ -55,6 +55,14 @@ jobs:
           RUSTC_WRAPPER: sccache
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
+      - name: Upload Linux debug target artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: target-debug-linux
+          path: target
+          if-no-files-found: error
+          retention-days: 1
+
       - name: sccache stats
         if: always()
         run: sccache --show-stats
@@ -95,6 +103,13 @@ jobs:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '')
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '')
+
+      - name: Download Linux debug target artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/download-artifact@v7
+        with:
+          name: target-debug-linux
+          path: target
 
       - name: Run tests
         env:
@@ -142,6 +157,14 @@ jobs:
           RUSTC_WRAPPER: sccache
         run: cargo build --locked --release --all-features --verbose
 
+      - name: Upload Linux release target artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: target-release-linux
+          path: target
+          if-no-files-found: error
+          retention-days: 1
+
       - name: sccache stats
         if: always()
         run: sccache --show-stats
@@ -186,10 +209,11 @@ jobs:
           version: "^2"
           locked: true
 
-      - name: Build release binary
-        env:
-          RUSTC_WRAPPER: sccache
-        run: cargo build --locked --release --all-features --verbose
+      - name: Download Linux release target artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: target-release-linux
+          path: target
 
       - name: Build Debian package
         env:
@@ -206,4 +230,3 @@ jobs:
       - name: sccache stats
         if: always()
         run: sccache --show-stats
-        
