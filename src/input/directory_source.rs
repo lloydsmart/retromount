@@ -34,11 +34,13 @@ impl DirectoryInputSource {
             }
 
             if path.is_file() {
-                let name = path
-                    .strip_prefix(root)
-                    .unwrap_or(&path)
-                    .to_string_lossy()
-                    .into_owned();
+                let relative = path.strip_prefix(root).unwrap_or(&path);
+
+                let name = relative
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/");
 
                 let source = SourceRef::new(path.to_string_lossy().into_owned());
 
