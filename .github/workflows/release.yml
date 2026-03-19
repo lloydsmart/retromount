@@ -19,16 +19,17 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_ENABLED: "on"
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
 
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
+      - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
         with:
           shared-key: "retromount-release"
 
@@ -37,6 +38,13 @@ jobs:
           if ! command -v sccache >/dev/null 2>&1; then
             cargo install sccache --locked
           fi
+
+      - name: Configure sccache
+        uses: actions/github-script@v8
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '')
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '')
 
       - name: Install cargo-deb
         uses: baptiste0928/cargo-install@v3
