@@ -31,11 +31,12 @@ jobs:
         with:
           shared-key: "retromount-lint"
 
-      - name: Ensure sccache is installed
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            cargo install sccache --locked
-          fi
+      - name: Install sccache
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: sccache
+          version: "^0.10"
+          locked: true
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -81,12 +82,12 @@ jobs:
         with:
           shared-key: "retromount-test-${{ matrix.os }}"
 
-      - name: Ensure sccache is installed
-        shell: bash
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            cargo install sccache --locked
-          fi
+      - name: Install sccache
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: sccache
+          version: "^0.10"
+          locked: true
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -122,11 +123,12 @@ jobs:
         with:
           shared-key: "retromount-release-linux"
 
-      - name: Ensure sccache is installed
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            cargo install sccache --locked
-          fi
+      - name: Install sccache
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: sccache
+          version: "^0.10"
+          locked: true
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -163,11 +165,12 @@ jobs:
         with:
           shared-key: "retromount-package-deb"
 
-      - name: Ensure sccache is installed
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            cargo install sccache --locked
-          fi
+      - name: Install sccache
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: sccache
+          version: "^0.10"
+          locked: true
 
       - name: Configure sccache
         uses: actions/github-script@v8
