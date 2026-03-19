@@ -51,6 +51,7 @@ jobs:
         with:
           crate: cargo-deb
           version: "^2"
+          locked: false
 
       - name: Build release
         env:

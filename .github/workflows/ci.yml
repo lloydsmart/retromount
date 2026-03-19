@@ -36,6 +36,7 @@ jobs:
         with:
           crate: sccache
           version: "0.14.0"
+          locked: false
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -86,6 +87,7 @@ jobs:
         with:
           crate: sccache
           version: "0.14.0"
+          locked: false
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -126,6 +128,7 @@ jobs:
         with:
           crate: sccache
           version: "0.14.0"
+          locked: false
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -175,6 +178,7 @@ jobs:
         with:
           crate: sccache
           version: "0.14.0"
+          locked: false
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -188,6 +192,7 @@ jobs:
         with:
           crate: cargo-deb
           version: "^2"
+          locked: false
 
       - name: Download Linux release target artifacts
         uses: actions/download-artifact@v7
