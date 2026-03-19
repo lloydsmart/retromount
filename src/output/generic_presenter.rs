@@ -70,7 +70,7 @@ mod tests {
                 title: "Final Fantasy VII".to_string(),
                 disc_number: 1,
                 consumed_sources: vec![SourceRef::new("cue:/roms/ff7.bin")],
-            })
+            }),
             Content::Text(TextContent {
                 id: ContentId::new("manifest"),
                 source: SourceRef::new("file:/roms/manifest"),
