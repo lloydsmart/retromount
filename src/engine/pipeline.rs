@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::core::content::{Content, ContentKind};
+use crate::core::content::Content;
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
 use crate::input::decode::InputDecoder;
@@ -75,6 +75,7 @@ mod tests {
     use super::*;
     use std::fs;
 
+    use crate::core::content::ContentKind;
     use crate::input::basic_decoder::BasicInputDecoder;
     use crate::input::basic_identifier::BasicInputIdentifier;
     use crate::input::directory_source::DirectoryInputSource;
