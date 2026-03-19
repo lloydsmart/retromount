@@ -86,6 +86,7 @@ mod tests {
             source: SourceRef::new("cue:/roms/ff7.cue"),
             title: "Final Fantasy VII".to_string(),
             disc_number: 1,
+            consumed_sources: vec![SourceRef::new("cue:/roms/ff7.bin")],
         });
 
         let encoded = encoder.encode(&content).unwrap();
