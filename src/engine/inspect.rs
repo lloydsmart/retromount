@@ -11,15 +11,22 @@ use crate::output::generic_presenter::GenericPresenter;
 use super::pipeline::{run_pipeline_with_trace, PipelineTrace};
 use super::preview::{build_input_source, write_vfs_tree};
 
-pub fn run_phase3_inspect(path: &Path) -> Result<(), RetromountError> {
+pub fn run_phase3_inspect(path: &Path, json: bool) -> Result<(), RetromountError> {
     let source = build_input_source(path)?;
     let kind = source.kind();
 
     let identifier = BasicInputIdentifier::new();
     let decoder = BasicInputDecoder::new();
     let presenter = GenericPresenter::new(BasicEncoder::new());
-
+    
     let trace = run_pipeline_with_trace(source.as_ref(), &identifier, &decoder, &presenter)?;
+
+    if json {
+        let output = serde_json::to_string_pretty(&trace)
+            .map_err(|err| RetromountError::LoadError(err.to_string()))?;
+        println!("{output}");
+        return Ok(());
+    }
 
     let stdout = io::stdout();
     let mut handle = stdout.lock();
