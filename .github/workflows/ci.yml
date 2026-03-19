@@ -192,7 +192,6 @@ jobs:
         with:
           crate: cargo-deb
           version: "^2"
-          locked: true
 
       - name: Download Linux release target artifacts
         uses: actions/download-artifact@v7
