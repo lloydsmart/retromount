@@ -7,14 +7,15 @@ use crate::input::decode::InputDecoder;
 use crate::input::identify::{InputIdentifier, InputIdentity};
 use crate::input::source::InputSource;
 use crate::output::present::OutputPresenter;
+use serde::Serialize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PipelineTrace {
     pub objects: Vec<TracedObject>,
     pub presented: VfsDirectory,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TracedObject {
     pub object: SourceObject,
     pub identity: InputIdentity,
