@@ -25,6 +25,10 @@ impl InputSource for DirectoryInputSource {
         InputSourceKind::Directory
     }
 
+    fn kind(&self) -> InputSourceKind {
+        InputSourceKind::Directory
+    }
+
     fn enumerate(&self) -> Result<Vec<SourceObject>, io::Error> {
         let mut objects = Vec::new();
 
@@ -70,5 +74,13 @@ mod tests {
 
         let names: Vec<&str> = objects.iter().map(|o| o.name.as_str()).collect();
         assert_eq!(names, vec!["a.bin", "b.txt"]);
+    }
+
+    #[test]
+    fn reports_directory_kind() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let source = DirectoryInputSource::new(temp_dir.path());
+
+        assert_eq!(source.kind(), InputSourceKind::Directory);
     }
 }

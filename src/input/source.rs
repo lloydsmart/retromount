@@ -1,6 +1,7 @@
 use crate::core::source::SourceObject;
+use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum InputSourceKind {
     Directory,
     Zip,
