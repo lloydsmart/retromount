@@ -27,14 +27,15 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-        with:
-          version: v0.10.0
-
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           shared-key: "retromount-lint"
+
+      - name: Ensure sccache is installed
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            cargo install sccache --locked
+          fi
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -65,14 +66,16 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-        with:
-          version: v0.10.0
-
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           shared-key: "retromount-test-${{ matrix.os }}"
+
+      - name: Ensure sccache is installed
+        shell: bash
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            cargo install sccache --locked
+          fi
 
       - name: Build (debug)
         run: cargo build --locked --all-targets --all-features --verbose
@@ -102,14 +105,15 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-        with:
-          version: v0.10.0
-
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           shared-key: "retromount-release"
+
+      - name: Ensure sccache is installed
+        run: |
+          if ! command -v sccache >/dev/null 2>&1; then
+            cargo install sccache --locked
+          fi
 
       - name: Install packaging dependencies
         run: cargo install cargo-deb --locked
