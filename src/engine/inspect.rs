@@ -18,7 +18,7 @@ pub fn run_phase3_inspect(path: &Path, json: bool) -> Result<(), RetromountError
     let identifier = BasicInputIdentifier::new();
     let decoder = BasicInputDecoder::new();
     let presenter = GenericPresenter::new(BasicEncoder::new());
-    
+
     let trace = run_pipeline_with_trace(source.as_ref(), &identifier, &decoder, &presenter)?;
 
     if json {

@@ -1,5 +1,5 @@
-use serde::Serialize;
 use crate::core::source::SourceObject;
+use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum InputIdentity {
