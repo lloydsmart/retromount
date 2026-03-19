@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io;
 
 use crate::core::content::Content;
@@ -62,12 +63,26 @@ pub fn run_pipeline_with_trace(
         });
     }
 
-    let presented = presenter.present(&all_content);
+    let presented_content = suppress_consumed_content(&all_content);
+    let presented = presenter.present(&presented_content);
 
     Ok(PipelineTrace {
         objects: traced_objects,
         presented,
     })
+}
+
+fn suppress_consumed_content(all_content: &[Content]) -> Vec<Content> {
+    let consumed_sources: HashSet<_> = all_content
+        .iter()
+        .flat_map(|content| content.consumed_sources().iter().cloned())
+        .collect();
+
+    all_content
+        .iter()
+        .filter(|content| !consumed_sources.contains(content.source()))
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -238,5 +253,30 @@ mod tests {
         assert!(trace.objects[2].supported);
         assert_eq!(trace.objects[2].decoded.len(), 1);
         assert_eq!(trace.objects[2].decoded[0].kind(), ContentKind::Rom);
+    }
+
+    #[test]
+    fn suppresses_disc_backing_files_from_presented_output() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        fs::write(temp_dir.path().join("game.bin"), b"discdata").unwrap();
+        fs::write(
+            temp_dir.path().join("game.cue"),
+            r#"
+    FILE "game.bin" BINARY
+    TRACK 01 MODE2/2352
+        INDEX 01 00:00:00
+    "#,
+        )
+        .unwrap();
+
+        let source = DirectoryInputSource::new(temp_dir.path());
+        let identifier = BasicInputIdentifier::new();
+        let decoder = BasicInputDecoder::new();
+        let presenter = GenericPresenter::new(BasicEncoder::new());
+
+        let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
+
+        let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["game (Disc 1).cue"]);
     }
 }

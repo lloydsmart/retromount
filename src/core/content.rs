@@ -53,6 +53,22 @@ impl Content {
             Self::Text(v) => &v.id,
         }
     }
+
+    pub fn source(&self) -> &SourceRef {
+        match self {
+            Self::Bytes(v) => &v.source,
+            Self::Rom(v) => &v.source,
+            Self::Disc(v) => &v.source,
+            Self::Text(v) => &v.source,
+        }
+    }
+
+    pub fn consumed_sources(&self) -> &[SourceRef] {
+        match self {
+            Self::Disc(v) => &v.consumed_sources,
+            _ => &[],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -76,6 +92,7 @@ pub struct DiscContent {
     pub source: SourceRef,
     pub title: String,
     pub disc_number: u32,
+    pub consumed_sources: Vec<SourceRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -101,5 +118,23 @@ mod tests {
 
         assert_eq!(content.kind(), ContentKind::Rom);
         assert_eq!(content.id().to_string(), "game");
+    }
+
+    #[test]
+    fn returns_source_and_consumed_sources() {
+        let content = Content::Disc(DiscContent {
+            id: ContentId::new("game"),
+            source: SourceRef::new("cue:/roms/game.cue"),
+            title: "game".to_string(),
+            disc_number: 1,
+            consumed_sources: vec![SourceRef::new("cue:/roms/game.bin")],
+        });
+
+        assert_eq!(content.source().to_string(), "cue:/roms/game.cue");
+        assert_eq!(content.consumed_sources().len(), 1);
+        assert_eq!(
+            content.consumed_sources()[0].to_string(),
+            "cue:/roms/game.bin"
+        );
     }
 }

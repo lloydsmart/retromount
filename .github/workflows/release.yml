@@ -25,7 +25,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
         with:
           toolchain: stable
-      
+
       - name: Install sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
         with:
@@ -36,13 +36,10 @@ jobs:
           shared-key: "retromount-release"
 
       - name: Build release
-        run: cargo build --release --all-features --verbose
+        run: cargo build --locked --release --all-features --verbose
 
       - name: Install packaging dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libfuse-dev
-          cargo install cargo-deb --locked
+        run: cargo install cargo-deb --locked
 
       - name: Build Debian package
         run: cargo deb --no-build
@@ -53,7 +50,7 @@ jobs:
           files: target/debian/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: sccache stats
         if: always()
         run: sccache --show-stats
