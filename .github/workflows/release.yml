@@ -36,7 +36,7 @@ jobs:
       - name: Ensure sccache is installed
         run: |
           if ! command -v sccache >/dev/null 2>&1; then
-            cargo install sccache --locked
+            cargo install sccache
           fi
 
       - name: Configure sccache

@@ -36,7 +36,6 @@ jobs:
         with:
           crate: sccache
           version: "0.14.0"
-          locked: true
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -87,7 +86,6 @@ jobs:
         with:
           crate: sccache
           version: "0.14.0"
-          locked: true
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -128,7 +126,6 @@ jobs:
         with:
           crate: sccache
           version: "0.14.0"
-          locked: true
 
       - name: Configure sccache
         uses: actions/github-script@v8
@@ -178,7 +175,6 @@ jobs:
         with:
           crate: sccache
           version: "0.14.0"
-          locked: true
 
       - name: Configure sccache
         uses: actions/github-script@v8
