@@ -39,11 +39,15 @@ jobs:
             cargo install sccache --locked
           fi
 
+      - name: Install cargo-deb
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-deb
+          version: "^2"
+          locked: true
+
       - name: Build release
         run: cargo build --locked --release --all-features --verbose
-
-      - name: Install packaging dependencies
-        run: cargo install cargo-deb --locked
 
       - name: Build Debian package
         run: cargo deb --no-build
