@@ -19,10 +19,17 @@ fn main() -> Result<(), RetromountError> {
         }
         [command, path] if command.to_string_lossy() == "inspect" => {
             let path = PathBuf::from(path);
-            run_phase3_inspect(&path)
+            run_phase3_inspect(&path, false)
+        }
+        [command, path, flag]
+            if command.to_string_lossy() == "inspect"
+                && flag.to_string_lossy() == "--json" =>
+        {
+            let path = PathBuf::from(path);
+            run_phase3_inspect(&path, true)
         }
         _ => Err(RetromountError::LoadError(
-            "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path>"
+            "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path> [--json]"
                 .to_string(),
         )),
     }

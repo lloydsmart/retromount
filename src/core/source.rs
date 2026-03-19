@@ -1,7 +1,8 @@
+use serde::Serialize;
 use std::fmt;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct SourceRef(pub Arc<str>);
 
 impl SourceRef {
@@ -16,7 +17,7 @@ impl fmt::Display for SourceRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SourceObject {
     pub source: SourceRef,
     pub name: String,
