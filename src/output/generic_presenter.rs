@@ -65,11 +65,12 @@ mod tests {
                 size: 1024,
             }),
             Content::Disc(DiscContent {
-                id: ContentId::new("mgs-disc1"),
-                source: SourceRef::new("cue:/roms/mgs.cue"),
-                title: "Metal Gear Solid".to_string(),
+                id: ContentId::new("ff7-disc1"),
+                source: SourceRef::new("cue:/roms/ff7.cue"),
+                title: "Final Fantasy VII".to_string(),
                 disc_number: 1,
-            }),
+                consumed_sources: vec![SourceRef::new("cue:/roms/ff7.bin")],
+            })
             Content::Text(TextContent {
                 id: ContentId::new("manifest"),
                 source: SourceRef::new("file:/roms/manifest"),
