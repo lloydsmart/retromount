@@ -9,12 +9,19 @@ impl BasicEncoder {
         Self
     }
 
+    fn normalize_extension(path: &str, new_ext: &str) -> String {
+        match path.rsplit_once('.') {
+            Some((base, _)) => format!("{base}.{new_ext}"),
+            None => format!("{path}.{new_ext}"),
+        }
+    }
+
     fn file_name_for(&self, content: &Content) -> String {
         match content {
             Content::Bytes(bytes) => format!("{}.bin", bytes.id),
             Content::Rom(rom) => rom.file_name.clone(),
             Content::Disc(disc) => format!("{} (Disc {}).cue", disc.title, disc.disc_number),
-            Content::Text(text) => format!("{}.txt", text.id),
+            Content::Text(text) => Self::normalize_extension(text.source.as_str(), "txt"),
         }
     }
 
@@ -104,7 +111,35 @@ mod tests {
         });
 
         let encoded = encoder.encode(&content).unwrap();
-        assert_eq!(encoded.name, "readme.txt");
+        assert_eq!(encoded.name, "file:/roms/readme.txt");
         assert_eq!(encoded.size, 128);
+    }
+
+    #[test]
+    fn preserves_relative_path_for_text_content() {
+        let encoder = BasicEncoder::new();
+        let content = Content::Text(TextContent {
+            id: ContentId::new("game"),
+            source: SourceRef::new("mixed/notes.txt"),
+            size: 10,
+        });
+
+        let encoded = encoder.encode(&content).unwrap();
+        assert_eq!(encoded.name, "mixed/notes.txt");
+        assert_eq!(encoded.size, 10);
+    }
+
+    #[test]
+    fn normalizes_text_extension_from_source_path() {
+        let encoder = BasicEncoder::new();
+        let content = Content::Text(TextContent {
+            id: ContentId::new("game"),
+            source: SourceRef::new("roms/snes/game.nfo"),
+            size: 19,
+        });
+
+        let encoded = encoder.encode(&content).unwrap();
+        assert_eq!(encoded.name, "roms/snes/game.txt");
+        assert_eq!(encoded.size, 19);
     }
 }
