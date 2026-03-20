@@ -21,7 +21,7 @@ impl BasicEncoder {
             Content::Bytes(bytes) => format!("{}.bin", bytes.id),
             Content::Rom(rom) => rom.file_name.clone(),
             Content::Disc(disc) => format!("{} (Disc {}).cue", disc.title, disc.disc_number),
-            Content::Text(text) => Self::normalize_extension(text.source.as_str(), "txt"),
+            Content::Text(text) => Self::normalize_extension(text.source.0.as_ref(), "txt"),
         }
     }
 
