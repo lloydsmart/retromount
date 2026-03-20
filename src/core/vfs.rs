@@ -41,6 +41,7 @@ impl VfsDirectory {
 pub struct VfsFile {
     pub name: String,
     pub size: u64,
+    pub contents: Option<Vec<u8>>,
 }
 
 impl VfsFile {
@@ -48,6 +49,15 @@ impl VfsFile {
         Self {
             name: name.into(),
             size,
+            contents: None,
+        }
+    }
+
+    pub fn with_contents(name: impl Into<String>, contents: Vec<u8>) -> Self {
+        Self {
+            name: name.into(),
+            size: contents.len() as u64,
+            contents: Some(contents),
         }
     }
 }
@@ -75,5 +85,14 @@ mod tests {
             }
             _ => panic!("expected directory"),
         }
+    }
+
+    #[test]
+    fn builds_virtual_file_with_inline_contents() {
+        let file = VfsFile::with_contents("game.m3u", b"game (Disc 1).cue\n".to_vec());
+
+        assert_eq!(file.name, "game.m3u");
+        assert_eq!(file.size, 18);
+        assert_eq!(file.contents, Some(b"game (Disc 1).cue\n".to_vec()));
     }
 }
