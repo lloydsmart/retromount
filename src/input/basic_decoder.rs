@@ -191,15 +191,22 @@ fn file_stem_or_name_from_object(object: &SourceObject) -> String {
 fn path_without_extension(name: &str) -> String {
     let path = Path::new(name);
 
-    match (
-        path.parent(),
-        path.file_stem().and_then(|stem| stem.to_str()),
-    ) {
-        (Some(parent), Some(stem)) if !parent.as_os_str().is_empty() => {
-            parent.join(stem).to_string_lossy().into_owned()
+    let stem = match path.file_stem().and_then(|stem| stem.to_str()) {
+        Some(stem) => stem,
+        None => return name.to_string(),
+    };
+
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => {
+            let parent = parent
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
+
+            format!("{parent}/{stem}")
         }
-        (_, Some(stem)) => stem.to_string(),
-        _ => name.to_string(),
+        _ => stem.to_string(),
     }
 }
 
