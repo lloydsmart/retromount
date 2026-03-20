@@ -47,13 +47,18 @@ impl InputDecoder for BasicInputDecoder {
                 source: object.source.clone(),
                 size,
             }),
-            InputIdentity::DiscImage => Content::Disc(DiscContent {
-                id,
-                source: object.source.clone(),
-                title: file_stem_or_name_from_object(object),
-                disc_number: 1,
-                consumed_sources: consumed_sources_for_disc_image(object)?,
-            }),
+            InputIdentity::DiscImage => {
+                let raw_name = file_stem_or_name_from_object(object);
+                let (title, disc_number) = parse_disc_info_from_name(&raw_name);
+
+                Content::Disc(DiscContent {
+                    id,
+                    source: object.source.clone(),
+                    title,
+                    disc_number,
+                    consumed_sources: consumed_sources_for_disc_image(object)?,
+                })
+            }
             InputIdentity::File => {
                 if looks_like_rom_name(&object.name) {
                     Content::Rom(RomContent {
@@ -183,6 +188,42 @@ fn file_stem_or_name_from_object(object: &SourceObject) -> String {
         .to_string()
 }
 
+fn parse_disc_info_from_name(name: &str) -> (String, u32) {
+    let lower = name.to_lowercase();
+
+    // patterns like:
+    // game_disc1
+    // game-disc2
+    // game cd1
+    // game (disc 2)
+    let patterns = ["disc", "cd", "disk", "vol"];
+
+    for pattern in patterns {
+        if let Some(idx) = lower.rfind(pattern) {
+            let after = &lower[idx + pattern.len()..];
+
+            let number: String = after
+                .chars()
+                .skip_while(|c| !c.is_ascii_digit())
+                .take_while(|c| c.is_ascii_digit())
+                .collect();
+
+            if let Ok(num) = number.parse::<u32>() {
+                let base = name[..idx]
+                    .trim_end_matches(|c: char| {
+                        c == '_' || c == '-' || c == ' ' || c == '(' || c == '['
+                    })
+                    .trim()
+                    .to_string();
+
+                return (base, num);
+            }
+        }
+    }
+
+    (name.to_string(), 1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,10 +308,10 @@ mod tests {
         fs::write(
             &cue_path,
             r#"
-    FILE "game.bin" BINARY
-    TRACK 01 MODE2/2352
-        INDEX 01 00:00:00
-    "#,
+FILE "game.bin" BINARY
+  TRACK 01 MODE2/2352
+    INDEX 01 00:00:00
+"#,
         )
         .unwrap();
 
@@ -314,10 +355,10 @@ mod tests {
             zip.start_file("ps1/game.cue", options).unwrap();
             zip.write_all(
                 br#"
-    FILE "game.bin" BINARY
-    TRACK 01 MODE2/2352
-        INDEX 01 00:00:00
-    "#,
+FILE "game.bin" BINARY
+  TRACK 01 MODE2/2352
+    INDEX 01 00:00:00
+"#,
             )
             .unwrap();
 
@@ -343,5 +384,38 @@ mod tests {
             }
             other => panic!("expected Disc content, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_disc_suffix_from_filename() {
+        assert_eq!(
+            parse_disc_info_from_name("game_disc1"),
+            ("game".to_string(), 1)
+        );
+        assert_eq!(
+            parse_disc_info_from_name("game-disc2"),
+            ("game".to_string(), 2)
+        );
+        assert_eq!(
+            parse_disc_info_from_name("game cd3"),
+            ("game".to_string(), 3)
+        );
+        assert_eq!(
+            parse_disc_info_from_name("game (disc 4)"),
+            ("game".to_string(), 4)
+        );
+    }
+
+    #[test]
+    fn parses_disc_suffix_with_parentheses_cleanly() {
+        assert_eq!(
+            parse_disc_info_from_name("Game (Disc 1)"),
+            ("Game".to_string(), 1)
+        );
+    }
+
+    #[test]
+    fn defaults_to_disc_one_when_no_disc_suffix_exists() {
+        assert_eq!(parse_disc_info_from_name("game"), ("game".to_string(), 1));
     }
 }
