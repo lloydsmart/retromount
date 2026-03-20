@@ -46,8 +46,6 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '')
 
       - name: Check formatting
-        env:
-          RUSTC_WRAPPER: sccache
         run: cargo fmt --all -- --check
 
       - name: Lint with Clippy
@@ -83,6 +81,7 @@ jobs:
           shared-key: "retromount-test-${{ matrix.os }}"
 
       - name: Install sccache
+        if: runner.os != 'Windows'
         uses: baptiste0928/cargo-install@v3
         with:
           crate: sccache
@@ -90,19 +89,25 @@ jobs:
           locked: false
 
       - name: Configure sccache
+        if: runner.os != 'Windows'
         uses: actions/github-script@v8
         with:
           script: |
             core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '')
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '')
 
-      - name: Run tests
+      - name: Run tests (non-Windows with sccache)
+        if: runner.os != 'Windows'
         env:
           RUSTC_WRAPPER: sccache
         run: cargo test --locked --all-targets --all-features --verbose
 
+      - name: Run tests (Windows without sccache)
+        if: runner.os == 'Windows'
+        run: cargo test --locked --all-targets --all-features --verbose
+
       - name: sccache stats
-        if: always()
+        if: always() && runner.os != 'Windows'
         run: sccache --show-stats
 
   build-release-linux:
