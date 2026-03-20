@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 use crate::core::content::Content;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
@@ -16,6 +17,12 @@ where
 struct PresentedEntry {
     content: Content,
     encoded: EncodedFile,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct DiscGroupKey {
+    parent: String,
+    title: String,
 }
 
 impl<E> GenericPresenter<E>
@@ -42,18 +49,39 @@ where
             .collect()
     }
 
+    fn disc_group_key(content: &crate::core::content::DiscContent) -> DiscGroupKey {
+        let parent = Path::new(content.id.0.as_ref())
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+
+        DiscGroupKey {
+            parent,
+            title: content.title.clone(),
+        }
+    }
+
     fn build_root_children(&self, entries: &[PresentedEntry]) -> Vec<VfsNode> {
-        let multi_disc_titles = self.multi_disc_titles(entries);
+        let multi_disc_groups = self.multi_disc_groups(entries);
         let mut emitted_groups = HashSet::new();
         let mut children = Vec::new();
 
         for entry in entries {
             match &entry.content {
-                Content::Disc(disc) if multi_disc_titles.contains(&disc.title) => {
-                    if emitted_groups.insert(disc.title.clone()) {
-                        children.push(VfsNode::Directory(
-                            self.build_multi_disc_directory(&disc.title, entries),
-                        ));
+                Content::Disc(disc) => {
+                    let key = Self::disc_group_key(disc);
+
+                    if multi_disc_groups.contains(&key) {
+                        if emitted_groups.insert(key.clone()) {
+                            children.push(VfsNode::Directory(
+                                self.build_multi_disc_directory(&key, entries),
+                            ));
+                        }
+                    } else {
+                        children.push(VfsNode::File(VfsFile::new(
+                            entry.encoded.name.clone(),
+                            entry.encoded.size,
+                        )));
                     }
                 }
                 _ => children.push(VfsNode::File(VfsFile::new(
@@ -66,26 +94,33 @@ where
         children
     }
 
-    fn multi_disc_titles(&self, entries: &[PresentedEntry]) -> HashSet<String> {
-        let mut disc_counts = HashMap::new();
+    fn multi_disc_groups(&self, entries: &[PresentedEntry]) -> HashSet<DiscGroupKey> {
+        let mut disc_counts: HashMap<DiscGroupKey, usize> = HashMap::new();
 
         for entry in entries {
             if let Content::Disc(disc) = &entry.content {
-                *disc_counts.entry(disc.title.clone()).or_insert(0usize) += 1;
+                let key = Self::disc_group_key(disc);
+                *disc_counts.entry(key).or_insert(0usize) += 1;
             }
         }
 
         disc_counts
             .into_iter()
-            .filter_map(|(title, count)| (count > 1).then_some(title))
+            .filter_map(|(key, count)| (count > 1).then_some(key))
             .collect()
     }
 
-    fn build_multi_disc_directory(&self, title: &str, entries: &[PresentedEntry]) -> VfsDirectory {
+    fn build_multi_disc_directory(
+        &self,
+        key: &DiscGroupKey,
+        entries: &[PresentedEntry],
+    ) -> VfsDirectory {
         let mut disc_entries: Vec<_> = entries
             .iter()
             .filter_map(|entry| match &entry.content {
-                Content::Disc(disc) if disc.title == title => Some((disc.disc_number, entry)),
+                Content::Disc(disc) if Self::disc_group_key(disc) == *key => {
+                    Some((disc.disc_number, entry))
+                }
                 _ => None,
             })
             .collect();
@@ -108,9 +143,11 @@ where
             })
             .collect();
 
-        children.push(VfsNode::File(self.build_m3u_file(title, &disc_file_names)));
+        children.push(VfsNode::File(
+            self.build_m3u_file(&key.title, &disc_file_names),
+        ));
 
-        VfsDirectory::with_children(title, children)
+        VfsDirectory::with_children(&key.title, children)
     }
 
     fn build_m3u_file(&self, title: &str, disc_file_names: &[String]) -> VfsFile {
@@ -199,14 +236,14 @@ mod tests {
                 size: 1024,
             }),
             Content::Disc(DiscContent {
-                id: ContentId::new("ff7-disc2"),
+                id: ContentId::new("ff7/ff7-disc2"),
                 source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
                 title: "Final Fantasy VII".to_string(),
                 disc_number: 2,
                 consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
             }),
             Content::Disc(DiscContent {
-                id: ContentId::new("ff7-disc1"),
+                id: ContentId::new("ff7/ff7-disc1"),
                 source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
                 title: "Final Fantasy VII".to_string(),
                 disc_number: 1,
@@ -251,7 +288,7 @@ mod tests {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![Content::Disc(DiscContent {
-            id: ContentId::new("metal-gear-solid"),
+            id: ContentId::new("mgs/mgs-disc1"),
             source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
             title: "Metal Gear Solid".to_string(),
             disc_number: 1,
@@ -262,5 +299,52 @@ mod tests {
 
         assert_eq!(root.children.len(), 1);
         assert_eq!(root.children[0].name(), "Metal Gear Solid (Disc 1).cue");
+    }
+
+    #[test]
+    fn does_not_merge_same_title_from_different_directories() {
+        let presenter = GenericPresenter::new(BasicEncoder::new());
+
+        let content = vec![
+            Content::Disc(DiscContent {
+                id: ContentId::new("discs/ps1_multi/game_disc1.cue"),
+                source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.cue"),
+                title: "game".to_string(),
+                disc_number: 1,
+                consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin")],
+            }),
+            Content::Disc(DiscContent {
+                id: ContentId::new("discs/ps1_multi/game_disc2.cue"),
+                source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc2.cue"),
+                title: "game".to_string(),
+                disc_number: 2,
+                consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_multi/game_disc2.bin")],
+            }),
+            Content::Disc(DiscContent {
+                id: ContentId::new("discs/ps1_single/game.cue"),
+                source: SourceRef::new("file:/roms/discs/ps1_single/game.cue"),
+                title: "game".to_string(),
+                disc_number: 1,
+                consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_single/game.bin")],
+            }),
+        ];
+
+        let root = presenter.present(&content);
+
+        assert_eq!(root.children.len(), 2);
+
+        let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["game", "game (Disc 1).cue"]);
+
+        let multi_dir = match &root.children[0] {
+            VfsNode::Directory(directory) => directory,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        let child_names: Vec<&str> = multi_dir.children.iter().map(|node| node.name()).collect();
+        assert_eq!(
+            child_names,
+            vec!["game (Disc 1).cue", "game (Disc 2).cue", "game.m3u"]
+        );
     }
 }
