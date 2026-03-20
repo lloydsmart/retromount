@@ -107,4 +107,32 @@ mod tests {
         assert_eq!(encoded.name, "readme.txt");
         assert_eq!(encoded.size, 128);
     }
+
+    #[test]
+    fn preserves_relative_path_for_text_content() {
+        let encoder = BasicEncoder::new();
+        let content = Content::Text(TextContent {
+            id: ContentId::new("mixed/notes"),
+            source: SourceRef::new("mixed/notes.txt"),
+            size: 10,
+        });
+
+        let encoded = encoder.encode(&content).unwrap();
+        assert_eq!(encoded.name, "mixed/notes.txt");
+        assert_eq!(encoded.size, 10);
+    }
+
+    #[test]
+    fn normalizes_text_extension_from_id_path() {
+        let encoder = BasicEncoder::new();
+        let content = Content::Text(TextContent {
+            id: ContentId::new("roms/snes/game"),
+            source: SourceRef::new("roms/snes/game.nfo"),
+            size: 19,
+        });
+
+        let encoded = encoder.encode(&content).unwrap();
+        assert_eq!(encoded.name, "roms/snes/game.txt");
+        assert_eq!(encoded.size, 19);
+    }
 }

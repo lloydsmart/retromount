@@ -43,7 +43,7 @@ impl InputDecoder for BasicInputDecoder {
 
         let content = match identity {
             InputIdentity::Text => Content::Text(TextContent {
-                id: ContentId::new(file_stem_or_name_from_object(object)),
+                id: ContentId::new(path_without_extension(&object.name)),
                 source: object.source.clone(),
                 size,
             }),
@@ -186,6 +186,28 @@ fn file_stem_or_name_from_object(object: &SourceObject) -> String {
         .and_then(|stem| stem.to_str())
         .unwrap_or(&object.name)
         .to_string()
+}
+
+fn path_without_extension(name: &str) -> String {
+    let path = Path::new(name);
+
+    let stem = match path.file_stem().and_then(|stem| stem.to_str()) {
+        Some(stem) => stem,
+        None => return name.to_string(),
+    };
+
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => {
+            let parent = parent
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
+
+            format!("{parent}/{stem}")
+        }
+        _ => stem.to_string(),
+    }
 }
 
 fn parse_disc_info_from_name(name: &str) -> (String, u32) {
@@ -417,5 +439,45 @@ FILE "game.bin" BINARY
     #[test]
     fn defaults_to_disc_one_when_no_disc_suffix_exists() {
         assert_eq!(parse_disc_info_from_name("game"), ("game".to_string(), 1));
+    }
+
+    #[test]
+    fn decodes_text_file_with_relative_path_id() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("notes.txt");
+        fs::write(&path, b"hello").unwrap();
+
+        let decoder = BasicInputDecoder::new();
+        let object = SourceObject {
+            source: SourceRef::new(path.to_string_lossy().into_owned()),
+            name: "mixed/notes.txt".to_string(),
+        };
+
+        let content = decoder.decode(&object, &InputIdentity::Text).unwrap();
+
+        match &content[0] {
+            Content::Text(text) => assert_eq!(text.id.to_string(), "mixed/notes"),
+            other => panic!("expected text content, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decodes_text_file_with_normalized_relative_path_id() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("game.nfo");
+        fs::write(&path, b"hello").unwrap();
+
+        let decoder = BasicInputDecoder::new();
+        let object = SourceObject {
+            source: SourceRef::new(path.to_string_lossy().into_owned()),
+            name: "roms/snes/game.nfo".to_string(),
+        };
+
+        let content = decoder.decode(&object, &InputIdentity::Text).unwrap();
+
+        match &content[0] {
+            Content::Text(text) => assert_eq!(text.id.to_string(), "roms/snes/game"),
+            other => panic!("expected text content, got {other:?}"),
+        }
     }
 }
