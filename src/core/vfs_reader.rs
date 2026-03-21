@@ -1,7 +1,6 @@
 use std::io;
 use std::path::Path;
 
-use crate::core::reader::Reader;
 use crate::core::source::SourceRef;
 use crate::core::vfs::{FileBacking, VfsFile};
 use crate::readers::dir_reader::DirReader;

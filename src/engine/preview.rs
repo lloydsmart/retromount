@@ -85,9 +85,9 @@ mod tests {
         let root = VfsDirectory::with_children(
             "",
             vec![
-                VfsNode::File(VfsFile::new("mario.sfc", 1024)),
-                VfsNode::File(VfsFile::new("readme.txt", 64)),
-                VfsNode::File(VfsFile::new("blob.dat.bin", 12)),
+                VfsNode::File(VfsFile::new("mario.sfc")),
+                VfsNode::File(VfsFile::new("readme.txt")),
+                VfsNode::File(VfsFile::new("blob.dat.bin")),
             ],
         );
 
@@ -104,7 +104,7 @@ mod tests {
             "",
             vec![VfsNode::Directory(VfsDirectory::with_children(
                 "snes",
-                vec![VfsNode::File(VfsFile::new("zelda.sfc", 2048))],
+                vec![VfsNode::File(VfsFile::new("zelda.sfc"))],
             ))],
         );
 

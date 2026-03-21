@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::content::Content;
-use crate::core::vfs::{FileBacking, VfsDirectory, VfsFile, VfsNode};
+use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
 
@@ -184,6 +184,7 @@ mod tests {
         BytesContent, Content, ContentId, DiscContent, RomContent, TextContent,
     };
     use crate::core::source::SourceRef;
+    use crate::core::vfs::FileBacking;
     use crate::output::basic_encoder::BasicEncoder;
 
     #[test]
