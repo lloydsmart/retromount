@@ -1,6 +1,7 @@
 use std::io;
 use std::path::Path;
 
+use crate::core::reader::Reader;
 use crate::core::source::SourceRef;
 use crate::core::vfs::{FileBacking, VfsFile};
 use crate::readers::dir_reader::DirReader;
@@ -45,11 +46,9 @@ fn open_source_ref(source: &SourceRef) -> Result<Box<dyn Reader>, io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::vfs::VfsFile;
     use std::fs;
     use std::io::Write;
-
-    use crate::core::reader::Reader;
-    use crate::core::vfs::VfsFile;
 
     #[test]
     fn opens_inline_backed_vfs_file() {
