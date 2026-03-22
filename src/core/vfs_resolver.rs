@@ -4,7 +4,7 @@ use crate::core::reader::Reader;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::core::vfs_reader::open_vfs_file;
 
-pub fn find_node(root: &VfsDirectory, path: &str) -> Option<&VfsNode> {
+pub fn find_node<'a>(root: &'a VfsDirectory, path: &str) -> Option<&'a VfsNode> {
     let path = normalize_vfs_path(path);
 
     if path.is_empty() {
@@ -14,7 +14,7 @@ pub fn find_node(root: &VfsDirectory, path: &str) -> Option<&VfsNode> {
     root.find_node(&path)
 }
 
-pub fn find_directory(root: &VfsDirectory, path: &str) -> Option<&VfsDirectory> {
+pub fn find_directory<'a>(root: &'a VfsDirectory, path: &str) -> Option<&'a VfsDirectory> {
     let path = normalize_vfs_path(path);
 
     if path.is_empty() {
@@ -24,7 +24,7 @@ pub fn find_directory(root: &VfsDirectory, path: &str) -> Option<&VfsDirectory> 
     root.find_directory(&path)
 }
 
-pub fn find_file(root: &VfsDirectory, path: &str) -> Option<&VfsFile> {
+pub fn find_file<'a>(root: &'a VfsDirectory, path: &str) -> Option<&'a VfsFile> {
     let path = normalize_vfs_path(path);
 
     if path.is_empty() {
@@ -152,7 +152,9 @@ mod tests {
     fn returns_not_found_when_opening_missing_file() {
         let root = VfsDirectory::with_children("", vec![]);
 
-        let err = open_file(&root, "missing.txt").unwrap_err();
-        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        match open_file(&root, "missing.txt") {
+            Ok(_) => panic!("expected missing file to return NotFound"),
+            Err(err) => assert_eq!(err.kind(), io::ErrorKind::NotFound),
+        }
     }
 }
