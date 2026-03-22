@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 
 use crate::core::content::Content;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
@@ -50,14 +49,18 @@ where
     }
 
     fn disc_group_key(content: &crate::core::content::DiscContent) -> DiscGroupKey {
-        let parent = Path::new(content.id.0.as_ref())
-            .parent()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_default();
-
         DiscGroupKey {
-            parent,
+            parent: Self::logical_parent_path(content.id.0.as_ref()),
             title: content.title.clone(),
+        }
+    }
+
+    fn logical_parent_path(path: &str) -> String {
+        let normalized = path.replace('\\', "/");
+
+        match normalized.rsplit_once('/') {
+            Some((parent, _)) => parent.to_string(),
+            None => String::new(),
         }
     }
 
@@ -78,15 +81,17 @@ where
                             ));
                         }
                     } else {
-                        children.push(VfsNode::File(VfsFile::new(
+                        children.push(VfsNode::File(VfsFile::source_backed(
                             entry.encoded.name.clone(),
                             entry.encoded.size,
+                            entry.content.source().clone(),
                         )));
                     }
                 }
-                _ => children.push(VfsNode::File(VfsFile::new(
+                _ => children.push(VfsNode::File(VfsFile::source_backed(
                     entry.encoded.name.clone(),
                     entry.encoded.size,
+                    entry.content.source().clone(),
                 ))),
             }
         }
@@ -139,7 +144,11 @@ where
         let mut children: Vec<VfsNode> = disc_entries
             .into_iter()
             .map(|(_, entry)| {
-                VfsNode::File(VfsFile::new(entry.encoded.name.clone(), entry.encoded.size))
+                VfsNode::File(VfsFile::source_backed(
+                    entry.encoded.name.clone(),
+                    entry.encoded.size,
+                    entry.content.source().clone(),
+                ))
             })
             .collect();
 
@@ -152,7 +161,7 @@ where
 
     fn build_m3u_file(&self, title: &str, disc_file_names: &[String]) -> VfsFile {
         let playlist = disc_file_names.join("\n") + "\n";
-        VfsFile::with_contents(format!("{title}.m3u"), playlist.into_bytes())
+        VfsFile::inline(format!("{title}.m3u"), playlist.into_bytes())
     }
 }
 
@@ -175,6 +184,7 @@ mod tests {
         BytesContent, Content, ContentId, DiscContent, RomContent, TextContent,
     };
     use crate::core::source::SourceRef;
+    use crate::core::vfs::FileBacking;
     use crate::output::basic_encoder::BasicEncoder;
 
     #[test]
@@ -222,6 +232,16 @@ mod tests {
                 "manifest.txt",
             ]
         );
+
+        match &root.children[0] {
+            VfsNode::File(file) => match &file.backing {
+                FileBacking::Source(source) => {
+                    assert_eq!(source.to_string(), "file:/roms/bios");
+                }
+                other => panic!("expected source backing, got {other:?}"),
+            },
+            other => panic!("expected file, got {other:?}"),
+        }
     }
 
     #[test]
@@ -277,10 +297,15 @@ mod tests {
             other => panic!("expected file, got {other:?}"),
         };
 
-        assert_eq!(
-            playlist.contents,
-            Some(b"Final Fantasy VII (Disc 1).cue\nFinal Fantasy VII (Disc 2).cue\n".to_vec())
-        );
+        match &playlist.backing {
+            FileBacking::Inline(contents) => {
+                assert_eq!(
+                    contents,
+                    b"Final Fantasy VII (Disc 1).cue\nFinal Fantasy VII (Disc 2).cue\n"
+                );
+            }
+            other => panic!("expected inline backing, got {other:?}"),
+        }
     }
 
     #[test]
@@ -346,5 +371,17 @@ mod tests {
             child_names,
             vec!["game (Disc 1).cue", "game (Disc 2).cue", "game.m3u"]
         );
+    }
+
+    #[test]
+    fn normalizes_disc_group_parent_to_logical_path() {
+        let key = GenericPresenter::<BasicEncoder>::disc_group_key(&DiscContent {
+            id: ContentId::new(r"discs\ps1_multi\game_disc1.cue"),
+            source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.cue"),
+            title: "game".to_string(),
+            disc_number: 1,
+            consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin")],
+        });
+        assert_eq!(key.parent, "discs/ps1_multi");
     }
 }

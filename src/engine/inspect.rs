@@ -143,7 +143,7 @@ mod tests {
             }],
             presented: VfsDirectory::with_children(
                 "",
-                vec![VfsNode::File(VfsFile::new("blob.dat.bin", 0))],
+                vec![VfsNode::File(VfsFile::new("blob.dat.bin"))],
             ),
         };
 

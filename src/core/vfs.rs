@@ -1,5 +1,7 @@
 use serde::Serialize;
 
+use crate::core::source::SourceRef;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum VfsNode {
     Directory(VfsDirectory),
@@ -35,29 +37,65 @@ impl VfsDirectory {
             children,
         }
     }
+
+    pub fn find_file(&self, path: &str) -> Option<&VfsFile> {
+        let path = path.trim_matches('/');
+
+        if path.is_empty() {
+            return None;
+        }
+
+        for child in &self.children {
+            match child {
+                VfsNode::File(file) if file.name == path => return Some(file),
+                VfsNode::Directory(dir) => {
+                    if let Some(remainder) = path.strip_prefix(&dir.name) {
+                        if let Some(remainder) = remainder.strip_prefix('/') {
+                            if let Some(file) = dir.find_file(remainder) {
+                                return Some(file);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        None
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum FileBacking {
+    Source(SourceRef),
+    Inline(Vec<u8>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VfsFile {
     pub name: String,
     pub size: u64,
-    pub contents: Option<Vec<u8>>,
+    pub backing: FileBacking,
 }
 
 impl VfsFile {
-    pub fn new(name: impl Into<String>, size: u64) -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self::inline(name, Vec::new())
+    }
+
+    pub fn source_backed(name: impl Into<String>, size: u64, source: SourceRef) -> Self {
         Self {
             name: name.into(),
             size,
-            contents: None,
+            backing: FileBacking::Source(source),
         }
     }
 
-    pub fn with_contents(name: impl Into<String>, contents: Vec<u8>) -> Self {
+    pub fn inline(name: impl Into<String>, contents: Vec<u8>) -> Self {
         Self {
             name: name.into(),
             size: contents.len() as u64,
-            contents: Some(contents),
+            backing: FileBacking::Inline(contents),
         }
     }
 }
@@ -72,7 +110,7 @@ mod tests {
             "",
             vec![VfsNode::Directory(VfsDirectory::with_children(
                 "snes",
-                vec![VfsNode::File(VfsFile::new("game.sfc", 1024))],
+                vec![VfsNode::File(VfsFile::new("game.sfc"))],
             ))],
         );
 
@@ -88,11 +126,45 @@ mod tests {
     }
 
     #[test]
-    fn builds_virtual_file_with_inline_contents() {
-        let file = VfsFile::with_contents("game.m3u", b"game (Disc 1).cue\n".to_vec());
+    fn builds_inline_file() {
+        let file = VfsFile::inline("game.m3u", b"game (Disc 1).cue\n".to_vec());
 
         assert_eq!(file.name, "game.m3u");
         assert_eq!(file.size, 18);
-        assert_eq!(file.contents, Some(b"game (Disc 1).cue\n".to_vec()));
+
+        match &file.backing {
+            FileBacking::Inline(contents) => {
+                assert_eq!(contents, b"game (Disc 1).cue\n");
+            }
+            _ => panic!("expected inline backing"),
+        }
+    }
+
+    #[test]
+    fn finds_root_file_with_slash_in_name() {
+        let root =
+            VfsDirectory::with_children("", vec![VfsNode::File(VfsFile::new("mixed/notes.txt"))]);
+
+        let file = root
+            .find_file("mixed/notes.txt")
+            .expect("file should exist");
+        assert_eq!(file.name, "mixed/notes.txt");
+    }
+
+    #[test]
+    fn finds_nested_file_in_directory() {
+        let root = VfsDirectory::with_children(
+            "",
+            vec![VfsNode::Directory(VfsDirectory::with_children(
+                "game",
+                vec![VfsNode::File(VfsFile::inline(
+                    "game.m3u",
+                    b"game (Disc 1).cue\ngame (Disc 2).cue\n".to_vec(),
+                ))],
+            ))],
+        );
+
+        let file = root.find_file("game/game.m3u").expect("file should exist");
+        assert_eq!(file.name, "game.m3u");
     }
 }
