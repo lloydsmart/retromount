@@ -38,7 +38,7 @@ impl VfsDirectory {
         }
     }
 
-    pub fn find_file(&self, path: &str) -> Option<&VfsFile> {
+    pub fn find_node(&self, path: &str) -> Option<&VfsNode> {
         let path = path.trim_matches('/');
 
         if path.is_empty() {
@@ -47,12 +47,13 @@ impl VfsDirectory {
 
         for child in &self.children {
             match child {
-                VfsNode::File(file) if file.name == path => return Some(file),
+                VfsNode::File(file) if file.name == path => return Some(child),
+                VfsNode::Directory(dir) if dir.name == path => return Some(child),
                 VfsNode::Directory(dir) => {
                     if let Some(remainder) = path.strip_prefix(&dir.name) {
                         if let Some(remainder) = remainder.strip_prefix('/') {
-                            if let Some(file) = dir.find_file(remainder) {
-                                return Some(file);
+                            if let Some(node) = dir.find_node(remainder) {
+                                return Some(node);
                             }
                         }
                     }
@@ -62,6 +63,20 @@ impl VfsDirectory {
         }
 
         None
+    }
+
+    pub fn find_file(&self, path: &str) -> Option<&VfsFile> {
+        match self.find_node(path) {
+            Some(VfsNode::File(file)) => Some(file),
+            _ => None,
+        }
+    }
+
+    pub fn find_directory(&self, path: &str) -> Option<&VfsDirectory> {
+        match self.find_node(path) {
+            Some(VfsNode::Directory(dir)) => Some(dir),
+            _ => None,
+        }
     }
 }
 
@@ -166,5 +181,58 @@ mod tests {
 
         let file = root.find_file("game/game.m3u").expect("file should exist");
         assert_eq!(file.name, "game.m3u");
+    }
+
+    #[test]
+    fn finds_directory_by_path() {
+        let root = VfsDirectory::with_children(
+            "",
+            vec![VfsNode::Directory(VfsDirectory::with_children(
+                "game",
+                vec![VfsNode::File(VfsFile::inline(
+                    "game.m3u",
+                    b"game (Disc 1).cue\ngame (Disc 2).cue\n".to_vec(),
+                ))],
+            ))],
+        );
+
+        let dir = root.find_directory("game").expect("directory should exist");
+        assert_eq!(dir.name, "game");
+    }
+
+    #[test]
+    fn finds_node_for_root_file() {
+        let root =
+            VfsDirectory::with_children("", vec![VfsNode::File(VfsFile::new("mixed/notes.txt"))]);
+
+        let node = root
+            .find_node("mixed/notes.txt")
+            .expect("node should exist");
+
+        match node {
+            VfsNode::File(file) => assert_eq!(file.name, "mixed/notes.txt"),
+            other => panic!("expected file node, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn finds_node_for_directory() {
+        let root = VfsDirectory::with_children(
+            "",
+            vec![VfsNode::Directory(VfsDirectory::with_children(
+                "game",
+                vec![VfsNode::File(VfsFile::inline(
+                    "game.m3u",
+                    b"game (Disc 1).cue\ngame (Disc 2).cue\n".to_vec(),
+                ))],
+            ))],
+        );
+
+        let node = root.find_node("game").expect("node should exist");
+
+        match node {
+            VfsNode::Directory(dir) => assert_eq!(dir.name, "game"),
+            other => panic!("expected directory node, got {other:?}"),
+        }
     }
 }
