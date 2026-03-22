@@ -14,7 +14,7 @@ pub fn find_node(root: &VfsDirectory, path: &str) -> Option<&VfsNode> {
     root.find_node(&path)
 }
 
-pub fn find_directory<'a>(root: &'a VfsDirectory, path: &str) -> Option<&'a VfsDirectory> {
+pub fn find_directory(root: &VfsDirectory, path: &str) -> Option<&VfsDirectory> {
     let path = normalize_vfs_path(path);
 
     if path.is_empty() {
@@ -24,7 +24,7 @@ pub fn find_directory<'a>(root: &'a VfsDirectory, path: &str) -> Option<&'a VfsD
     root.find_directory(&path)
 }
 
-pub fn find_file<'a>(root: &'a VfsDirectory, path: &str) -> Option<&'a VfsFile> {
+pub fn find_file(root: &VfsDirectory, path: &str) -> Option<&VfsFile> {
     let path = normalize_vfs_path(path);
 
     if path.is_empty() {
