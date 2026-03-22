@@ -141,22 +141,21 @@ where
             .map(|(_, entry)| entry.encoded.name.clone())
             .collect();
 
-        let mut children: Vec<VfsNode> = disc_entries
-            .into_iter()
-            .map(|(_, entry)| {
-                VfsNode::File(VfsFile::source_backed(
-                    entry.encoded.name.clone(),
-                    entry.encoded.size,
-                    entry.content.source().clone(),
-                ))
-            })
-            .collect();
+        let mut dir = VfsDirectory::new(&key.title);
 
-        children.push(VfsNode::File(
+        for (_, entry) in disc_entries {
+            dir.add_child(VfsNode::File(VfsFile::source_backed(
+                entry.encoded.name.clone(),
+                entry.encoded.size,
+                entry.content.source().clone(),
+            )));
+        }
+
+        dir.add_child(VfsNode::File(
             self.build_m3u_file(&key.title, &disc_file_names),
         ));
 
-        VfsDirectory::with_children(&key.title, children)
+        dir
     }
 
     fn build_m3u_file(&self, title: &str, disc_file_names: &[String]) -> VfsFile {
@@ -220,20 +219,20 @@ mod tests {
         let root = presenter.present(&content);
 
         assert_eq!(root.name, "");
-        assert_eq!(root.children.len(), 4);
+        assert_eq!(root.children().len(), 4);
 
-        let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
+        let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(
             names,
             vec![
                 "bios.bin",
-                "Sonic the Hedgehog.bin",
                 "Final Fantasy VII (Disc 1).cue",
                 "manifest.txt",
+                "Sonic the Hedgehog.bin",
             ]
         );
 
-        match &root.children[0] {
+        match &root.children()[0] {
             VfsNode::File(file) => match &file.backing {
                 FileBacking::Source(source) => {
                     assert_eq!(source.to_string(), "file:/roms/bios");
@@ -273,16 +272,20 @@ mod tests {
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.children.len(), 2);
-        assert_eq!(root.children[0].name(), "Crash Bandicoot.bin");
-        assert_eq!(root.children[1].name(), "Final Fantasy VII");
+        assert_eq!(root.children().len(), 2);
+        assert_eq!(root.children()[0].name(), "Crash Bandicoot.bin");
+        assert_eq!(root.children()[1].name(), "Final Fantasy VII");
 
-        let directory = match &root.children[1] {
+        let directory = match &root.children()[1] {
             VfsNode::Directory(directory) => directory,
             other => panic!("expected directory, got {other:?}"),
         };
 
-        let child_names: Vec<&str> = directory.children.iter().map(|node| node.name()).collect();
+        let child_names: Vec<&str> = directory
+            .children()
+            .iter()
+            .map(|node| node.name())
+            .collect();
         assert_eq!(
             child_names,
             vec![
@@ -292,7 +295,9 @@ mod tests {
             ]
         );
 
-        let playlist = match &directory.children[2] {
+        assert_eq!(directory.files().count(), 3);
+
+        let playlist = match &directory.children()[2] {
             VfsNode::File(file) => file,
             other => panic!("expected file, got {other:?}"),
         };
@@ -322,8 +327,8 @@ mod tests {
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.children.len(), 1);
-        assert_eq!(root.children[0].name(), "Metal Gear Solid (Disc 1).cue");
+        assert_eq!(root.children().len(), 1);
+        assert_eq!(root.children()[0].name(), "Metal Gear Solid (Disc 1).cue");
     }
 
     #[test]
@@ -356,17 +361,21 @@ mod tests {
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.children.len(), 2);
+        assert_eq!(root.children().len(), 2);
 
-        let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
+        let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["game", "game (Disc 1).cue"]);
 
-        let multi_dir = match &root.children[0] {
+        let multi_dir = match &root.children()[0] {
             VfsNode::Directory(directory) => directory,
             other => panic!("expected directory, got {other:?}"),
         };
 
-        let child_names: Vec<&str> = multi_dir.children.iter().map(|node| node.name()).collect();
+        let child_names: Vec<&str> = multi_dir
+            .children()
+            .iter()
+            .map(|node| node.name())
+            .collect();
         assert_eq!(
             child_names,
             vec!["game (Disc 1).cue", "game (Disc 2).cue", "game.m3u"]
