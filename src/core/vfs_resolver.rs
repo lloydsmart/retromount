@@ -4,7 +4,7 @@ use crate::core::reader::Reader;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::core::vfs_reader::open_vfs_file;
 
-pub fn find_node<'a>(root: &'a VfsDirectory, path: &str) -> Option<&'a VfsNode> {
+pub fn find_node(root: &VfsDirectory, path: &str) -> Option<&VfsNode> {
     let path = normalize_vfs_path(path);
 
     if path.is_empty() {
