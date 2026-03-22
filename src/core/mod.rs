@@ -13,4 +13,5 @@ pub mod source;
 pub mod track;
 pub mod vfs;
 pub mod vfs_reader;
+pub mod vfs_resolver;
 pub mod virtual_file;
