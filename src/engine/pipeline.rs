@@ -193,7 +193,7 @@ mod tests {
         assert_eq!(trace.objects[1].decoded[0].kind(), ContentKind::Rom);
 
         assert_eq!(trace.objects[2].object.name, "readme.txt");
-        assert_eq!(trace.objects[2].identity, InputIdentity::File);
+        assert_eq!(trace.objects[2].identity, InputIdentity::Text);
         assert!(trace.objects[2].supported);
         assert_eq!(trace.objects[2].decoded.len(), 1);
         assert_eq!(trace.objects[2].decoded[0].kind(), ContentKind::Text);

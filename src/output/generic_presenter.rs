@@ -419,8 +419,8 @@ mod tests {
         let root = presenter.present(&content);
 
         assert_eq!(root.children().len(), 2);
-        assert_eq!(root.children()[0].name(), "Crash Bandicoot.bin");
-        assert_eq!(root.children()[1].name(), "Final Fantasy VII");
+        assert_eq!(root.children()[0].name(), "Final Fantasy VII");
+        assert_eq!(root.children()[1].name(), "Crash Bandicoot.bin");
     }
 
     #[test]
