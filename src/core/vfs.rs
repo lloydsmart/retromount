@@ -200,12 +200,12 @@ mod tests {
             ))],
         );
 
-        assert_eq!(root.children.len(), 1);
+        assert_eq!(root.children().len(), 1);
 
-        match &root.children[0] {
+        match &root.children()[0] {
             VfsNode::Directory(dir) => {
                 assert_eq!(dir.name, "snes");
-                assert_eq!(dir.children.len(), 1);
+                assert_eq!(dir.children().len(), 1);
             }
             _ => panic!("expected directory"),
         }
