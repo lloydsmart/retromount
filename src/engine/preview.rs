@@ -49,7 +49,7 @@ pub fn build_input_source(path: &Path) -> Result<Box<dyn InputSource>, Retromoun
 pub fn write_vfs_tree<W: Write>(writer: &mut W, root: &VfsDirectory) -> io::Result<()> {
     writeln!(writer, "/")?;
 
-    for child in &root.children {
+    for child in root.children() {
         write_vfs_node(writer, child, 1)?;
     }
 
@@ -66,7 +66,7 @@ fn write_vfs_node<W: Write>(writer: &mut W, node: &VfsNode, depth: usize) -> io:
         VfsNode::Directory(dir) => {
             writeln!(writer, "{indent}{}/", dir.name)?;
 
-            for child in &dir.children {
+            for child in dir.children() {
                 write_vfs_node(writer, child, depth + 1)?;
             }
         }
@@ -95,7 +95,7 @@ mod tests {
         write_vfs_tree(&mut output, &root).unwrap();
 
         let rendered = String::from_utf8(output).unwrap();
-        assert_eq!(rendered, "/\n  mario.sfc\n  readme.txt\n  blob.dat.bin\n");
+        assert_eq!(rendered, "/\n  blob.dat.bin\n  mario.sfc\n  readme.txt\n");
     }
 
     #[test]
