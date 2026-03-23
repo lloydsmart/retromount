@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::content::{
-    Content, ContentId, DiscContent, DiscPart, GameContent, GamePart, RomPart,
+    Content, ContentId, DiscContent, DiscPart, GameContent, GamePart, Platform, RomPart,
 };
 use crate::core::source::SourceRef;
 
@@ -34,6 +34,7 @@ pub fn normalize_content(contents: Vec<Content>) -> Vec<Content> {
                     id: rom.id.clone(),
                     source: rom.source.clone(),
                     title: leaf_stem(&rom.file_name),
+                    platform: derive_platform(&rom.file_name),
                     parts: vec![GamePart::Rom(RomPart {
                         source: rom.source,
                         file_name: rom.file_name,
@@ -82,6 +83,28 @@ fn consumed_rom_sources(contents: &[Content]) -> HashSet<SourceRef> {
         .collect()
 }
 
+fn derive_platform(path: &str) -> Platform {
+    let path = path.to_lowercase();
+
+    let mappings = [
+        ("snes", Platform::Snes),
+        ("ps1", Platform::Ps1),
+        ("psx", Platform::Ps1),
+        ("playstation", Platform::Ps1),
+        ("nes", Platform::Nes),
+        ("megadrive", Platform::Megadrive),
+        ("genesis", Platform::Megadrive),
+    ];
+
+    for (needle, platform) in mappings {
+        if path.contains(needle) {
+            return platform;
+        }
+    }
+
+    Platform::Unknown
+}
+
 fn normalize_disc_group(key: &DiscGroupKey, mut discs: Vec<DiscContent>) -> GameContent {
     discs.sort_by(|left, right| {
         left.disc_number
@@ -113,6 +136,7 @@ fn normalize_disc_group(key: &DiscGroupKey, mut discs: Vec<DiscContent>) -> Game
         id: ContentId::new(game_id_for(key)),
         source: primary.source.clone(),
         title: primary.title.clone(),
+        platform: derive_platform(&primary.source.to_string()),
         parts,
         consumed_sources,
     }
@@ -175,6 +199,7 @@ mod tests {
         };
 
         assert_eq!(game.title, "Super Mario World");
+        assert_eq!(game.platform, Platform::Snes);
         assert_eq!(game.parts.len(), 1);
 
         match &game.parts[0] {
@@ -213,6 +238,7 @@ mod tests {
         };
 
         assert_eq!(game.title, "Final Fantasy VII");
+        assert_eq!(game.platform, Platform::Ps1);
         assert_eq!(game.parts.len(), 2);
 
         match &game.parts[0] {
@@ -297,5 +323,23 @@ mod tests {
         };
 
         assert_eq!(game.title, "Super Mario World");
+    }
+
+    #[test]
+    fn derives_platform_from_path() {
+        assert_eq!(derive_platform("roms/snes/game.sfc"), Platform::Snes);
+        assert_eq!(derive_platform("roms/ps1/game.cue"), Platform::Ps1);
+        assert_eq!(derive_platform("roms/psx/game.cue"), Platform::Ps1);
+        assert_eq!(derive_platform("roms/playstation/game.cue"), Platform::Ps1);
+        assert_eq!(derive_platform("roms/nes/game.nes"), Platform::Nes);
+        assert_eq!(
+            derive_platform("roms/megadrive/game.bin"),
+            Platform::Megadrive
+        );
+        assert_eq!(
+            derive_platform("roms/genesis/game.bin"),
+            Platform::Megadrive
+        );
+        assert_eq!(derive_platform("roms/unknown/game.bin"), Platform::Unknown);
     }
 }

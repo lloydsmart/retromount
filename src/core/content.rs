@@ -14,6 +14,29 @@ pub enum ContentKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum Platform {
+    Snes,
+    Ps1,
+    Nes,
+    Megadrive,
+    Unknown,
+}
+
+impl fmt::Display for Platform {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            Self::Snes => "snes",
+            Self::Ps1 => "ps1",
+            Self::Nes => "nes",
+            Self::Megadrive => "megadrive",
+            Self::Unknown => "unknown",
+        };
+
+        write!(f, "{value}")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ContentId(pub Arc<str>);
 
 impl ContentId {
@@ -106,6 +129,7 @@ pub struct GameContent {
     pub id: ContentId,
     pub source: SourceRef,
     pub title: String,
+    pub platform: Platform,
     pub parts: Vec<GamePart>,
     pub consumed_sources: Vec<SourceRef>,
 }
@@ -161,6 +185,7 @@ mod tests {
             id: ContentId::new("game"),
             source: SourceRef::new("file:/roms/game.sfc"),
             title: "game".to_string(),
+            platform: Platform::Snes,
             parts: vec![GamePart::Rom(RomPart {
                 source: SourceRef::new("file:/roms/game.sfc"),
                 file_name: "game.sfc".to_string(),
@@ -198,6 +223,7 @@ mod tests {
             id: ContentId::new("ff7"),
             source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
             title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
             parts: vec![GamePart::Disc(DiscPart {
                 source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
                 disc_number: 1,
@@ -211,5 +237,14 @@ mod tests {
             content.consumed_sources()[0].to_string(),
             "cue:/roms/ff7-disc1.bin"
         );
+    }
+
+    #[test]
+    fn formats_platform_as_expected() {
+        assert_eq!(Platform::Snes.to_string(), "snes");
+        assert_eq!(Platform::Ps1.to_string(), "ps1");
+        assert_eq!(Platform::Nes.to_string(), "nes");
+        assert_eq!(Platform::Megadrive.to_string(), "megadrive");
+        assert_eq!(Platform::Unknown.to_string(), "unknown");
     }
 }
