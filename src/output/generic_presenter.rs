@@ -37,10 +37,13 @@ where
             .iter()
             .filter(|item| self.encoder.can_encode(item))
             .filter_map(|item| {
-                self.encoder.encode(item).ok().map(|encoded| PresentedEntry {
-                    content: item.clone(),
-                    encoded,
-                })
+                self.encoder
+                    .encode(item)
+                    .ok()
+                    .map(|encoded| PresentedEntry {
+                        content: item.clone(),
+                        encoded,
+                    })
             })
             .collect()
     }
