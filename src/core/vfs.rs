@@ -173,13 +173,13 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
 
 fn node_sort_key(node: &VfsNode) -> (u8, &str) {
     match node {
-        VfsNode::Directory(dir) => (0, &dir.name),
-        VfsNode::File(file) => (1, &file.name),
+        VfsNode::Directory(dir) => (0, dir.name.as_str()),
+        VfsNode::File(file) => (1, file.name.as_str()),
     }
 }
 
 fn sort_nodes(nodes: &mut [VfsNode]) {
-    nodes.sort_by_key(node_sort_key);
+    nodes.sort_by(|left, right| node_sort_key(left).cmp(&node_sort_key(right)));
 }
 
 #[cfg(test)]
