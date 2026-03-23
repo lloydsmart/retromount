@@ -140,7 +140,8 @@ where
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, RomPart, TextContent,
+        BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart,
+        TextContent,
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
@@ -160,6 +161,7 @@ mod tests {
                 id: ContentId::new("sonic"),
                 source: SourceRef::new("zip:/roms/megadrive.zip#sonic.bin"),
                 title: "Sonic the Hedgehog".to_string(),
+                platform: Platform::Megadrive,
                 parts: vec![GamePart::Rom(RomPart {
                     source: SourceRef::new("zip:/roms/megadrive.zip#sonic.bin"),
                     file_name: "Sonic the Hedgehog.bin".to_string(),
@@ -171,6 +173,7 @@ mod tests {
                 id: ContentId::new("ff7"),
                 source: SourceRef::new("cue:/roms/ff7.cue"),
                 title: "Final Fantasy VII".to_string(),
+                platform: Platform::Ps1,
                 parts: vec![GamePart::Disc(DiscPart {
                     source: SourceRef::new("cue:/roms/ff7.cue"),
                     disc_number: 1,
@@ -220,6 +223,7 @@ mod tests {
             id: ContentId::new("smw"),
             source: SourceRef::new("file:/roms/Super Mario World.sfc"),
             title: "Super Mario World".to_string(),
+            platform: Platform::Snes,
             parts: vec![GamePart::Rom(RomPart {
                 source: SourceRef::new("file:/roms/Super Mario World.sfc"),
                 file_name: "Super Mario World.sfc".to_string(),
@@ -242,6 +246,7 @@ mod tests {
             id: ContentId::new("ff7"),
             source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
             title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
             parts: vec![
                 GamePart::Disc(DiscPart {
                     source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
@@ -309,6 +314,7 @@ mod tests {
                 id: ContentId::new("crash-bandicoot"),
                 source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
                 title: "Crash Bandicoot".to_string(),
+                platform: Platform::Ps1,
                 parts: vec![GamePart::Rom(RomPart {
                     source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
                     file_name: "Crash Bandicoot.bin".to_string(),
@@ -320,6 +326,7 @@ mod tests {
                 id: ContentId::new("ff7"),
                 source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
                 title: "Final Fantasy VII".to_string(),
+                platform: Platform::Ps1,
                 parts: vec![
                     GamePart::Disc(DiscPart {
                         source: SourceRef::new("cue:/roms/ff7-disc2.cue"),

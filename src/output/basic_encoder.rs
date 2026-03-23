@@ -73,7 +73,8 @@ impl OutputEncoder for BasicEncoder {
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, RomPart, TextContent,
+        BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart,
+        TextContent,
     };
     use crate::core::source::SourceRef;
 
@@ -98,6 +99,7 @@ mod tests {
             id: ContentId::new("smw"),
             source: SourceRef::new("file:/roms/Super Mario World.sfc"),
             title: "Super Mario World".to_string(),
+            platform: Platform::Snes,
             parts: vec![GamePart::Rom(RomPart {
                 source: SourceRef::new("file:/roms/Super Mario World.sfc"),
                 file_name: "Super Mario World.sfc".to_string(),
@@ -118,6 +120,7 @@ mod tests {
             id: ContentId::new("mgs"),
             source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
             title: "Metal Gear Solid".to_string(),
+            platform: Platform::Ps1,
             parts: vec![GamePart::Disc(DiscPart {
                 source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
                 disc_number: 1,
