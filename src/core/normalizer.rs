@@ -91,18 +91,31 @@ fn derive_platform(path: &str) -> Platform {
 
 fn platform_from_segments(path: &str) -> Option<Platform> {
     for segment in path.split('/').filter(|segment| !segment.is_empty()) {
-        let platform = match segment {
-            "snes" => Platform::Snes,
-            "ps1" | "psx" | "playstation" => Platform::Ps1,
-            "nes" => Platform::Nes,
-            "megadrive" | "genesis" => Platform::Megadrive,
-            _ => continue,
+        let platform = if matches_platform_segment(segment, &["snes"]) {
+            Platform::Snes
+        } else if matches_platform_segment(segment, &["ps1", "psx", "playstation"]) {
+            Platform::Ps1
+        } else if matches_platform_segment(segment, &["nes"]) {
+            Platform::Nes
+        } else if matches_platform_segment(segment, &["megadrive", "genesis"]) {
+            Platform::Megadrive
+        } else {
+            continue;
         };
 
         return Some(platform);
     }
 
     None
+}
+
+fn matches_platform_segment(segment: &str, aliases: &[&str]) -> bool {
+    aliases.iter().any(|alias| {
+        segment == *alias
+            || segment
+                .strip_prefix(alias)
+                .is_some_and(|rest| rest.starts_with('_') || rest.starts_with('-'))
+    })
 }
 
 fn platform_from_extension(path: &str) -> Platform {
