@@ -1,4 +1,5 @@
 use crate::core::content::{Content, DiscPart, GameContent, GamePart};
+use crate::core::source::SourceRef;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
@@ -41,19 +42,23 @@ where
     }
 
     fn build_root_children(&self, entries: &[PresentedEntry]) -> Vec<VfsNode> {
-        let mut children = Vec::new();
+        let mut root = VfsDirectory::new("");
 
         for entry in entries {
             match &entry.content {
                 Content::Game(game) => {
-                    children.push(self.build_game_node(game, &entry.encoded));
+                    self.insert_game_node(&mut root, game, &entry.encoded);
                 }
                 Content::Bytes(_) | Content::Text(_) => {
-                    children.push(VfsNode::File(VfsFile::source_backed(
-                        entry.encoded.name.clone(),
-                        entry.encoded.size,
-                        entry.content.source().clone(),
-                    )));
+                    self.insert_file_path(
+                        &mut root,
+                        &entry.encoded.name,
+                        VfsFile::source_backed(
+                            file_name(&entry.encoded.name),
+                            entry.encoded.size,
+                            entry.content.source().clone(),
+                        ),
+                    );
                 }
                 Content::Rom(_) | Content::Disc(_) => {
                     unreachable!("GenericPresenter should only receive normalized playable content")
@@ -61,30 +66,25 @@ where
             }
         }
 
-        children
+        root.children().to_vec()
     }
 
-    fn build_game_node(&self, game: &GameContent, encoded: &EncodedFile) -> VfsNode {
+    fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, encoded: &EncodedFile) {
+        let base_path = format!("{}/{}", game.platform, game.title);
+
         if self.is_multi_disc_game(game) {
-            VfsNode::Directory(self.build_multi_disc_game_directory(game))
+            self.insert_multi_disc_game(root, game, &base_path);
         } else {
-            VfsNode::File(VfsFile::source_backed(
-                encoded.name.clone(),
-                encoded.size,
-                game.source.clone(),
-            ))
+            let file_path = format!("{}/{}", base_path, file_name(&encoded.name));
+            self.insert_file_path(
+                root,
+                &file_path,
+                VfsFile::source_backed(file_name(&file_path), encoded.size, game.source.clone()),
+            );
         }
     }
 
-    fn is_multi_disc_game(&self, game: &GameContent) -> bool {
-        game.parts.len() > 1
-            && game
-                .parts
-                .iter()
-                .all(|part| matches!(part, GamePart::Disc(_)))
-    }
-
-    fn build_multi_disc_game_directory(&self, game: &GameContent) -> VfsDirectory {
+    fn insert_multi_disc_game(&self, root: &mut VfsDirectory, game: &GameContent, base_path: &str) {
         let mut disc_parts: Vec<&DiscPart> = game
             .parts
             .iter()
@@ -96,31 +96,45 @@ where
 
         disc_parts.sort_by(|left, right| left.disc_number.cmp(&right.disc_number));
 
-        let disc_file_names: Vec<String> = disc_parts
+        let disc_names: Vec<String> = disc_parts
             .iter()
             .map(|disc| format!("{} (Disc {}).cue", game.title, disc.disc_number))
             .collect();
 
-        let mut dir = VfsDirectory::new(&game.title);
-
-        for disc in disc_parts {
-            dir.add_child(VfsNode::File(VfsFile::source_backed(
-                format!("{} (Disc {}).cue", game.title, disc.disc_number),
-                0,
-                disc.source.clone(),
-            )));
+        for disc in &disc_parts {
+            let disc_path = format!(
+                "{}/{} (Disc {}).cue",
+                base_path, game.title, disc.disc_number
+            );
+            self.insert_file_path(
+                root,
+                &disc_path,
+                VfsFile::source_backed(file_name(&disc_path), 0, disc.source.clone()),
+            );
         }
 
-        dir.add_child(VfsNode::File(
-            self.build_m3u_file(&game.title, &disc_file_names),
-        ));
-
-        dir
+        let playlist_path = format!("{}/{}.m3u", base_path, game.title);
+        let playlist = disc_names.join("\n") + "\n";
+        self.insert_file_path(
+            root,
+            &playlist_path,
+            VfsFile::inline(file_name(&playlist_path), playlist.into_bytes()),
+        );
     }
 
-    fn build_m3u_file(&self, title: &str, disc_file_names: &[String]) -> VfsFile {
-        let playlist = disc_file_names.join("\n") + "\n";
-        VfsFile::inline(format!("{title}.m3u"), playlist.into_bytes())
+    fn insert_file_path(&self, root: &mut VfsDirectory, path: &str, file: VfsFile) {
+        let normalized = normalize_path(path);
+        let (parents, _) = split_parent_dirs(&normalized);
+        let directory = ensure_directory(root, &parents);
+        directory.add_child(VfsNode::File(file));
+    }
+
+    fn is_multi_disc_game(&self, game: &GameContent) -> bool {
+        game.parts.len() > 1
+            && game
+                .parts
+                .iter()
+                .all(|part| matches!(part, GamePart::Disc(_)))
     }
 }
 
@@ -136,6 +150,61 @@ where
     }
 }
 
+fn normalize_path(path: &str) -> String {
+    path.replace('\\', "/").trim_matches('/').to_string()
+}
+
+fn split_parent_dirs(path: &str) -> (Vec<String>, String) {
+    let normalized = normalize_path(path);
+
+    match normalized.rsplit_once('/') {
+        Some((parent, file_name)) => (
+            parent
+                .split('/')
+                .filter(|segment| !segment.is_empty())
+                .map(|segment| segment.to_string())
+                .collect(),
+            file_name.to_string(),
+        ),
+        None => (Vec::new(), normalized),
+    }
+}
+
+fn file_name(path: &str) -> String {
+    let normalized = normalize_path(path);
+
+    match normalized.rsplit_once('/') {
+        Some((_, file_name)) => file_name.to_string(),
+        None => normalized,
+    }
+}
+
+fn ensure_directory<'a>(root: &'a mut VfsDirectory, parents: &[String]) -> &'a mut VfsDirectory {
+    let mut current = root;
+
+    for segment in parents {
+        let existing_index = current
+            .children
+            .iter()
+            .position(|node| matches!(node, VfsNode::Directory(dir) if dir.name == *segment));
+
+        let index = match existing_index {
+            Some(index) => index,
+            None => {
+                current.add_child(VfsNode::Directory(VfsDirectory::new(segment)));
+                current.children.len() - 1
+            }
+        };
+
+        current = match current.children.get_mut(index) {
+            Some(VfsNode::Directory(dir)) => dir,
+            _ => unreachable!("directory entry should be a directory"),
+        };
+    }
+
+    current
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,13 +217,13 @@ mod tests {
     use crate::output::basic_encoder::BasicEncoder;
 
     #[test]
-    fn presents_mixed_content_as_root_files() {
+    fn presents_mixed_content_in_library_view() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![
             Content::Bytes(BytesContent {
                 id: ContentId::new("bios"),
-                source: SourceRef::new("file:/roms/bios"),
+                source: SourceRef::new("bios"),
                 size: 512,
             }),
             Content::Game(GameContent {
@@ -190,33 +259,12 @@ mod tests {
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.name, "");
-        assert_eq!(root.children().len(), 4);
-
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
-        assert_eq!(
-            names,
-            vec![
-                "bios.bin",
-                "Final Fantasy VII (Disc 1).cue",
-                "manifest.txt",
-                "Sonic the Hedgehog.bin",
-            ]
-        );
-
-        match &root.children()[0] {
-            VfsNode::File(file) => match &file.backing {
-                FileBacking::Source(source) => {
-                    assert_eq!(source.to_string(), "file:/roms/bios");
-                }
-                other => panic!("expected source backing, got {other:?}"),
-            },
-            other => panic!("expected file, got {other:?}"),
-        }
+        assert_eq!(names, vec!["bios.bin", "manifest.txt", "megadrive", "ps1"]);
     }
 
     #[test]
-    fn presents_single_rom_game_as_file() {
+    fn presents_single_rom_game_as_file_in_platform_title_directory() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![Content::Game(GameContent {
@@ -235,11 +283,24 @@ mod tests {
         let root = presenter.present(&content);
 
         assert_eq!(root.children().len(), 1);
-        assert_eq!(root.children()[0].name(), "Super Mario World.sfc");
+        assert_eq!(root.children()[0].name(), "snes");
+
+        let snes = match &root.children()[0] {
+            VfsNode::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        let game = match &snes.children()[0] {
+            VfsNode::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        assert_eq!(game.name, "Super Mario World");
+        assert_eq!(game.children()[0].name(), "Super Mario World.sfc");
     }
 
     #[test]
-    fn presents_multi_disc_game_as_directory_with_playlist() {
+    fn presents_multi_disc_game_as_directory_with_playlist_in_library_view() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![Content::Game(GameContent {
@@ -267,19 +328,19 @@ mod tests {
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.children().len(), 1);
-        assert_eq!(root.children()[0].name(), "Final Fantasy VII");
+        assert_eq!(root.children()[0].name(), "ps1");
 
-        let directory = match &root.children()[0] {
-            VfsNode::Directory(directory) => directory,
+        let ps1 = match &root.children()[0] {
+            VfsNode::Directory(dir) => dir,
             other => panic!("expected directory, got {other:?}"),
         };
 
-        let child_names: Vec<&str> = directory
-            .children()
-            .iter()
-            .map(|node| node.name())
-            .collect();
+        let game_dir = match &ps1.children()[0] {
+            VfsNode::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        let child_names: Vec<&str> = game_dir.children().iter().map(|node| node.name()).collect();
         assert_eq!(
             child_names,
             vec![
@@ -289,7 +350,7 @@ mod tests {
             ]
         );
 
-        let playlist = match &directory.children()[2] {
+        let playlist = match &game_dir.children()[2] {
             VfsNode::File(file) => file,
             other => panic!("expected file, got {other:?}"),
         };
@@ -306,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn groups_multi_disc_sets_and_generates_playlist() {
+    fn presents_multiple_games_under_platform_directories() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![
@@ -348,8 +409,15 @@ mod tests {
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.children().len(), 2);
-        assert_eq!(root.children()[0].name(), "Final Fantasy VII");
-        assert_eq!(root.children()[1].name(), "Crash Bandicoot.bin");
+        assert_eq!(root.children().len(), 1);
+        assert_eq!(root.children()[0].name(), "ps1");
+
+        let ps1 = match &root.children()[0] {
+            VfsNode::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        let names: Vec<&str> = ps1.children().iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["Crash Bandicoot", "Final Fantasy VII"]);
     }
 }

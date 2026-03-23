@@ -113,6 +113,7 @@ fn write_content_summary<W: Write>(writer: &mut W, content: &Content) -> io::Res
             writeln!(writer, "      ID: {}", game.id)?;
             writeln!(writer, "      Source: {}", game.source)?;
             writeln!(writer, "      Title: {}", game.title)?;
+            writeln!(writer, "      Platform: {}", game.platform)?;
             writeln!(writer, "      Parts: {}", game.parts.len())?;
 
             for (index, part) in game.parts.iter().enumerate() {
