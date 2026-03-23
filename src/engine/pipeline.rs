@@ -116,7 +116,7 @@ mod tests {
         let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
 
         let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["blob.dat.bin", "mario.sfc", "readme.txt"]);
+        assert_eq!(names, vec!["snes", "blob.dat.bin", "readme.txt"]);
     }
 
     #[test]
@@ -152,7 +152,7 @@ mod tests {
         let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
 
         let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["blob.dat.bin", "readme.txt", "sonic.bin"]);
+        assert_eq!(names, vec!["unknown", "blob.dat.bin", "readme.txt"]);
     }
 
     #[test]
@@ -178,7 +178,7 @@ mod tests {
             .iter()
             .map(|node| node.name())
             .collect();
-        assert_eq!(names, vec!["blob.dat.bin", "mario.sfc", "readme.txt"]);
+        assert_eq!(names, vec!["snes", "blob.dat.bin", "readme.txt"]);
 
         assert_eq!(trace.objects[0].object.name, "blob.dat");
         assert_eq!(trace.objects[0].identity, InputIdentity::File);

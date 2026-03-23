@@ -265,7 +265,7 @@ mod tests {
         let root = presenter.present(&content);
 
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["bios.bin", "manifest.txt", "megadrive", "ps1"]);
+        assert_eq!(names, vec!["megadrive", "ps1", "bios.bin", "manifest.txt"]);
     }
 
     #[test]
