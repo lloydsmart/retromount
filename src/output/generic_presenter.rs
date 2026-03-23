@@ -182,16 +182,22 @@ fn ensure_directory<'a>(root: &'a mut VfsDirectory, parents: &[String]) -> &'a m
     let mut current = root;
 
     for segment in parents {
-        let existing_index = current
+        let index = match current
             .children
             .iter()
-            .position(|node| matches!(node, VfsNode::Directory(dir) if dir.name == *segment));
-
-        let index = match existing_index {
+            .position(|node| matches!(node, VfsNode::Directory(dir) if dir.name == *segment))
+        {
             Some(index) => index,
             None => {
                 current.add_child(VfsNode::Directory(VfsDirectory::new(segment)));
-                current.children.len() - 1
+
+                current
+                    .children
+                    .iter()
+                    .position(
+                        |node| matches!(node, VfsNode::Directory(dir) if dir.name == *segment),
+                    )
+                    .expect("inserted directory should be present")
             }
         };
 
