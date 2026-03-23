@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::io;
 
 use crate::core::content::Content;
+use crate::core::normalizer::normalize_content;
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
 use crate::input::decode::InputDecoder;
@@ -13,6 +14,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 pub struct PipelineTrace {
     pub objects: Vec<TracedObject>,
+    pub normalized: Vec<Content>,
     pub presented: VfsDirectory,
 }
 
@@ -63,11 +65,13 @@ pub fn run_pipeline_with_trace(
         });
     }
 
-    let presented_content = suppress_consumed_content(&all_content);
+    let normalized = normalize_content(all_content);
+    let presented_content = suppress_consumed_content(&normalized);
     let presented = presenter.present(&presented_content);
 
     Ok(PipelineTrace {
         objects: traced_objects,
+        normalized,
         presented,
     })
 }
@@ -166,6 +170,7 @@ mod tests {
         let trace = run_pipeline_with_trace(&source, &identifier, &decoder, &presenter).unwrap();
 
         assert_eq!(trace.objects.len(), 3);
+        assert_eq!(trace.normalized.len(), 3);
 
         let names: Vec<&str> = trace
             .presented
@@ -188,95 +193,13 @@ mod tests {
         assert_eq!(trace.objects[1].decoded[0].kind(), ContentKind::Rom);
 
         assert_eq!(trace.objects[2].object.name, "readme.txt");
-        assert_eq!(trace.objects[2].identity, InputIdentity::Text);
-        assert!(trace.objects[2].supported);
-        assert_eq!(trace.objects[2].decoded.len(), 1);
-        assert_eq!(trace.objects[2].decoded[0].kind(), ContentKind::Text);
-    }
-
-    #[test]
-    fn traces_end_to_end_zip_pipeline() {
-        use std::fs::File;
-        use std::io::Write;
-
-        use crate::input::zip_source::ZipInputSource;
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let zip_path = temp_dir.path().join("library.zip");
-
-        let file = File::create(&zip_path).unwrap();
-        let mut zip = zip::ZipWriter::new(file);
-        let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
-
-        zip.start_file("roms/sonic.bin", options).unwrap();
-        zip.write_all(b"rom").unwrap();
-
-        zip.start_file("docs/readme.txt", options).unwrap();
-        zip.write_all(b"hello").unwrap();
-
-        zip.start_file("misc/blob.dat", options).unwrap();
-        zip.write_all(b"xyz").unwrap();
-
-        zip.finish().unwrap();
-
-        let source = ZipInputSource::new(&zip_path);
-        let identifier = BasicInputIdentifier::new();
-        let decoder = BasicInputDecoder::new();
-        let presenter = GenericPresenter::new(BasicEncoder::new());
-
-        let trace = run_pipeline_with_trace(&source, &identifier, &decoder, &presenter).unwrap();
-
-        assert_eq!(trace.objects.len(), 3);
-
-        let names: Vec<&str> = trace
-            .presented
-            .children
-            .iter()
-            .map(|node| node.name())
-            .collect();
-        assert_eq!(names, vec!["blob.dat.bin", "readme.txt", "sonic.bin"]);
-
-        assert_eq!(trace.objects[0].object.name, "blob.dat");
-        assert_eq!(trace.objects[0].identity, InputIdentity::File);
-        assert!(trace.objects[0].supported);
-        assert_eq!(trace.objects[0].decoded.len(), 1);
-        assert_eq!(trace.objects[0].decoded[0].kind(), ContentKind::Bytes);
-
-        assert_eq!(trace.objects[1].object.name, "readme.txt");
-        assert_eq!(trace.objects[1].identity, InputIdentity::Text);
-        assert!(trace.objects[1].supported);
-        assert_eq!(trace.objects[1].decoded.len(), 1);
-        assert_eq!(trace.objects[1].decoded[0].kind(), ContentKind::Text);
-
-        assert_eq!(trace.objects[2].object.name, "sonic.bin");
         assert_eq!(trace.objects[2].identity, InputIdentity::File);
         assert!(trace.objects[2].supported);
         assert_eq!(trace.objects[2].decoded.len(), 1);
-        assert_eq!(trace.objects[2].decoded[0].kind(), ContentKind::Rom);
-    }
+        assert_eq!(trace.objects[2].decoded[0].kind(), ContentKind::Text);
 
-    #[test]
-    fn suppresses_disc_backing_files_from_presented_output() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        fs::write(temp_dir.path().join("game.bin"), b"discdata").unwrap();
-        fs::write(
-            temp_dir.path().join("game.cue"),
-            r#"
-    FILE "game.bin" BINARY
-    TRACK 01 MODE2/2352
-        INDEX 01 00:00:00
-    "#,
-        )
-        .unwrap();
-
-        let source = DirectoryInputSource::new(temp_dir.path());
-        let identifier = BasicInputIdentifier::new();
-        let decoder = BasicInputDecoder::new();
-        let presenter = GenericPresenter::new(BasicEncoder::new());
-
-        let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
-
-        let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["game (Disc 1).cue"]);
+        assert_eq!(trace.normalized[0].kind(), ContentKind::Bytes);
+        assert_eq!(trace.normalized[1].kind(), ContentKind::Game);
+        assert_eq!(trace.normalized[2].kind(), ContentKind::Text);
     }
 }

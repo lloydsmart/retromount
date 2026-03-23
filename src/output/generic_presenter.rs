@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::core::content::Content;
+use crate::core::content::{Content, DiscContent, DiscPart, GameContent, GamePart};
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
@@ -37,18 +37,15 @@ where
             .iter()
             .filter(|item| self.encoder.can_encode(item))
             .filter_map(|item| {
-                self.encoder
-                    .encode(item)
-                    .ok()
-                    .map(|encoded| PresentedEntry {
-                        content: item.clone(),
-                        encoded,
-                    })
+                self.encoder.encode(item).ok().map(|encoded| PresentedEntry {
+                    content: item.clone(),
+                    encoded,
+                })
             })
             .collect()
     }
 
-    fn disc_group_key(content: &crate::core::content::DiscContent) -> DiscGroupKey {
+    fn disc_group_key(content: &DiscContent) -> DiscGroupKey {
         DiscGroupKey {
             parent: Self::logical_parent_path(content.id.0.as_ref()),
             title: content.title.clone(),
@@ -71,6 +68,9 @@ where
 
         for entry in entries {
             match &entry.content {
+                Content::Game(game) => {
+                    children.push(self.build_game_node(game, &entry.encoded));
+                }
                 Content::Disc(disc) => {
                     let key = Self::disc_group_key(disc);
 
@@ -97,6 +97,60 @@ where
         }
 
         children
+    }
+
+    fn build_game_node(&self, game: &GameContent, encoded: &EncodedFile) -> VfsNode {
+        if self.is_multi_disc_game(game) {
+            VfsNode::Directory(self.build_multi_disc_game_directory(game))
+        } else {
+            VfsNode::File(VfsFile::source_backed(
+                encoded.name.clone(),
+                encoded.size,
+                game.source.clone(),
+            ))
+        }
+    }
+
+    fn is_multi_disc_game(&self, game: &GameContent) -> bool {
+        game.parts.len() > 1
+            && game
+                .parts
+                .iter()
+                .all(|part| matches!(part, GamePart::Disc(_)))
+    }
+
+    fn build_multi_disc_game_directory(&self, game: &GameContent) -> VfsDirectory {
+        let mut disc_parts: Vec<&DiscPart> = game
+            .parts
+            .iter()
+            .filter_map(|part| match part {
+                GamePart::Disc(disc) => Some(disc),
+                _ => None,
+            })
+            .collect();
+
+        disc_parts.sort_by(|left, right| left.disc_number.cmp(&right.disc_number));
+
+        let disc_file_names: Vec<String> = disc_parts
+            .iter()
+            .map(|disc| format!("{} (Disc {}).cue", game.title, disc.disc_number))
+            .collect();
+
+        let mut dir = VfsDirectory::new(&game.title);
+
+        for disc in disc_parts {
+            dir.add_child(VfsNode::File(VfsFile::source_backed(
+                format!("{} (Disc {}).cue", game.title, disc.disc_number),
+                0,
+                disc.source.clone(),
+            )));
+        }
+
+        dir.add_child(VfsNode::File(
+            self.build_m3u_file(&game.title, &disc_file_names),
+        ));
+
+        dir
     }
 
     fn multi_disc_groups(&self, entries: &[PresentedEntry]) -> HashSet<DiscGroupKey> {
@@ -180,7 +234,8 @@ where
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, Content, ContentId, DiscContent, RomContent, TextContent,
+        BytesContent, Content, ContentId, DiscContent, DiscPart, GameContent, GamePart, RomContent,
+        RomPart, TextContent,
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
@@ -244,6 +299,94 @@ mod tests {
     }
 
     #[test]
+    fn presents_single_rom_game_as_file() {
+        let presenter = GenericPresenter::new(BasicEncoder::new());
+
+        let content = vec![Content::Game(GameContent {
+            id: ContentId::new("smw"),
+            source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+            title: "Super Mario World".to_string(),
+            parts: vec![GamePart::Rom(RomPart {
+                source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+                file_name: "Super Mario World.sfc".to_string(),
+                size: 4096,
+            })],
+            consumed_sources: vec![],
+        })];
+
+        let root = presenter.present(&content);
+
+        assert_eq!(root.children().len(), 1);
+        assert_eq!(root.children()[0].name(), "Super Mario World.sfc");
+    }
+
+    #[test]
+    fn presents_multi_disc_game_as_directory_with_playlist() {
+        let presenter = GenericPresenter::new(BasicEncoder::new());
+
+        let content = vec![Content::Game(GameContent {
+            id: ContentId::new("ff7"),
+            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+            title: "Final Fantasy VII".to_string(),
+            parts: vec![
+                GamePart::Disc(DiscPart {
+                    source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
+                    disc_number: 2,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
+                }),
+                GamePart::Disc(DiscPart {
+                    source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+                    disc_number: 1,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
+                }),
+            ],
+            consumed_sources: vec![
+                SourceRef::new("cue:/roms/ff7-disc2.bin"),
+                SourceRef::new("cue:/roms/ff7-disc1.bin"),
+            ],
+        })];
+
+        let root = presenter.present(&content);
+
+        assert_eq!(root.children().len(), 1);
+        assert_eq!(root.children()[0].name(), "Final Fantasy VII");
+
+        let directory = match &root.children()[0] {
+            VfsNode::Directory(directory) => directory,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        let child_names: Vec<&str> = directory
+            .children()
+            .iter()
+            .map(|node| node.name())
+            .collect();
+        assert_eq!(
+            child_names,
+            vec![
+                "Final Fantasy VII (Disc 1).cue",
+                "Final Fantasy VII (Disc 2).cue",
+                "Final Fantasy VII.m3u",
+            ]
+        );
+
+        let playlist = match &directory.children()[2] {
+            VfsNode::File(file) => file,
+            other => panic!("expected file, got {other:?}"),
+        };
+
+        match &playlist.backing {
+            FileBacking::Inline(contents) => {
+                assert_eq!(
+                    contents,
+                    b"Final Fantasy VII (Disc 1).cue\nFinal Fantasy VII (Disc 2).cue\n"
+                );
+            }
+            other => panic!("expected inline backing, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn groups_multi_disc_sets_and_generates_playlist() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
@@ -273,44 +416,8 @@ mod tests {
         let root = presenter.present(&content);
 
         assert_eq!(root.children().len(), 2);
-        assert_eq!(root.children()[0].name(), "Final Fantasy VII");
-        assert_eq!(root.children()[1].name(), "Crash Bandicoot.bin");
-
-        let directory = match &root.children()[0] {
-            VfsNode::Directory(directory) => directory,
-            other => panic!("expected directory, got {other:?}"),
-        };
-
-        let child_names: Vec<&str> = directory
-            .children()
-            .iter()
-            .map(|node| node.name())
-            .collect();
-        assert_eq!(
-            child_names,
-            vec![
-                "Final Fantasy VII (Disc 1).cue",
-                "Final Fantasy VII (Disc 2).cue",
-                "Final Fantasy VII.m3u",
-            ]
-        );
-
-        assert_eq!(directory.files().count(), 3);
-
-        let playlist = match &directory.children()[2] {
-            VfsNode::File(file) => file,
-            other => panic!("expected file, got {other:?}"),
-        };
-
-        match &playlist.backing {
-            FileBacking::Inline(contents) => {
-                assert_eq!(
-                    contents,
-                    b"Final Fantasy VII (Disc 1).cue\nFinal Fantasy VII (Disc 2).cue\n"
-                );
-            }
-            other => panic!("expected inline backing, got {other:?}"),
-        }
+        assert_eq!(root.children()[0].name(), "Crash Bandicoot.bin");
+        assert_eq!(root.children()[1].name(), "Final Fantasy VII");
     }
 
     #[test]
