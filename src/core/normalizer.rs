@@ -84,25 +84,35 @@ fn consumed_rom_sources(contents: &[Content]) -> HashSet<SourceRef> {
 }
 
 fn derive_platform(path: &str) -> Platform {
-    let path = path.to_lowercase();
+    let normalized = path.to_lowercase().replace('\\', "/");
 
-    let mappings = [
-        ("snes", Platform::Snes),
-        ("ps1", Platform::Ps1),
-        ("psx", Platform::Ps1),
-        ("playstation", Platform::Ps1),
-        ("nes", Platform::Nes),
-        ("megadrive", Platform::Megadrive),
-        ("genesis", Platform::Megadrive),
-    ];
+    platform_from_segments(&normalized).unwrap_or_else(|| platform_from_extension(&normalized))
+}
 
-    for (needle, platform) in mappings {
-        if path.contains(needle) {
-            return platform;
-        }
+fn platform_from_segments(path: &str) -> Option<Platform> {
+    for segment in path.split('/').filter(|segment| !segment.is_empty()) {
+        let platform = match segment {
+            "snes" => Platform::Snes,
+            "ps1" | "psx" | "playstation" => Platform::Ps1,
+            "nes" => Platform::Nes,
+            "megadrive" | "genesis" => Platform::Megadrive,
+            _ => continue,
+        };
+
+        return Some(platform);
     }
 
-    Platform::Unknown
+    None
+}
+
+fn platform_from_extension(path: &str) -> Platform {
+    if path.ends_with(".sfc") || path.ends_with(".smc") {
+        Platform::Snes
+    } else if path.ends_with(".nes") {
+        Platform::Nes
+    } else {
+        Platform::Unknown
+    }
 }
 
 fn normalize_disc_group(key: &DiscGroupKey, mut discs: Vec<DiscContent>) -> GameContent {
@@ -216,17 +226,17 @@ mod tests {
         let normalized = normalize_content(vec![
             Content::Disc(DiscContent {
                 id: ContentId::new("ps1/ff7-disc2"),
-                source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
+                source: SourceRef::new("cue:/roms/ps1/ff7-disc2.cue"),
                 title: "Final Fantasy VII".to_string(),
                 disc_number: 2,
-                consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
+                consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc2.bin")],
             }),
             Content::Disc(DiscContent {
                 id: ContentId::new("ps1/ff7-disc1"),
-                source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+                source: SourceRef::new("cue:/roms/ps1/ff7-disc1.cue"),
                 title: "Final Fantasy VII".to_string(),
                 disc_number: 1,
-                consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
+                consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc1.bin")],
             }),
         ]);
 
@@ -341,5 +351,9 @@ mod tests {
             Platform::Megadrive
         );
         assert_eq!(derive_platform("roms/unknown/game.bin"), Platform::Unknown);
+        assert_eq!(derive_platform("roms/game.sfc"), Platform::Snes);
+        assert_eq!(derive_platform("roms/game.smc"), Platform::Snes);
+        assert_eq!(derive_platform("roms/game.nes"), Platform::Nes);
+        assert_eq!(derive_platform("roms/game.cue"), Platform::Unknown);
     }
 }
