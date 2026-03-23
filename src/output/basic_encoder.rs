@@ -3,8 +3,6 @@ use crate::output::encode::{EncodedFile, OutputEncoder};
 
 pub struct BasicEncoder;
 
-pub struct BasicEncoder;
-
 impl BasicEncoder {
     pub fn new() -> Self {
         Self
@@ -17,7 +15,9 @@ impl BasicEncoder {
             Content::Disc(disc) => format!("{} (Disc {}).cue", disc.title, disc.disc_number),
             Content::Game(game) => match game.parts.as_slice() {
                 [GamePart::Rom(rom)] => rom.file_name.clone(),
-                [GamePart::Disc(disc)] => format!("{} (Disc {}).cue", game.title, disc.disc_number),
+                [GamePart::Disc(disc)] => {
+                    format!("{} (Disc {}).cue", game.title, disc.disc_number)
+                }
                 _ => game.title.clone(),
             },
             Content::Text(text) => normalize_text_name(text.id.0.as_ref()),
@@ -42,6 +42,15 @@ impl BasicEncoder {
 impl Default for BasicEncoder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn normalize_text_name(path: &str) -> String {
+    let normalized = path.replace('\\', "/");
+
+    match normalized.rsplit_once('.') {
+        Some((base, _)) => format!("{base}.txt"),
+        None => format!("{normalized}.txt"),
     }
 }
 
