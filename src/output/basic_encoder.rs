@@ -11,8 +11,6 @@ impl BasicEncoder {
     fn file_name_for(&self, content: &Content) -> String {
         match content {
             Content::Bytes(bytes) => format!("{}.bin", bytes.id),
-            Content::Rom(rom) => rom.file_name.clone(),
-            Content::Disc(disc) => format!("{} (Disc {}).cue", disc.title, disc.disc_number),
             Content::Game(game) => match game.parts.as_slice() {
                 [GamePart::Rom(rom)] => rom.file_name.clone(),
                 [GamePart::Disc(disc)] => {
@@ -21,20 +19,24 @@ impl BasicEncoder {
                 _ => game.title.clone(),
             },
             Content::Text(text) => normalize_text_name(text.id.0.as_ref()),
+            Content::Rom(_) | Content::Disc(_) => {
+                unreachable!("BasicEncoder should only encode normalized playable content")
+            }
         }
     }
 
     fn size_for(&self, content: &Content) -> u64 {
         match content {
             Content::Bytes(bytes) => bytes.size,
-            Content::Rom(rom) => rom.size,
-            Content::Disc(_) => 0,
             Content::Game(game) => match game.parts.as_slice() {
                 [GamePart::Rom(rom)] => rom.size,
                 [GamePart::Disc(_)] => 0,
                 _ => 0,
             },
             Content::Text(text) => text.size,
+            Content::Rom(_) | Content::Disc(_) => {
+                unreachable!("BasicEncoder should only encode normalized playable content")
+            }
         }
     }
 }
@@ -88,37 +90,6 @@ mod tests {
         let encoded = encoder.encode(&content).unwrap();
         assert_eq!(encoded.name, "bios.bin");
         assert_eq!(encoded.size, 512);
-    }
-
-    #[test]
-    fn encodes_rom_content() {
-        let encoder = BasicEncoder::new();
-        let content = Content::Rom(RomContent {
-            id: ContentId::new("mario-world"),
-            source: SourceRef::new("zip:/roms/snes.zip#smw.sfc"),
-            file_name: "Super Mario World.sfc".to_string(),
-            size: 4096,
-        });
-
-        let encoded = encoder.encode(&content).unwrap();
-        assert_eq!(encoded.name, "Super Mario World.sfc");
-        assert_eq!(encoded.size, 4096);
-    }
-
-    #[test]
-    fn encodes_disc_content() {
-        let encoder = BasicEncoder::new();
-        let content = Content::Disc(DiscContent {
-            id: ContentId::new("ff7-disc1"),
-            source: SourceRef::new("cue:/roms/ff7.cue"),
-            title: "Final Fantasy VII".to_string(),
-            disc_number: 1,
-            consumed_sources: vec![SourceRef::new("cue:/roms/ff7.bin")],
-        });
-
-        let encoded = encoder.encode(&content).unwrap();
-        assert_eq!(encoded.name, "Final Fantasy VII (Disc 1).cue");
-        assert_eq!(encoded.size, 0);
     }
 
     #[test]
