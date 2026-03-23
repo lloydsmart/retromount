@@ -1,5 +1,4 @@
 use crate::core::content::{Content, DiscPart, GameContent, GamePart};
-use crate::core::source::SourceRef;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
