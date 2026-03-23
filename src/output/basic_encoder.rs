@@ -73,8 +73,7 @@ impl OutputEncoder for BasicEncoder {
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, Content, ContentId, DiscContent, DiscPart, GameContent, GamePart, RomContent,
-        RomPart, TextContent,
+        BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, RomPart, TextContent,
     };
     use crate::core::source::SourceRef;
 
