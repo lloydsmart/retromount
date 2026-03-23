@@ -1,8 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::core::content::{
     Content, ContentId, DiscContent, DiscPart, GameContent, GamePart, RomPart,
 };
+use crate::core::source::SourceRef;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct DiscGroupKey {
@@ -17,16 +18,22 @@ enum PendingOutput {
 }
 
 pub fn normalize_content(contents: Vec<Content>) -> Vec<Content> {
+    let consumed_by_discs = consumed_rom_sources(&contents);
+
     let mut pending = Vec::new();
     let mut disc_groups: HashMap<DiscGroupKey, Vec<DiscContent>> = HashMap::new();
 
     for content in contents {
         match content {
             Content::Rom(rom) => {
+                if consumed_by_discs.contains(&rom.source) {
+                    continue;
+                }
+
                 pending.push(PendingOutput::Direct(Content::Game(GameContent {
                     id: rom.id.clone(),
                     source: rom.source.clone(),
-                    title: strip_extension(&rom.file_name),
+                    title: leaf_stem(&rom.file_name),
                     parts: vec![GamePart::Rom(RomPart {
                         source: rom.source,
                         file_name: rom.file_name,
@@ -62,6 +69,17 @@ pub fn normalize_content(contents: Vec<Content>) -> Vec<Content> {
     }
 
     normalized
+}
+
+fn consumed_rom_sources(contents: &[Content]) -> HashSet<SourceRef> {
+    contents
+        .iter()
+        .filter_map(|content| match content {
+            Content::Disc(disc) => Some(disc),
+            _ => None,
+        })
+        .flat_map(|disc| disc.consumed_sources.iter().cloned())
+        .collect()
 }
 
 fn normalize_disc_group(key: &DiscGroupKey, mut discs: Vec<DiscContent>) -> GameContent {
@@ -124,10 +142,13 @@ fn game_id_for(key: &DiscGroupKey) -> String {
     }
 }
 
-fn strip_extension(name: &str) -> String {
-    match name.rsplit_once('.') {
+fn leaf_stem(path: &str) -> String {
+    let normalized = path.replace('\\', "/");
+    let leaf = normalized.rsplit('/').next().unwrap_or(&normalized);
+
+    match leaf.rsplit_once('.') {
         Some((base, _)) => base.to_string(),
-        None => name.to_string(),
+        None => leaf.to_string(),
     }
 }
 
@@ -206,6 +227,40 @@ mod tests {
     }
 
     #[test]
+    fn suppresses_roms_consumed_by_discs() {
+        let normalized = normalize_content(vec![
+            Content::Rom(RomContent {
+                id: ContentId::new("discs/ps1_multi/game_disc1.bin"),
+                source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin"),
+                file_name: "discs/ps1_multi/game_disc1.bin".to_string(),
+                size: 6,
+            }),
+            Content::Disc(DiscContent {
+                id: ContentId::new("discs/ps1_multi/game_disc1.cue"),
+                source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.cue"),
+                title: "game".to_string(),
+                disc_number: 1,
+                consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin")],
+            }),
+        ]);
+
+        assert_eq!(normalized.len(), 1);
+
+        let game = match &normalized[0] {
+            Content::Game(game) => game,
+            other => panic!("expected game, got {other:?}"),
+        };
+
+        assert_eq!(game.title, "game");
+        assert_eq!(game.parts.len(), 1);
+
+        match &game.parts[0] {
+            GamePart::Disc(part) => assert_eq!(part.disc_number, 1),
+            other => panic!("expected disc part, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn does_not_merge_same_title_from_different_directories() {
         let normalized = normalize_content(vec![
             Content::Disc(DiscContent {
@@ -225,5 +280,22 @@ mod tests {
         ]);
 
         assert_eq!(normalized.len(), 2);
+    }
+
+    #[test]
+    fn derives_rom_game_title_from_leaf_name() {
+        let normalized = normalize_content(vec![Content::Rom(RomContent {
+            id: ContentId::new("roms/snes/Super Mario World.sfc"),
+            source: SourceRef::new("file:/roms/snes/Super Mario World.sfc"),
+            file_name: "roms/snes/Super Mario World.sfc".to_string(),
+            size: 4096,
+        })]);
+
+        let game = match &normalized[0] {
+            Content::Game(game) => game,
+            other => panic!("expected game, got {other:?}"),
+        };
+
+        assert_eq!(game.title, "Super Mario World");
     }
 }
