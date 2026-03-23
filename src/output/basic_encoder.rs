@@ -3,6 +3,8 @@ use crate::output::encode::{EncodedFile, OutputEncoder};
 
 pub struct BasicEncoder;
 
+pub struct BasicEncoder;
+
 impl BasicEncoder {
     pub fn new() -> Self {
         Self
@@ -37,12 +39,9 @@ impl BasicEncoder {
     }
 }
 
-fn normalize_text_name(path: &str) -> String {
-    let normalized = path.replace('\\', "/");
-
-    match normalized.rsplit_once('.') {
-        Some((base, _)) => format!("{base}.txt"),
-        None => format!("{normalized}.txt"),
+impl Default for BasicEncoder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
