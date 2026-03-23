@@ -5,6 +5,7 @@ pub mod game_image;
 pub mod input_handler;
 pub mod input_registry;
 pub mod junk_filter;
+pub mod normalizer;
 pub mod platform;
 pub mod reader;
 pub mod reader_factory;

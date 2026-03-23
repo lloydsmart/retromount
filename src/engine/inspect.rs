@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::core::content::Content;
+use crate::core::content::{Content, GamePart};
 use crate::error::RetromountError;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
@@ -69,6 +69,17 @@ pub fn write_inspect_report<W: Write>(
     }
 
     writeln!(writer)?;
+    writeln!(writer, "Normalized:")?;
+    if trace.normalized.is_empty() {
+        writeln!(writer, "  (none)")?;
+    } else {
+        for content in &trace.normalized {
+            writeln!(writer, "  - {:?}", content.kind())?;
+            write_content_summary(writer, content)?;
+        }
+    }
+
+    writeln!(writer)?;
     writeln!(writer, "Presented VFS:")?;
     write_vfs_tree(writer, &trace.presented)?;
 
@@ -96,6 +107,30 @@ fn write_content_summary<W: Write>(writer: &mut W, content: &Content) -> io::Res
             writeln!(writer, "      Source: {}", disc.source)?;
             writeln!(writer, "      Title: {}", disc.title)?;
             writeln!(writer, "      Disc number: {}", disc.disc_number)?;
+        }
+        Content::Game(game) => {
+            writeln!(writer, "    Decoded: Game")?;
+            writeln!(writer, "      ID: {}", game.id)?;
+            writeln!(writer, "      Source: {}", game.source)?;
+            writeln!(writer, "      Title: {}", game.title)?;
+            writeln!(writer, "      Platform: {}", game.platform)?;
+            writeln!(writer, "      Parts: {}", game.parts.len())?;
+
+            for (index, part) in game.parts.iter().enumerate() {
+                match part {
+                    GamePart::Rom(rom) => {
+                        writeln!(writer, "      Part {}: Rom", index + 1)?;
+                        writeln!(writer, "        Source: {}", rom.source)?;
+                        writeln!(writer, "        File name: {}", rom.file_name)?;
+                        writeln!(writer, "        Size: {}", rom.size)?;
+                    }
+                    GamePart::Disc(disc) => {
+                        writeln!(writer, "      Part {}: Disc", index + 1)?;
+                        writeln!(writer, "        Source: {}", disc.source)?;
+                        writeln!(writer, "        Disc number: {}", disc.disc_number)?;
+                    }
+                }
+            }
         }
         Content::Text(text) => {
             writeln!(writer, "    Decoded: Text")?;
@@ -141,6 +176,11 @@ mod tests {
                     size: 0,
                 })],
             }],
+            normalized: vec![Content::Bytes(BytesContent {
+                id: ContentId::new("blob.dat"),
+                source: SourceRef::new("zip:/tmp/library.zip#misc/blob.dat"),
+                size: 0,
+            })],
             presented: VfsDirectory::with_children(
                 "",
                 vec![VfsNode::File(VfsFile::new("blob.dat.bin"))],
@@ -160,6 +200,7 @@ mod tests {
         assert!(rendered.contains("Identity: File"));
         assert!(rendered.contains("Supported: yes"));
         assert!(rendered.contains("Decoded: Bytes"));
+        assert!(rendered.contains("Normalized:"));
         assert!(rendered.contains("Presented VFS:"));
         assert!(rendered.contains("blob.dat.bin"));
     }

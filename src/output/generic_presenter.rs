@@ -1,6 +1,4 @@
-use std::collections::{HashMap, HashSet};
-
-use crate::core::content::Content;
+use crate::core::content::{Content, DiscPart, GameContent, GamePart};
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
@@ -16,12 +14,6 @@ where
 struct PresentedEntry {
     content: Content,
     encoded: EncodedFile,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct DiscGroupKey {
-    parent: String,
-    title: String,
 }
 
 impl<E> GenericPresenter<E>
@@ -48,119 +40,100 @@ where
             .collect()
     }
 
-    fn disc_group_key(content: &crate::core::content::DiscContent) -> DiscGroupKey {
-        DiscGroupKey {
-            parent: Self::logical_parent_path(content.id.0.as_ref()),
-            title: content.title.clone(),
-        }
-    }
-
-    fn logical_parent_path(path: &str) -> String {
-        let normalized = path.replace('\\', "/");
-
-        match normalized.rsplit_once('/') {
-            Some((parent, _)) => parent.to_string(),
-            None => String::new(),
-        }
-    }
-
     fn build_root_children(&self, entries: &[PresentedEntry]) -> Vec<VfsNode> {
-        let multi_disc_groups = self.multi_disc_groups(entries);
-        let mut emitted_groups = HashSet::new();
-        let mut children = Vec::new();
+        let mut root = VfsDirectory::new("");
 
         for entry in entries {
             match &entry.content {
-                Content::Disc(disc) => {
-                    let key = Self::disc_group_key(disc);
-
-                    if multi_disc_groups.contains(&key) {
-                        if emitted_groups.insert(key.clone()) {
-                            children.push(VfsNode::Directory(
-                                self.build_multi_disc_directory(&key, entries),
-                            ));
-                        }
-                    } else {
-                        children.push(VfsNode::File(VfsFile::source_backed(
-                            entry.encoded.name.clone(),
+                Content::Game(game) => {
+                    self.insert_game_node(&mut root, game, &entry.encoded);
+                }
+                Content::Bytes(_) | Content::Text(_) => {
+                    self.insert_file_path(
+                        &mut root,
+                        &entry.encoded.name,
+                        VfsFile::source_backed(
+                            file_name(&entry.encoded.name),
                             entry.encoded.size,
                             entry.content.source().clone(),
-                        )));
-                    }
+                        ),
+                    );
                 }
-                _ => children.push(VfsNode::File(VfsFile::source_backed(
-                    entry.encoded.name.clone(),
-                    entry.encoded.size,
-                    entry.content.source().clone(),
-                ))),
+                Content::Rom(_) | Content::Disc(_) => {
+                    unreachable!("GenericPresenter should only receive normalized playable content")
+                }
             }
         }
 
-        children
+        root.children().to_vec()
     }
 
-    fn multi_disc_groups(&self, entries: &[PresentedEntry]) -> HashSet<DiscGroupKey> {
-        let mut disc_counts: HashMap<DiscGroupKey, usize> = HashMap::new();
+    fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, encoded: &EncodedFile) {
+        let base_path = format!("{}/{}", game.platform, game.title);
 
-        for entry in entries {
-            if let Content::Disc(disc) = &entry.content {
-                let key = Self::disc_group_key(disc);
-                *disc_counts.entry(key).or_insert(0usize) += 1;
-            }
+        if self.is_multi_disc_game(game) {
+            self.insert_multi_disc_game(root, game, &base_path);
+        } else {
+            let file_path = format!("{}/{}", base_path, file_name(&encoded.name));
+            self.insert_file_path(
+                root,
+                &file_path,
+                VfsFile::source_backed(file_name(&file_path), encoded.size, game.source.clone()),
+            );
         }
-
-        disc_counts
-            .into_iter()
-            .filter_map(|(key, count)| (count > 1).then_some(key))
-            .collect()
     }
 
-    fn build_multi_disc_directory(
-        &self,
-        key: &DiscGroupKey,
-        entries: &[PresentedEntry],
-    ) -> VfsDirectory {
-        let mut disc_entries: Vec<_> = entries
+    fn insert_multi_disc_game(&self, root: &mut VfsDirectory, game: &GameContent, base_path: &str) {
+        let mut disc_parts: Vec<&DiscPart> = game
+            .parts
             .iter()
-            .filter_map(|entry| match &entry.content {
-                Content::Disc(disc) if Self::disc_group_key(disc) == *key => {
-                    Some((disc.disc_number, entry))
-                }
+            .filter_map(|part| match part {
+                GamePart::Disc(disc) => Some(disc),
                 _ => None,
             })
             .collect();
 
-        disc_entries.sort_by(|(left_disc, left_entry), (right_disc, right_entry)| {
-            left_disc
-                .cmp(right_disc)
-                .then_with(|| left_entry.encoded.name.cmp(&right_entry.encoded.name))
-        });
+        disc_parts.sort_by(|left, right| left.disc_number.cmp(&right.disc_number));
 
-        let disc_file_names: Vec<String> = disc_entries
+        let disc_names: Vec<String> = disc_parts
             .iter()
-            .map(|(_, entry)| entry.encoded.name.clone())
+            .map(|disc| format!("{} (Disc {}).cue", game.title, disc.disc_number))
             .collect();
 
-        let mut dir = VfsDirectory::new(&key.title);
-
-        for (_, entry) in disc_entries {
-            dir.add_child(VfsNode::File(VfsFile::source_backed(
-                entry.encoded.name.clone(),
-                entry.encoded.size,
-                entry.content.source().clone(),
-            )));
+        for disc in &disc_parts {
+            let disc_path = format!(
+                "{}/{} (Disc {}).cue",
+                base_path, game.title, disc.disc_number
+            );
+            self.insert_file_path(
+                root,
+                &disc_path,
+                VfsFile::source_backed(file_name(&disc_path), 0, disc.source.clone()),
+            );
         }
 
-        dir.add_child(VfsNode::File(
-            self.build_m3u_file(&key.title, &disc_file_names),
-        ));
-
-        dir
+        let playlist_path = format!("{}/{}.m3u", base_path, game.title);
+        let playlist = disc_names.join("\n") + "\n";
+        self.insert_file_path(
+            root,
+            &playlist_path,
+            VfsFile::inline(file_name(&playlist_path), playlist.into_bytes()),
+        );
     }
 
-    fn build_m3u_file(&self, title: &str, disc_file_names: &[String]) -> VfsFile {
-        let playlist = disc_file_names.join("\n") + "\n";
-        VfsFile::inline(format!("{title}.m3u"), playlist.into_bytes())
+    fn insert_file_path(&self, root: &mut VfsDirectory, path: &str, file: VfsFile) {
+        let normalized = normalize_path(path);
+        let (parents, _) = split_parent_dirs(&normalized);
+        let directory = ensure_directory(root, &parents);
+        directory.add_child(VfsNode::File(file));
+    }
+
+    fn is_multi_disc_game(&self, game: &GameContent) -> bool {
+        game.parts.len() > 1
+            && game
+                .parts
+                .iter()
+                .all(|part| matches!(part, GamePart::Disc(_)))
     }
 }
 
@@ -176,37 +149,110 @@ where
     }
 }
 
+fn normalize_path(path: &str) -> String {
+    path.replace('\\', "/").trim_matches('/').to_string()
+}
+
+fn split_parent_dirs(path: &str) -> (Vec<String>, String) {
+    let normalized = normalize_path(path);
+
+    match normalized.rsplit_once('/') {
+        Some((parent, file_name)) => (
+            parent
+                .split('/')
+                .filter(|segment| !segment.is_empty())
+                .map(|segment| segment.to_string())
+                .collect(),
+            file_name.to_string(),
+        ),
+        None => (Vec::new(), normalized),
+    }
+}
+
+fn file_name(path: &str) -> String {
+    let normalized = normalize_path(path);
+
+    match normalized.rsplit_once('/') {
+        Some((_, file_name)) => file_name.to_string(),
+        None => normalized,
+    }
+}
+
+fn ensure_directory<'a>(root: &'a mut VfsDirectory, parents: &[String]) -> &'a mut VfsDirectory {
+    let mut current = root;
+
+    for segment in parents {
+        let index = match current
+            .children
+            .iter()
+            .position(|node| matches!(node, VfsNode::Directory(dir) if dir.name == *segment))
+        {
+            Some(index) => index,
+            None => {
+                current.add_child(VfsNode::Directory(VfsDirectory::new(segment)));
+
+                current
+                    .children
+                    .iter()
+                    .position(
+                        |node| matches!(node, VfsNode::Directory(dir) if dir.name == *segment),
+                    )
+                    .expect("inserted directory should be present")
+            }
+        };
+
+        current = match current.children.get_mut(index) {
+            Some(VfsNode::Directory(dir)) => dir,
+            _ => unreachable!("directory entry should be a directory"),
+        };
+    }
+
+    current
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, Content, ContentId, DiscContent, RomContent, TextContent,
+        BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart,
+        TextContent,
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
     use crate::output::basic_encoder::BasicEncoder;
 
     #[test]
-    fn presents_mixed_content_as_root_files() {
+    fn presents_mixed_content_in_library_view() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![
             Content::Bytes(BytesContent {
                 id: ContentId::new("bios"),
-                source: SourceRef::new("file:/roms/bios"),
+                source: SourceRef::new("bios"),
                 size: 512,
             }),
-            Content::Rom(RomContent {
+            Content::Game(GameContent {
                 id: ContentId::new("sonic"),
                 source: SourceRef::new("zip:/roms/megadrive.zip#sonic.bin"),
-                file_name: "Sonic the Hedgehog.bin".to_string(),
-                size: 1024,
+                title: "Sonic the Hedgehog".to_string(),
+                platform: Platform::Megadrive,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("zip:/roms/megadrive.zip#sonic.bin"),
+                    file_name: "Sonic the Hedgehog.bin".to_string(),
+                    size: 1024,
+                })],
+                consumed_sources: vec![],
             }),
-            Content::Disc(DiscContent {
-                id: ContentId::new("ff7-disc1"),
+            Content::Game(GameContent {
+                id: ContentId::new("ff7"),
                 source: SourceRef::new("cue:/roms/ff7.cue"),
                 title: "Final Fantasy VII".to_string(),
-                disc_number: 1,
+                platform: Platform::Ps1,
+                parts: vec![GamePart::Disc(DiscPart {
+                    source: SourceRef::new("cue:/roms/ff7.cue"),
+                    disc_number: 1,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ff7.bin")],
+                })],
                 consumed_sources: vec![SourceRef::new("cue:/roms/ff7.bin")],
             }),
             Content::Text(TextContent {
@@ -218,74 +264,88 @@ mod tests {
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.name, "");
-        assert_eq!(root.children().len(), 4);
-
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
-        assert_eq!(
-            names,
-            vec![
-                "bios.bin",
-                "Final Fantasy VII (Disc 1).cue",
-                "manifest.txt",
-                "Sonic the Hedgehog.bin",
-            ]
-        );
-
-        match &root.children()[0] {
-            VfsNode::File(file) => match &file.backing {
-                FileBacking::Source(source) => {
-                    assert_eq!(source.to_string(), "file:/roms/bios");
-                }
-                other => panic!("expected source backing, got {other:?}"),
-            },
-            other => panic!("expected file, got {other:?}"),
-        }
+        assert_eq!(names, vec!["megadrive", "ps1", "bios.bin", "manifest.txt"]);
     }
 
     #[test]
-    fn groups_multi_disc_sets_and_generates_playlist() {
+    fn presents_single_rom_game_as_file_in_platform_title_directory() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
-        let content = vec![
-            Content::Rom(RomContent {
-                id: ContentId::new("crash-bandicoot"),
-                source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
-                file_name: "Crash Bandicoot.bin".to_string(),
-                size: 1024,
-            }),
-            Content::Disc(DiscContent {
-                id: ContentId::new("ff7/ff7-disc2"),
-                source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
-                title: "Final Fantasy VII".to_string(),
-                disc_number: 2,
-                consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
-            }),
-            Content::Disc(DiscContent {
-                id: ContentId::new("ff7/ff7-disc1"),
-                source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-                title: "Final Fantasy VII".to_string(),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
-            }),
-        ];
+        let content = vec![Content::Game(GameContent {
+            id: ContentId::new("smw"),
+            source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+            title: "Super Mario World".to_string(),
+            platform: Platform::Snes,
+            parts: vec![GamePart::Rom(RomPart {
+                source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+                file_name: "Super Mario World.sfc".to_string(),
+                size: 4096,
+            })],
+            consumed_sources: vec![],
+        })];
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.children().len(), 2);
-        assert_eq!(root.children()[0].name(), "Final Fantasy VII");
-        assert_eq!(root.children()[1].name(), "Crash Bandicoot.bin");
+        assert_eq!(root.children().len(), 1);
+        assert_eq!(root.children()[0].name(), "snes");
 
-        let directory = match &root.children()[0] {
-            VfsNode::Directory(directory) => directory,
+        let snes = match &root.children()[0] {
+            VfsNode::Directory(dir) => dir,
             other => panic!("expected directory, got {other:?}"),
         };
 
-        let child_names: Vec<&str> = directory
-            .children()
-            .iter()
-            .map(|node| node.name())
-            .collect();
+        let game = match &snes.children()[0] {
+            VfsNode::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        assert_eq!(game.name, "Super Mario World");
+        assert_eq!(game.children()[0].name(), "Super Mario World.sfc");
+    }
+
+    #[test]
+    fn presents_multi_disc_game_as_directory_with_playlist_in_library_view() {
+        let presenter = GenericPresenter::new(BasicEncoder::new());
+
+        let content = vec![Content::Game(GameContent {
+            id: ContentId::new("ff7"),
+            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+            title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![
+                GamePart::Disc(DiscPart {
+                    source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
+                    disc_number: 2,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
+                }),
+                GamePart::Disc(DiscPart {
+                    source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+                    disc_number: 1,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
+                }),
+            ],
+            consumed_sources: vec![
+                SourceRef::new("cue:/roms/ff7-disc2.bin"),
+                SourceRef::new("cue:/roms/ff7-disc1.bin"),
+            ],
+        })];
+
+        let root = presenter.present(&content);
+
+        assert_eq!(root.children()[0].name(), "ps1");
+
+        let ps1 = match &root.children()[0] {
+            VfsNode::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        let game_dir = match &ps1.children()[0] {
+            VfsNode::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        let child_names: Vec<&str> = game_dir.children().iter().map(|node| node.name()).collect();
         assert_eq!(
             child_names,
             vec![
@@ -295,9 +355,7 @@ mod tests {
             ]
         );
 
-        assert_eq!(directory.files().count(), 3);
-
-        let playlist = match &directory.children()[2] {
+        let playlist = match &game_dir.children()[2] {
             VfsNode::File(file) => file,
             other => panic!("expected file, got {other:?}"),
         };
@@ -314,83 +372,57 @@ mod tests {
     }
 
     #[test]
-    fn does_not_generate_playlist_for_single_disc_title() {
-        let presenter = GenericPresenter::new(BasicEncoder::new());
-
-        let content = vec![Content::Disc(DiscContent {
-            id: ContentId::new("mgs/mgs-disc1"),
-            source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
-            title: "Metal Gear Solid".to_string(),
-            disc_number: 1,
-            consumed_sources: vec![SourceRef::new("cue:/roms/mgs-disc1.bin")],
-        })];
-
-        let root = presenter.present(&content);
-
-        assert_eq!(root.children().len(), 1);
-        assert_eq!(root.children()[0].name(), "Metal Gear Solid (Disc 1).cue");
-    }
-
-    #[test]
-    fn does_not_merge_same_title_from_different_directories() {
+    fn presents_multiple_games_under_platform_directories() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![
-            Content::Disc(DiscContent {
-                id: ContentId::new("discs/ps1_multi/game_disc1.cue"),
-                source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.cue"),
-                title: "game".to_string(),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin")],
+            Content::Game(GameContent {
+                id: ContentId::new("crash-bandicoot"),
+                source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
+                title: "Crash Bandicoot".to_string(),
+                platform: Platform::Ps1,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
+                    file_name: "Crash Bandicoot.bin".to_string(),
+                    size: 1024,
+                })],
+                consumed_sources: vec![],
             }),
-            Content::Disc(DiscContent {
-                id: ContentId::new("discs/ps1_multi/game_disc2.cue"),
-                source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc2.cue"),
-                title: "game".to_string(),
-                disc_number: 2,
-                consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_multi/game_disc2.bin")],
-            }),
-            Content::Disc(DiscContent {
-                id: ContentId::new("discs/ps1_single/game.cue"),
-                source: SourceRef::new("file:/roms/discs/ps1_single/game.cue"),
-                title: "game".to_string(),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_single/game.bin")],
+            Content::Game(GameContent {
+                id: ContentId::new("ff7"),
+                source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+                title: "Final Fantasy VII".to_string(),
+                platform: Platform::Ps1,
+                parts: vec![
+                    GamePart::Disc(DiscPart {
+                        source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
+                        disc_number: 2,
+                        consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
+                    }),
+                    GamePart::Disc(DiscPart {
+                        source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+                        disc_number: 1,
+                        consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
+                    }),
+                ],
+                consumed_sources: vec![
+                    SourceRef::new("cue:/roms/ff7-disc2.bin"),
+                    SourceRef::new("cue:/roms/ff7-disc1.bin"),
+                ],
             }),
         ];
 
         let root = presenter.present(&content);
 
-        assert_eq!(root.children().len(), 2);
+        assert_eq!(root.children().len(), 1);
+        assert_eq!(root.children()[0].name(), "ps1");
 
-        let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["game", "game (Disc 1).cue"]);
-
-        let multi_dir = match &root.children()[0] {
-            VfsNode::Directory(directory) => directory,
+        let ps1 = match &root.children()[0] {
+            VfsNode::Directory(dir) => dir,
             other => panic!("expected directory, got {other:?}"),
         };
 
-        let child_names: Vec<&str> = multi_dir
-            .children()
-            .iter()
-            .map(|node| node.name())
-            .collect();
-        assert_eq!(
-            child_names,
-            vec!["game (Disc 1).cue", "game (Disc 2).cue", "game.m3u"]
-        );
-    }
-
-    #[test]
-    fn normalizes_disc_group_parent_to_logical_path() {
-        let key = GenericPresenter::<BasicEncoder>::disc_group_key(&DiscContent {
-            id: ContentId::new(r"discs\ps1_multi\game_disc1.cue"),
-            source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.cue"),
-            title: "game".to_string(),
-            disc_number: 1,
-            consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin")],
-        });
-        assert_eq!(key.parent, "discs/ps1_multi");
+        let names: Vec<&str> = ps1.children().iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["Crash Bandicoot", "Final Fantasy VII"]);
     }
 }
