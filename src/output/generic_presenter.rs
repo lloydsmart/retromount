@@ -225,10 +225,10 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                "Final Fantasy VII (Disc 1).cue",
-                "Sonic the Hedgehog.bin",
                 "bios.bin",
+                "Final Fantasy VII (Disc 1).cue",
                 "manifest.txt",
+                "Sonic the Hedgehog.bin",
             ]
         );
 

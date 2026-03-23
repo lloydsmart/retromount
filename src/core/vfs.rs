@@ -175,6 +175,11 @@ fn sort_nodes(nodes: &mut [VfsNode]) {
     nodes.sort_by(|left, right| {
         node_kind_order(left)
             .cmp(&node_kind_order(right))
+            .then_with(|| {
+                left.name()
+                    .to_ascii_lowercase()
+                    .cmp(&right.name().to_ascii_lowercase())
+            })
             .then_with(|| left.name().cmp(right.name()))
     });
 }
@@ -358,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn sorts_directories_before_files_alphabetically() {
+    fn sorts_directories_before_files_case_insensitively() {
         let root = VfsDirectory::with_children(
             "",
             vec![
@@ -392,5 +397,21 @@ mod tests {
         let names: Vec<_> = root.children().iter().map(|node| node.name()).collect();
 
         assert_eq!(names, vec!["a-dir", "b-dir", "a-file.txt", "z-file.txt"]);
+    }
+
+    #[test]
+    fn sorts_names_case_insensitively_for_browse_order() {
+        let root = VfsDirectory::with_children(
+            "",
+            vec![
+                VfsNode::File(VfsFile::new("zeta.txt")),
+                VfsNode::File(VfsFile::new("Alpha.txt")),
+                VfsNode::File(VfsFile::new("beta.txt")),
+            ],
+        );
+
+        let names: Vec<_> = root.children().iter().map(|node| node.name()).collect();
+
+        assert_eq!(names, vec!["Alpha.txt", "beta.txt", "zeta.txt"]);
     }
 }
