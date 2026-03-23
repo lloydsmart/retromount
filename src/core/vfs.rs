@@ -171,15 +171,19 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
     }
 }
 
-fn node_sort_key(node: &VfsNode) -> (u8, &str) {
-    match node {
-        VfsNode::Directory(dir) => (0, dir.name.as_str()),
-        VfsNode::File(file) => (1, file.name.as_str()),
-    }
+fn sort_nodes(nodes: &mut [VfsNode]) {
+    nodes.sort_by(|left, right| {
+        node_kind_order(left)
+            .cmp(&node_kind_order(right))
+            .then_with(|| left.name().cmp(right.name()))
+    });
 }
 
-fn sort_nodes(nodes: &mut [VfsNode]) {
-    nodes.sort_by(|left, right| node_sort_key(left).cmp(&node_sort_key(right)));
+fn node_kind_order(node: &VfsNode) -> u8 {
+    match node {
+        VfsNode::Directory(_) => 0,
+        VfsNode::File(_) => 1,
+    }
 }
 
 #[cfg(test)]
