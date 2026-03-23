@@ -225,10 +225,10 @@ mod tests {
         assert_eq!(
             names,
             vec![
-                "bios.bin",
                 "Final Fantasy VII (Disc 1).cue",
-                "manifest.txt",
                 "Sonic the Hedgehog.bin",
+                "bios.bin",
+                "manifest.txt",
             ]
         );
 
@@ -273,10 +273,10 @@ mod tests {
         let root = presenter.present(&content);
 
         assert_eq!(root.children().len(), 2);
-        assert_eq!(root.children()[0].name(), "Crash Bandicoot.bin");
-        assert_eq!(root.children()[1].name(), "Final Fantasy VII");
+        assert_eq!(root.children()[0].name(), "Final Fantasy VII");
+        assert_eq!(root.children()[1].name(), "Crash Bandicoot.bin");
 
-        let directory = match &root.children()[1] {
+        let directory = match &root.children()[0] {
             VfsNode::Directory(directory) => directory,
             other => panic!("expected directory, got {other:?}"),
         };
