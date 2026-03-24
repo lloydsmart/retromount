@@ -11,7 +11,8 @@
 
 ## F-001: `src/input` and `src/inputs` are confusingly named
 
-**Status:** Open
+**Status:** Open  
+**Issue:** [#39](https://github.com/lloydsmart/retromount/issues/39)
 
 ### Summary
 
