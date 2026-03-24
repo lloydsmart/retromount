@@ -12,39 +12,55 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_GHA_ENABLED: "on"
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
 
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9 # stable
+      - uses: dtolnay/rust-toolchain@efa25f7f19611383d5b0ccf2d1c8914531636bf9
         with:
           toolchain: stable
-      
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
-        with:
-          version: v0.10.0
 
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
         with:
           shared-key: "retromount-release"
 
-      - name: Build release
-        run: cargo build --release --all-features --verbose
-
-      - name: Install packaging dependencies
+      - name: Ensure sccache is installed
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libfuse-dev
-          cargo install cargo-deb --locked
+          if ! command -v sccache >/dev/null 2>&1; then
+            cargo install sccache
+          fi
+
+      - name: Configure sccache
+        uses: actions/github-script@v8
+        with:
+          script: |
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '')
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '')
+
+      - name: Install cargo-deb
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-deb
+          version: "^2"
+          locked: false
+
+      - name: Build release
+        env:
+          RUSTC_WRAPPER: sccache
+        run: cargo build --locked --release --all-features --verbose
 
       - name: Build Debian package
+        env:
+          RUSTC_WRAPPER: sccache
         run: cargo deb --no-build
 
       - name: Create GitHub Release
@@ -53,7 +69,7 @@ jobs:
           files: target/debian/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: sccache stats
         if: always()
         run: sccache --show-stats
