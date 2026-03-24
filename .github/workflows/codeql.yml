@@ -7,19 +7,11 @@ on:
     paths:
       - '**/*.rs'
       - '.github/workflows/**'
-      - '!.github/workflows/codeql-analysis.yml'
-      - '!**/*.md'
-      - '!docs/**'
-      - '!README.md'
   pull_request:
     branches: [ "main", "develop" ]
     paths:
       - '**/*.rs'
       - '.github/workflows/**'
-      - '!.github/workflows/codeql-analysis.yml'
-      - '!**/*.md'
-      - '!docs/**'
-      - '!README.md'
   schedule:
     - cron: '36 0 * * 0'  # Weekly at 00:36 UTC
 
