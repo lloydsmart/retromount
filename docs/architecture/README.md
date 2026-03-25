@@ -26,13 +26,13 @@ The documents work together as follows:
 
 This creates a traceable flow:
 
-```
+```text
 Finding → Decision → Issue → Implementation
 ```
 
 Or when navigating in reverse:
 
-```
+```text
 Code → Commit → Issue → Decision → Finding
 ```
 
