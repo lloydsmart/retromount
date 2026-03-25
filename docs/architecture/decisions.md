@@ -103,4 +103,131 @@ Configured and runtime execution are migrated onto the pipeline, and `engine::Lo
 
 ### D-002 Notes
 
-This decision has been implemented. The Loader and associated discovery orchestration model have been removed.
+This decision has been implemented. The Loader and associated discovery orchestration model have been removed.  
+
+---
+
+## D-003: Define clear boundary between Presenter and Encoder responsibilities
+
+**Date:** 2026-03-25  
+**Related findings:** F-003  
+**Issue:** #43  
+**Status:** Accepted
+
+---
+
+### Decision
+
+Retromount will retain both Presenter and Encoder abstractions with a clearly defined responsibility boundary:
+
+- **Presenter** is responsible for output structure, grouping, and layout
+- **Encoder** is responsible for per-item materialization, naming, and representation
+
+These roles are complementary and must remain distinct.
+
+---
+
+### Responsibility Breakdown
+
+#### Presenter
+
+The Presenter operates on normalized content (`Content`, `GameContent`, `GamePart`) and is responsible for:
+
+- defining the output structure (directories and hierarchy)
+- grouping related content (e.g. multi-disc games)
+- determining layout decisions (e.g. root vs nested placement)
+- deciding when compound artifacts are required (e.g. M3U playlists)
+- constructing the logical VFS tree
+
+The Presenter answers:
+
+> “What should the output look like?”
+
+The Presenter must **not**:
+
+- implement filename or extension rules
+- perform low-level file representation logic
+- reinterpret raw inputs or bypass normalized content
+
+---
+
+#### Encoder
+
+The Encoder operates at the level of individual output items and is responsible for:
+
+- generating filenames and extensions
+- defining how a content item is materialized as a file
+- mapping content parts to VFS file nodes
+- determining whether content is inline, generated, or source-backed
+- applying representation-specific transformations (e.g. `.nfo` → `.txt`)
+
+The Encoder answers:
+
+> “How is this specific item represented?”
+
+The Encoder must **not**:
+
+- define directory structure or layout
+- group content into collections
+- make global presentation decisions
+
+---
+
+### Examples
+
+| Concern                              | Owner     |
+|--------------------------------------|-----------|
+| Multi-disc games as directories      | Presenter |
+| Platform-based folder structure      | Presenter |
+| Whether to generate an M3U playlist  | Presenter |
+| Disc filename `(Disc 1).cue`         | Encoder   |
+| ROM filename and extension           | Encoder   |
+| Text file normalization (`.nfo → .txt`) | Encoder |
+| Binary output naming (`.bin`)        | Encoder   |
+
+---
+
+### Rationale
+
+Separating structure from representation provides:
+
+- clearer architectural boundaries
+- easier reasoning about output behavior
+- improved extensibility for future output formats
+- better support for plugin-style view customization
+
+This aligns with the overall pipeline design:
+
+- normalization defines *what the content is*
+- presentation defines *how it is organized*
+- encoding defines *how it is materialized*
+
+---
+
+### Consequences
+
+- existing Presenter and Encoder implementations should be reviewed for responsibility leaks
+- logic currently implemented in the wrong layer should be migrated:
+  - structural/grouping logic → Presenter
+  - naming/representation logic → Encoder
+- future features (e.g. alternate views, export formats) should target the appropriate abstraction
+
+---
+
+### Alternatives considered
+
+- **Collapse Presenter and Encoder into a single abstraction**  
+  Rejected — would blur responsibilities and reduce clarity and extensibility
+
+- **Move all logic into Presenter**  
+  Rejected — would overload Presenter with representation concerns
+
+- **Move all logic into Encoder**  
+  Rejected — would force Encoder to manage structure and grouping, breaking separation of concerns
+
+---
+
+### Notes
+
+This decision clarifies the output boundary without introducing new functionality.  
+Implementation will focus on aligning existing code with this responsibility split.
