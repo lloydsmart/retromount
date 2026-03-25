@@ -11,12 +11,13 @@
 
 ## F-001: `src/input` and `src/inputs` are confusingly named
 
-**Status:** Open  
-**Issue:** [#39](https://github.com/lloydsmart/retromount/issues/39)
+**Status:** Resolved  
+**Issue:** [#39](https://github.com/lloydsmart/retromount/issues/39)  
+**Resolved by:** `935811d`
 
 ### Summary
 
-The codebase contains both `src/input` and `src/inputs`, which represent different concepts but are named too similarly.
+The codebase contained both `src/input` and `src/inputs`, which represented different concepts but were named too similarly.
 
 ### Evidence
 
@@ -34,22 +35,22 @@ The codebase contains both `src/input` and `src/inputs`, which represent differe
   - `engine::preview`
   - `engine::inspect`
 
-- `src/inputs` contains the built-in path discovery handlers:
+- `src/inputs` contained the built-in path discovery handlers:
   - `DirectoryInputHandler`
   - `FileInputHandler`
   - `CueInputHandler`
   - `ZipInputHandler`
   - `register_builtin_inputs()`
 
-- `src/inputs` is used by:
+- `src/inputs` was used by:
   - `core::InputRegistry`
   - `engine::Loader`
 
-- The two modules serve different roles, but their names are too similar and make the architecture harder to understand at a glance.
+- The two modules served different roles, but their names were too similar and made the architecture harder to understand at a glance.
 
 ### Why it matters
 
-This makes the intended architecture harder to understand and may conceal overlapping responsibilities.
+This made the intended architecture harder to understand and concealed the distinction between discovery-oriented and pipeline-oriented responsibilities.
 
 ### Options
 
@@ -59,50 +60,56 @@ This makes the intended architecture harder to understand and may conceal overla
 
 ### Decision
 
-D-001
+Resolved by D-001. `src/inputs` was renamed to `src/builtin_inputs`, clarifying its role as the built-in discovery handler set while retaining `src/input` as the pipeline ingestion layer  
 ---
 
 ## F-002: `engine::Loader` and the Phase 3 pipeline create ambiguous system entry points
 
-**Status:** Resolved  
-**Issue:** [#39](https://github.com/lloydsmart/retromount/issues/39)  
-**Resolved by:** `935811d`
+**Status:** Accepted  
+**Issue:** [#42](https://github.com/lloydsmart/retromount/issues/42)
 
 ### Summary
 
-The codebase appears to expose two different ingestion/orchestration paths:
+The codebase currently exposes two orchestration paths:
 
 - a loader-oriented path centered around `engine::Loader`
 - a Phase 3 pipeline-oriented path centered around the newer input/identify/decode/present flow
 
-It is not yet clear which of these is intended to be the canonical long-term entry point.
+This duality should be removed so that Retromount has a single canonical orchestration model.
 
 ### Evidence
 
-- `engine::Loader` exists as a higher-level mechanism for loading and processing inputs
-- the Phase 3 work introduced a pipeline-oriented flow based on input source, identification, decoding, normalization, and presentation
-- both paths appear to participate in turning source material into virtualized output structures
+- `main.rs` uses `engine::loader::Loader` in configured runtime execution
+- `Loader` orchestrates discovery through `InputRegistry` and returns either:
+  - `Vec<VirtualFile>` via `discover_path()`, or
+  - `GameImage` via `load_game_image()`
+- `engine::pipeline` orchestrates the Phase 3 semantic flow:
+  - `InputSource`
+  - `InputIdentifier`
+  - `InputDecoder`
+  - `normalize_content()`
+  - `OutputPresenter`
+  - `VfsDirectory`
+- `engine::preview` and `engine::inspect` use the pipeline path rather than `Loader`
+- the two paths operate over different intermediate models (`VirtualFile` / `GameImage` vs `Content` / `VfsDirectory`)
 
 ### Why it matters
 
-If the project has multiple orchestration paths without a clearly defined long-term role for each, it becomes harder to:
+Retaining two top-level orchestration models makes the system harder to understand, harder to extend, and harder to clean up safely.
 
-- understand the intended architecture
-- add new features without duplicating integration work
-- define stable extension points for future plugins or built-in modules
-- know where cleanup and consolidation should happen
-
-This ambiguity also increases the risk of architectural drift, where new work lands in whichever path is most convenient rather than whichever is intended.
+It also creates uncertainty about where new behavior should be added and weakens the architectural boundaries established in Phase 3.
 
 ### Options
 
-- Declare one path as the canonical long-term entry point and reduce the other to an internal helper or transitional layer
-- Keep both paths, but document them as distinct layers with clearly separated responsibilities
-- Consolidate both paths into a single orchestration model
+- Keep both paths and document them as distinct long-term layers
+- Treat the pipeline as canonical and `Loader` as transitional
+- Migrate configured/runtime execution onto the Phase 3 pipeline and remove `Loader`
 
 ### Decision
 
-TBD
+Accepted in principle: Retromount should converge on a single orchestration model built around the Phase 3 pipeline.
+
+Implementation will proceed on a dedicated follow-on branch: `feature/pipeline-orchestration-consolidation`.  
 ---
 
 ## F-003: Presenter and encoder responsibilities are not yet sharply defined

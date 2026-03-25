@@ -29,7 +29,7 @@ These are adjacent but distinct concerns:
 
 Keeping both layers allows the system to:
 
-- support both loader-based and pipeline-based workflows
+- preserve a clear distinction between discovery-oriented and pipeline-oriented responsibilities while broader orchestration questions are resolved
 - maintain separation between low-level file discovery and higher-level content semantics
 - evolve each layer independently
 
@@ -54,5 +54,39 @@ Keeping both layers allows the system to:
 
 ### Notes
 
-This decision focuses on clarity and boundary definition only. No intended behaviour changes are introduced
+This decision focuses on clarity and boundary definition only. No intended behaviour changes are introduced  
 ---
+
+## D-002: Consolidate Retromount onto a single orchestration model
+
+**Date:** 2026-03-25  
+**Related findings:** F-002  
+**Issue:** #42  
+**Status:** Accepted in principle  
+
+### Decision
+
+Retromount will converge on a single orchestration model built around the Phase 3 pipeline.
+
+Configured and runtime execution should be migrated onto the pipeline so that `engine::Loader` and the dual top-level orchestration model can be removed.
+
+### Rationale
+
+The pipeline provides the clearer long-term architecture:
+
+- explicit processing stages
+- normalized content flow
+- presentation-aware output generation
+- a better foundation for future extensibility
+
+Maintaining both `Loader` and the pipeline as top-level orchestration paths introduces architectural ambiguity and unnecessary duplication.
+
+### Consequences
+
+- a dedicated follow-on branch will implement the migration
+- `Loader` should be treated as a removal target rather than a permanent abstraction
+- surviving discovery responsibilities must be re-homed into pipeline-compatible supporting layers
+
+### Notes
+
+This decision is accepted in principle on the architecture review branch. Implementation will be carried out separately and may refine the exact migration details.
