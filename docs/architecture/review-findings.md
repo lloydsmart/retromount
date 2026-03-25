@@ -1,5 +1,9 @@
 # Review Findings
 
+This document captures architectural issues identified during review, along with their resolution status.
+
+---
+
 ## Status legend
 
 - Open
@@ -13,9 +17,9 @@
 
 **Status:** Resolved  
 **Issue:** [#39](https://github.com/lloydsmart/retromount/issues/39)  
-**Resolved by:** `935811d`
+**Resolved by:** D-001 (`935811d`)
 
-### Summary
+### Context
 
 The codebase contained both `src/input` and `src/inputs`, which represented different concepts but were named too similarly.
 
@@ -60,22 +64,24 @@ This made the intended architecture harder to understand and concealed the disti
 
 ### Decision
 
-Resolved by D-001. `src/inputs` was renamed to `src/builtin_inputs`, clarifying its role as the built-in discovery handler set while retaining `src/input` as the pipeline ingestion layer  
+Resolved by D-001. `src/inputs` was renamed to `src/builtin_inputs`, clarifying its role as the built-in discovery handler set while retaining `src/input` as the pipeline ingestion layer.
+
 ---
 
 ## F-002: `engine::Loader` and the Phase 3 pipeline create ambiguous system entry points
 
 **Status:** Resolved  
-**Issue:** [#42](https://github.com/lloydsmart/retromount/issues/42)
+**Issue:** [#42](https://github.com/lloydsmart/retromount/issues/42)  
+**Resolved by:** D-002
 
-### Summary
+### Context
 
-The codebase currently exposes two orchestration paths:
+The codebase exposed two orchestration paths:
 
 - a loader-oriented path centered around `engine::Loader`
-- a Phase 3 pipeline-oriented path centered around the newer input/identify/decode/present flow
+- a Phase 3 pipeline-oriented path centered around the input → identify → decode → present flow
 
-This duality should be removed so that Retromount has a single canonical orchestration model.
+This duality introduced ambiguity about the canonical execution model.
 
 ### Evidence
 
@@ -109,14 +115,16 @@ It also creates uncertainty about where new behavior should be added and weakens
 
 Resolved by D-002. The loader-based orchestration path has been removed, and Retromount now uses the Phase 3 pipeline as its sole orchestration model.
 
-Implementation proceeded on a dedicated follow-on branch: `feature/pipeline-orchestration-consolidation`.  
+Implementation was performed on branch: `feature/pipeline-orchestration-consolidation`.
+
 ---
 
 ## F-003: Presenter and encoder responsibilities are not yet sharply defined
 
-**Status:** Open
+**Status:** Open  
+**Issue:** [#43](https://github.com/lloydsmart/retromount/issues/43)
 
-### Summary
+### Context
 
 The current output side of the architecture includes both presenter and encoder concepts, but the boundary between them is not yet fully clear.
 
@@ -131,7 +139,7 @@ In particular, naming, output structure, and representation logic may currently 
 
 ### Why it matters
 
-If presenter and encoder responsibilities are blurry, then future view work will be harder to implement cleanly.
+If presenter and encoder responsibilities are unclear, future view work will be harder to implement cleanly.
 
 This affects:
 
@@ -140,7 +148,7 @@ This affects:
 - where content representation/translation should be decided
 - whether future output customizations can be added without modifying core logic
 
-A weak boundary here also makes plugin-style extensibility more difficult, because it becomes unclear which interface a new output behavior should target.
+A weak boundary also makes plugin-style extensibility more difficult, because it becomes unclear which interface a new output behavior should target.
 
 ### Options
 
@@ -151,17 +159,19 @@ A weak boundary here also makes plugin-style extensibility more difficult, becau
 ### Decision
 
 TBD
+
 ---
 
 ## F-004: The core model boundary needs review to ensure `Content` and `GameContent` remain presentation-agnostic
 
-**Status:** Open
+**Status:** Open  
+**Issue:** [#44](https://github.com/lloydsmart/retromount/issues/44)
 
-### Summary
+### Context
 
-The current core model appears to carry the project's normalized representation of games and other content, but it is not yet fully confirmed that these types are free from presentation-specific assumptions.
+The current core model represents the project's normalized understanding of games and content, but it is not yet fully confirmed that these types are free from presentation-specific assumptions.
 
-This finding is concerned with keeping the normalized model clean, reusable, and independent from output/view decisions.
+This finding focuses on keeping the normalized model clean, reusable, and independent from output/view decisions.
 
 ### Evidence
 

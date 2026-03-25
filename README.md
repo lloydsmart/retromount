@@ -1,4 +1,4 @@
-# RetroMount
+# 🎮 RetroMount
 
 ![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
@@ -20,14 +20,14 @@ The long-term goal is a flexible **input → transformation → output pipeline*
 
 ---
 
-# What Problem Does RetroMount Solve?
+## What Problem Does RetroMount Solve?
 
 Retro game collections are often stored in formats that are not ideal for every device or emulator.
 
 For example:
 
 | Storage format | Works well for | Problems |
-|----------------|---------------|----------|
+| --- | --- | --- |
 | ZIP archives | ROM management | Many emulators cannot read zipped files |
 | CHD images | Space-efficient storage | Some tools require ISO/BIN files |
 | CUE/BIN discs | Accurate disc representation | Some systems prefer CHD |
@@ -35,7 +35,7 @@ For example:
 
 Traditionally, users solve this by **duplicating their collection in multiple formats**:
 
-```
+```text
 ROMs/
   snes/
     game.zip
@@ -44,7 +44,7 @@ ROMs/
 
 or
 
-```
+```text
 PS1/
   game.chd
   game.iso
@@ -56,7 +56,7 @@ RetroMount solves this by providing a **virtual filesystem layer** that can dyna
 
 Example:
 
-```
+```text
 Storage (single copy)
     │
     ▼
@@ -65,7 +65,7 @@ Storage (single copy)
 
 RetroMount can present that same file as:
 
-```
+```text
 /mnt/mister/ps1/game.cue
 /mnt/batocera/ps1/game.chd
 /mnt/tools/ps1/game.iso
@@ -75,7 +75,7 @@ All backed by **one underlying file**.
 
 ---
 
-# Project Status
+## Project Status
 
 RetroMount is under active development.
 
@@ -85,25 +85,25 @@ Current development is focused on building the **core ingestion and discovery pi
 
 The project now supports:
 
-**Input discovery**
+### Input discovery
 
 - Directory sources
 - ZIP archives
 - Individual files
 - CUE/BIN disc images
 
-**Core models**
+### Core models
 
 - `VirtualFile` abstraction for discovered files
 - `Track`, `Disc`, and `GameImage` models for disc-based systems
 
-**Loader pipeline**
+### Loader pipeline
 
 - Input handler registry
 - Reader abstraction for accessing underlying data
 - Loader for discovering payload files or loading disc images
 
-**CUE support**
+### CUE support
 
 - Parsing CUE sheets
 - Resolving referenced files
@@ -111,7 +111,7 @@ The project now supports:
 - Track size hydration from actual file metadata
 - Generation of `GameImage` objects for disc-based systems
 
-**Configuration**
+### Configuration
 
 - YAML configuration file
 - Platform-aware views
@@ -119,7 +119,7 @@ The project now supports:
 
 ---
 
-# Example Configuration
+## Example Configuration
 
 Create a file called `retromount.yaml`:
 
@@ -143,7 +143,7 @@ Create a file called `retromount.yaml`:
 Fields:
 
 | Field | Description |
-|------|-------------|
+| --- | --- |
 | `name` | Logical name for the mounted view |
 | `source` | Source directory, archive, or disc image |
 | `mount` | Mount point for the virtual filesystem |
@@ -153,11 +153,11 @@ Platform names are **case-insensitive** and accept friendly aliases.
 
 ---
 
-# Architecture Overview
+## Architecture Overview
 
 The ingestion pipeline currently looks like this:
 
-```
+```text
 Input Source
      │
      ▼
@@ -198,7 +198,7 @@ Readers provide access to underlying data streams:
 
 Disc-based systems use structured models:
 
-```
+```text
 GameImage
  └─ Disc
      └─ Track
@@ -208,7 +208,7 @@ This enables accurate representation of multi-track disc formats.
 
 ---
 
-# Filtering
+## Filtering
 
 RetroMount only removes **universally unwanted junk files** during discovery:
 
@@ -222,7 +222,7 @@ Output-specific filtering will be implemented in the **view/output layer** in a 
 
 ---
 
-# Roadmap
+## Roadmap
 
 ### Phase 3 (next)
 
@@ -239,6 +239,6 @@ Planned work:
 
 ---
 
-# License
+## License
 
 GPL-3.0
