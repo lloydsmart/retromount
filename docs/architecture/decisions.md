@@ -175,15 +175,15 @@ The Encoder must **not**:
 
 ### Examples
 
-| Concern                              | Owner     |
-|--------------------------------------|-----------|
-| Multi-disc games as directories      | Presenter |
-| Platform-based folder structure      | Presenter |
-| Whether to generate an M3U playlist  | Presenter |
-| Disc filename `(Disc 1).cue`         | Encoder   |
-| ROM filename and extension           | Encoder   |
-| Text file normalization (`.nfo → .txt`) | Encoder |
-| Binary output naming (`.bin`)        | Encoder   |
+| Concern                                 | Owner     |
+|-----------------------------------------|-----------|
+| Multi-disc games as directories         | Presenter |
+| Platform-based folder structure         | Presenter |
+| Whether to generate an M3U playlist     | Presenter |
+| Disc filename `(Disc 1).cue`            | Encoder   |
+| ROM filename and extension              | Encoder   |
+| Text file normalization (`.nfo → .txt`) | Encoder   |
+| Binary output naming (`.bin`)           | Encoder   |
 
 ---
 
