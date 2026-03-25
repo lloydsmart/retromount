@@ -4,17 +4,17 @@
 
 - [x] Audit `src/input` vs `src/inputs`
 - [x] Identify canonical orchestration path
-- [ ] Remove obsolete transitional helpers from Phase 3
+- [x] Remove obsolete transitional helpers from Phase 3
 
 ### F-002 migration checklist
 
-- [ ] Audit `Loader` responsibilities
-- [ ] Identify all `Loader` call sites
-- [ ] Map each `Loader` responsibility to a pipeline-aligned destination
-- [ ] Rework configured/runtime execution to use pipeline output
-- [ ] Remove `Loader`
-- [ ] Remove dead `InputRegistry` / `VirtualFile`-only orchestration code if obsolete
-- [ ] Update architecture docs and findings
+- [x] Audit `Loader` responsibilities
+- [x] Identify all `Loader` call sites
+- [x] Map each `Loader` responsibility to a pipeline-aligned destination
+- [x] Rework configured/runtime execution to use pipeline output
+- [x] Remove `Loader`
+- [x] Remove dead `InputRegistry` / `VirtualFile`-only orchestration code if obsolete
+- [x] Update architecture docs and findings
 
 ## Medium priority
 

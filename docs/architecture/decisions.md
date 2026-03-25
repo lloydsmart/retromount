@@ -62,7 +62,7 @@ This decision focuses on clarity and boundary definition only. No intended behav
 **Date:** 2026-03-25  
 **Related findings:** F-002  
 **Issue:** #42  
-**Status:** Accepted in principle  
+**Status:** Implemented  
 
 ### Decision
 
@@ -89,4 +89,4 @@ Maintaining both `Loader` and the pipeline as top-level orchestration paths intr
 
 ### Notes
 
-This decision is accepted in principle on the architecture review branch. Implementation will be carried out separately and may refine the exact migration details.
+This decision has now been implemented. The Loader and associated discovery orchestration model have been removed, and all configured/runtime execution now flows through the Phase 3 pipeline.

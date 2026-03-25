@@ -65,7 +65,7 @@ Resolved by D-001. `src/inputs` was renamed to `src/builtin_inputs`, clarifying 
 
 ## F-002: `engine::Loader` and the Phase 3 pipeline create ambiguous system entry points
 
-**Status:** Accepted  
+**Status:** Resolved  
 **Issue:** [#42](https://github.com/lloydsmart/retromount/issues/42)
 
 ### Summary
@@ -107,9 +107,9 @@ It also creates uncertainty about where new behavior should be added and weakens
 
 ### Decision
 
-Accepted in principle: Retromount should converge on a single orchestration model built around the Phase 3 pipeline.
+Resolved by D-002. The loader-based orchestration path has been removed, and Retromount now uses the Phase 3 pipeline as its sole orchestration model.
 
-Implementation will proceed on a dedicated follow-on branch: `feature/pipeline-orchestration-consolidation`.  
+Implementation proceeded on a dedicated follow-on branch: `feature/pipeline-orchestration-consolidation`.  
 ---
 
 ## F-003: Presenter and encoder responsibilities are not yet sharply defined
