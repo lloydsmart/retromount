@@ -2,7 +2,55 @@
 
 This directory captures the current architectural shape of Retromount following Phase 3 consolidation and the pipeline orchestration unification (D-002).
 
-It documents the system as it exists today, along with the review work carried out in `feature/architecture-boundary-review`.
+It documents the system as it exists today, along with the review work carried out in `feature/architecture-boundary-review`.  
+
+---
+
+## How to use these documents
+
+The architecture documentation is structured to provide a clear, traceable view of how Retromount evolves over time.
+
+The documents work together as follows:
+
+- **Review findings (`review-findings.md`)**  
+  Identify architectural issues, ambiguities, or areas for improvement.
+
+- **Decisions (`decisions.md`)**  
+  Record the chosen approach for addressing findings, including context and consequences.
+
+- **GitHub issues**  
+  Capture discussion, exploration, and implementation tracking for each finding.
+
+- **Commits**  
+  Implement the decisions in the codebase.
+
+This creates a traceable flow:
+
+```
+Finding → Decision → Issue → Implementation
+```
+
+Or when navigating in reverse:
+
+```
+Code → Commit → Issue → Decision → Finding
+```
+
+### How to navigate
+
+- Start with **review findings** to understand current concerns
+- Follow links to **decisions** to see how those concerns were resolved
+- Use linked **issues** for detailed discussion and context
+- Refer to **commits** for the actual implementation
+
+### Why this exists
+
+This structure ensures that:
+
+- architectural intent is preserved over time
+- decisions remain understandable after implementation
+- future changes can be made with confidence
+- contributors can quickly understand why the system is designed the way it is  
 
 ---
 
