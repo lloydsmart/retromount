@@ -1,0 +1,38 @@
+name: Docs
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'docs/**'
+      - '*.md'
+      - '**/*.md'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '*.md'
+      - '**/*.md'
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  markdownlint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@07035fd053f7be764496c0f8d8f9f41f98305101 # v22.0.0
+        with:
+          globs: |
+            **/*.md
+            
