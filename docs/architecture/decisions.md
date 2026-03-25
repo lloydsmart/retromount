@@ -21,7 +21,7 @@ This document records significant architectural decisions made during the develo
 **Related:** F-001  
 **Issue:** [#39](https://github.com/lloydsmart/retromount/issues/39)
 
-### Context
+### D-001 Context
 
 The codebase contains two similarly named modules:
 
@@ -38,7 +38,7 @@ These are adjacent but distinct concerns:
 - discovery: "what files exist and how do we enumerate them?"
 - ingestion: "what is this content and how do we interpret it?"
 
-### Decision
+### D-001 Decision
 
 Retromount will retain both the Phase 3 pipeline input layer and the discovery handler layer as separate concepts.
 
@@ -47,7 +47,7 @@ The modules will be clarified as follows:
 - `src/input` will remain the pipeline ingestion layer (InputSource, Identifier, Decoder)
 - `src/inputs` will be renamed to `src/builtin_inputs` to reflect its role as the built-in discovery handler set
 
-### Consequences
+### D-001 Consequences
 
 - `src/inputs` will be renamed to `src/builtin_inputs`
 - all references to `crate::inputs` will be updated accordingly
@@ -55,7 +55,7 @@ The modules will be clarified as follows:
 - `src/input` remains unchanged
 - broader orchestration questions (Loader vs pipeline) will be addressed under F-002
 
-### Alternatives considered
+### D-001 Alternatives considered
 
 - **Consolidate both modules into a single ingestion model**  
   Rejected for now — would introduce unnecessary risk without first resolving higher-level orchestration questions (F-002)
@@ -66,7 +66,7 @@ The modules will be clarified as follows:
 - **Remove loader/discovery layer entirely**  
   Rejected — still actively used and represents a valid lower-level abstraction
 
-### Notes
+### D-001 Notes
 
 This decision focuses on clarity and boundary definition only. No intended behaviour changes are introduced.
 
@@ -79,7 +79,7 @@ This decision focuses on clarity and boundary definition only. No intended behav
 **Related:** F-002  
 **Issue:** [#42](https://github.com/lloydsmart/retromount/issues/42)
 
-### Context
+### D-002 Context
 
 The system previously exposed two orchestration paths:
 
@@ -88,19 +88,19 @@ The system previously exposed two orchestration paths:
 
 Maintaining both created architectural ambiguity and duplicated responsibility.
 
-### Decision
+### D-002 Decision
 
 Retromount will converge on a single orchestration model built around the Phase 3 pipeline.
 
 Configured and runtime execution are migrated onto the pipeline, and `engine::Loader` is removed as a top-level orchestration mechanism.
 
-### Consequences
+### D-002 Consequences
 
 - The loader-based orchestration path has been removed
 - All configured/runtime execution now flows through the Phase 3 pipeline
 - Discovery responsibilities have been re-homed into pipeline-compatible supporting layers
 - The pipeline becomes the canonical data flow for the system
 
-### Notes
+### D-002 Notes
 
 This decision has been implemented. The Loader and associated discovery orchestration model have been removed.

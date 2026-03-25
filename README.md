@@ -194,7 +194,7 @@ Readers provide access to underlying data streams:
 - `DirReader`
 - `ZipReader`
 
-### Core models
+### Core disc models
 
 Disc-based systems use structured models:
 
