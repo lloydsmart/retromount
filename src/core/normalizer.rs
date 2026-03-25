@@ -11,13 +11,18 @@ struct DiscGroupKey {
     title: String,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct NormalizationOptions {
+    pub platform_hint: Option<Platform>,
+}
+
 #[derive(Debug, Clone)]
 enum PendingOutput {
     Direct(Content),
     DiscGroup(DiscGroupKey),
 }
 
-pub fn normalize_content(contents: Vec<Content>) -> Vec<Content> {
+pub fn normalize_content(contents: Vec<Content>, options: &NormalizationOptions) -> Vec<Content> {
     let consumed_by_discs = consumed_rom_sources(&contents);
 
     let mut pending = Vec::new();
@@ -34,7 +39,10 @@ pub fn normalize_content(contents: Vec<Content>) -> Vec<Content> {
                     id: rom.id.clone(),
                     source: rom.source.clone(),
                     title: leaf_stem(&rom.file_name),
-                    platform: derive_platform(&rom.file_name),
+                    platform: options
+                        .platform_hint
+                        .clone()
+                        .unwrap_or_else(|| derive_platform(&rom.file_name)),
                     parts: vec![GamePart::Rom(RomPart {
                         source: rom.source,
                         file_name: rom.file_name,
@@ -63,7 +71,7 @@ pub fn normalize_content(contents: Vec<Content>) -> Vec<Content> {
             PendingOutput::Direct(content) => normalized.push(content),
             PendingOutput::DiscGroup(key) => {
                 if let Some(discs) = disc_groups.remove(&key) {
-                    normalized.push(Content::Game(normalize_disc_group(&key, discs)));
+                    normalized.push(Content::Game(normalize_disc_group(&key, discs, options)));
                 }
             }
         }
@@ -128,7 +136,11 @@ fn platform_from_extension(path: &str) -> Platform {
     }
 }
 
-fn normalize_disc_group(key: &DiscGroupKey, mut discs: Vec<DiscContent>) -> GameContent {
+fn normalize_disc_group(
+    key: &DiscGroupKey,
+    mut discs: Vec<DiscContent>,
+    options: &NormalizationOptions,
+) -> GameContent {
     discs.sort_by(|left, right| {
         left.disc_number
             .cmp(&right.disc_number)
@@ -159,7 +171,10 @@ fn normalize_disc_group(key: &DiscGroupKey, mut discs: Vec<DiscContent>) -> Game
         id: ContentId::new(game_id_for(key)),
         source: primary.source.clone(),
         title: primary.title.clone(),
-        platform: derive_platform(&primary.source.to_string()),
+        platform: options
+            .platform_hint
+            .clone()
+            .unwrap_or_else(|| derive_platform(&primary.source.to_string())),
         parts,
         consumed_sources,
     }
@@ -207,12 +222,15 @@ mod tests {
 
     #[test]
     fn normalizes_rom_to_game() {
-        let normalized = normalize_content(vec![Content::Rom(RomContent {
-            id: ContentId::new("smw"),
-            source: SourceRef::new("file:/roms/Super Mario World.sfc"),
-            file_name: "Super Mario World.sfc".to_string(),
-            size: 4096,
-        })]);
+        let normalized = normalize_content(
+            vec![Content::Rom(RomContent {
+                id: ContentId::new("smw"),
+                source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+                file_name: "Super Mario World.sfc".to_string(),
+                size: 4096,
+            })],
+            &NormalizationOptions::default(),
+        );
 
         assert_eq!(normalized.len(), 1);
 
@@ -236,22 +254,25 @@ mod tests {
 
     #[test]
     fn groups_discs_into_single_game() {
-        let normalized = normalize_content(vec![
-            Content::Disc(DiscContent {
-                id: ContentId::new("ps1/ff7-disc2"),
-                source: SourceRef::new("cue:/roms/ps1/ff7-disc2.cue"),
-                title: "Final Fantasy VII".to_string(),
-                disc_number: 2,
-                consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc2.bin")],
-            }),
-            Content::Disc(DiscContent {
-                id: ContentId::new("ps1/ff7-disc1"),
-                source: SourceRef::new("cue:/roms/ps1/ff7-disc1.cue"),
-                title: "Final Fantasy VII".to_string(),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc1.bin")],
-            }),
-        ]);
+        let normalized = normalize_content(
+            vec![
+                Content::Disc(DiscContent {
+                    id: ContentId::new("ps1/ff7-disc2"),
+                    source: SourceRef::new("cue:/roms/ps1/ff7-disc2.cue"),
+                    title: "Final Fantasy VII".to_string(),
+                    disc_number: 2,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc2.bin")],
+                }),
+                Content::Disc(DiscContent {
+                    id: ContentId::new("ps1/ff7-disc1"),
+                    source: SourceRef::new("cue:/roms/ps1/ff7-disc1.cue"),
+                    title: "Final Fantasy VII".to_string(),
+                    disc_number: 1,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc1.bin")],
+                }),
+            ],
+            &NormalizationOptions::default(),
+        );
 
         assert_eq!(normalized.len(), 1);
 
@@ -277,21 +298,26 @@ mod tests {
 
     #[test]
     fn suppresses_roms_consumed_by_discs() {
-        let normalized = normalize_content(vec![
-            Content::Rom(RomContent {
-                id: ContentId::new("discs/ps1_multi/game_disc1.bin"),
-                source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin"),
-                file_name: "discs/ps1_multi/game_disc1.bin".to_string(),
-                size: 6,
-            }),
-            Content::Disc(DiscContent {
-                id: ContentId::new("discs/ps1_multi/game_disc1.cue"),
-                source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.cue"),
-                title: "game".to_string(),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin")],
-            }),
-        ]);
+        let normalized = normalize_content(
+            vec![
+                Content::Rom(RomContent {
+                    id: ContentId::new("discs/ps1_multi/game_disc1.bin"),
+                    source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin"),
+                    file_name: "discs/ps1_multi/game_disc1.bin".to_string(),
+                    size: 6,
+                }),
+                Content::Disc(DiscContent {
+                    id: ContentId::new("discs/ps1_multi/game_disc1.cue"),
+                    source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.cue"),
+                    title: "game".to_string(),
+                    disc_number: 1,
+                    consumed_sources: vec![SourceRef::new(
+                        "file:/roms/discs/ps1_multi/game_disc1.bin",
+                    )],
+                }),
+            ],
+            &NormalizationOptions::default(),
+        );
 
         assert_eq!(normalized.len(), 1);
 
@@ -311,34 +337,40 @@ mod tests {
 
     #[test]
     fn does_not_merge_same_title_from_different_directories() {
-        let normalized = normalize_content(vec![
-            Content::Disc(DiscContent {
-                id: ContentId::new("ps1_multi/game_disc1.cue"),
-                source: SourceRef::new("file:/roms/ps1_multi/game_disc1.cue"),
-                title: "game".to_string(),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("file:/roms/ps1_multi/game_disc1.bin")],
-            }),
-            Content::Disc(DiscContent {
-                id: ContentId::new("ps1_single/game.cue"),
-                source: SourceRef::new("file:/roms/ps1_single/game.cue"),
-                title: "game".to_string(),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("file:/roms/ps1_single/game.bin")],
-            }),
-        ]);
+        let normalized = normalize_content(
+            vec![
+                Content::Disc(DiscContent {
+                    id: ContentId::new("ps1_multi/game_disc1.cue"),
+                    source: SourceRef::new("file:/roms/ps1_multi/game_disc1.cue"),
+                    title: "game".to_string(),
+                    disc_number: 1,
+                    consumed_sources: vec![SourceRef::new("file:/roms/ps1_multi/game_disc1.bin")],
+                }),
+                Content::Disc(DiscContent {
+                    id: ContentId::new("ps1_single/game.cue"),
+                    source: SourceRef::new("file:/roms/ps1_single/game.cue"),
+                    title: "game".to_string(),
+                    disc_number: 1,
+                    consumed_sources: vec![SourceRef::new("file:/roms/ps1_single/game.bin")],
+                }),
+            ],
+            &NormalizationOptions::default(),
+        );
 
         assert_eq!(normalized.len(), 2);
     }
 
     #[test]
     fn derives_rom_game_title_from_leaf_name() {
-        let normalized = normalize_content(vec![Content::Rom(RomContent {
-            id: ContentId::new("roms/snes/Super Mario World.sfc"),
-            source: SourceRef::new("file:/roms/snes/Super Mario World.sfc"),
-            file_name: "roms/snes/Super Mario World.sfc".to_string(),
-            size: 4096,
-        })]);
+        let normalized = normalize_content(
+            vec![Content::Rom(RomContent {
+                id: ContentId::new("roms/snes/Super Mario World.sfc"),
+                source: SourceRef::new("file:/roms/snes/Super Mario World.sfc"),
+                file_name: "roms/snes/Super Mario World.sfc".to_string(),
+                size: 4096,
+            })],
+            &NormalizationOptions::default(),
+        );
 
         let game = match &normalized[0] {
             Content::Game(game) => game,

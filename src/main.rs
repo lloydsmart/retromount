@@ -1,9 +1,16 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
+use retromount::core::content::{Content, GamePart, Platform as ContentPlatform};
+use retromount::core::normalizer::NormalizationOptions;
+use retromount::core::platform::Platform as ConfigPlatform;
 use retromount::engine::inspect::run_phase3_inspect;
-use retromount::engine::loader::Loader;
-use retromount::engine::preview::run_phase3_preview;
+use retromount::engine::pipeline::run_pipeline_with_options;
+use retromount::engine::preview::{build_input_source, run_phase3_preview, write_vfs_tree};
+use retromount::input::basic_decoder::BasicInputDecoder;
+use retromount::input::basic_identifier::BasicInputIdentifier;
+use retromount::output::basic_encoder::BasicEncoder;
+use retromount::output::generic_presenter::GenericPresenter;
 use retromount::{RetromountError, ViewConfig};
 
 fn main() -> Result<(), RetromountError> {
@@ -22,8 +29,7 @@ fn main() -> Result<(), RetromountError> {
             run_phase3_inspect(&path, false)
         }
         [command, path, flag]
-            if command.to_string_lossy() == "inspect"
-                && flag.to_string_lossy() == "--json" =>
+            if command.to_string_lossy() == "inspect" && flag.to_string_lossy() == "--json" =>
         {
             let path = PathBuf::from(path);
             run_phase3_inspect(&path, true)
@@ -44,51 +50,82 @@ fn run_configured_views() -> Result<(), RetromountError> {
 
     info!("Loaded {} view(s) from config", config.len());
 
-    let loader = Loader::default();
+    let identifier = BasicInputIdentifier::new();
+    let decoder = BasicInputDecoder::new();
+    let presenter = GenericPresenter::new(BasicEncoder::new());
 
     for view in &config {
         info!("View: {}", view.name);
         info!("  Source: {}", view.source.display());
         info!("  Mount: {}", view.mount.display());
 
-        if view
-            .source
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("cue"))
-        {
-            let game = loader.load_game_image(&view.source, view.platform.clone())?;
+        let source = build_input_source(&view.source)?;
 
-            info!("  GameImage:");
-            info!("    ID: {}", game.id);
-            info!("    Title: {}", game.title);
-            info!("    Platform: {:?}", game.platform);
-            info!("    Discs: {}", game.discs.len());
+        let trace = run_pipeline_with_options(
+            source.as_ref(),
+            &identifier,
+            &decoder,
+            &presenter,
+            &NormalizationOptions {
+                platform_hint: Some(map_view_platform(&view.platform)),
+            },
+        )
+        .map_err(RetromountError::ConfigFileError)?;
 
-            for disc in &game.discs {
-                info!("    Disc {}: {} track(s)", disc.number, disc.tracks.len());
+        info!("  Objects: {}", trace.objects.len());
+        info!("  Normalized content: {}", trace.normalized.len());
 
-                for track in &disc.tracks {
-                    info!(
-                        "      Track {}: {:?}, sector size {}, size {}",
-                        track.number, track.kind, track.sector_size, track.size
-                    );
-                }
-            }
-        } else {
-            let files = loader.discover_path(&view.source)?;
+        for content in &trace.normalized {
+            log_content_summary(content);
+        }
 
-            info!("  Discovered {} payload file(s)", files.len());
+        let mut rendered = Vec::new();
+        write_vfs_tree(&mut rendered, &trace.presented)
+            .map_err(RetromountError::ConfigFileError)?;
+        let rendered = String::from_utf8(rendered)
+            .map_err(|err| RetromountError::LoadError(err.to_string()))?;
 
-            for file in &files {
-                info!(
-                    "    - {} ({} bytes) [origin: {}]",
-                    file.name,
-                    file.size,
-                    file.origin.display()
-                );
-            }
+        for line in rendered.lines() {
+            info!("  VFS {}", line);
         }
     }
 
     Ok(())
+}
+
+fn map_view_platform(platform: &ConfigPlatform) -> ContentPlatform {
+    match platform {
+        ConfigPlatform::PlayStation => ContentPlatform::Ps1,
+        ConfigPlatform::SuperNintendo => ContentPlatform::Snes,
+        ConfigPlatform::MegaDrive => ContentPlatform::Megadrive,
+        _ => ContentPlatform::Unknown,
+    }
+}
+
+fn log_content_summary(content: &Content) {
+    match content {
+        Content::Game(game) => {
+            info!("  Game:");
+            info!("    ID: {}", game.id);
+            info!("    Title: {}", game.title);
+            info!("    Platform: {}", game.platform);
+            info!("    Parts: {}", game.parts.len());
+
+            for part in &game.parts {
+                match part {
+                    GamePart::Rom(rom) => {
+                        info!("    Rom: {} ({} bytes)", rom.file_name, rom.size);
+                    }
+                    GamePart::Disc(disc) => {
+                        info!("    Disc {}: {}", disc.disc_number, disc.source);
+                    }
+                }
+            }
+        }
+        other => {
+            info!("  Content: {:?}", other.kind());
+            info!("    ID: {}", other.id());
+            info!("    Source: {}", other.source());
+        }
+    }
 }
