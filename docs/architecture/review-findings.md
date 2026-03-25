@@ -64,7 +64,9 @@ D-001
 
 ## F-002: `engine::Loader` and the Phase 3 pipeline create ambiguous system entry points
 
-**Status:** Open
+**Status:** Resolved  
+**Issue:** [#39](https://github.com/lloydsmart/retromount/issues/39)  
+**Resolved by:** `935811d`
 
 ### Summary
 
