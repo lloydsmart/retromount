@@ -3,11 +3,11 @@ use std::path::PathBuf;
 
 use crate::core::platform::Platform;
 
+pub mod builtin_inputs;
 pub mod core;
 pub mod engine;
 pub mod error;
 pub mod input;
-pub mod builtin_inputs;
 pub mod output;
 pub mod readers;
 
