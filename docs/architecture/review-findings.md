@@ -20,8 +20,32 @@ The codebase contains both `src/input` and `src/inputs`, which represent differe
 
 ### Evidence
 
-- `src/input` contains ...
-- `src/inputs` contains ...
+- `src/input` contains the Phase 3 pipeline-oriented ingestion abstractions and implementations:
+  - `InputSource`
+  - `InputIdentifier`
+  - `InputDecoder`
+  - `DirectoryInputSource`
+  - `ZipInputSource`
+  - `BasicInputIdentifier`
+  - `BasicInputDecoder`
+
+- `src/input` is used by:
+  - `engine::pipeline`
+  - `engine::preview`
+  - `engine::inspect`
+
+- `src/inputs` contains the built-in path discovery handlers:
+  - `DirectoryInputHandler`
+  - `FileInputHandler`
+  - `CueInputHandler`
+  - `ZipInputHandler`
+  - `register_builtin_inputs()`
+
+- `src/inputs` is used by:
+  - `core::InputRegistry`
+  - `engine::Loader`
+
+- The two modules serve different roles, but their names are too similar and make the architecture harder to understand at a glance.
 
 ### Why it matters
 
@@ -35,7 +59,7 @@ This makes the intended architecture harder to understand and may conceal overla
 
 ### Decision
 
-TBD
+D-001
 ---
 
 ## F-002: `engine::Loader` and the Phase 3 pipeline create ambiguous system entry points
