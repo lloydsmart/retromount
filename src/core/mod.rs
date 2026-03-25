@@ -1,7 +1,6 @@
 pub mod content;
 pub mod cue;
 pub mod disc;
-pub mod game_image;
 pub mod normalizer;
 pub mod platform;
 pub mod reader;
