@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::io;
 
 use crate::core::content::Content;
-use crate::core::normalizer::normalize_content;
+use crate::core::normalizer::{normalize_content, NormalizationOptions};
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
 use crate::input::decode::InputDecoder;
@@ -32,7 +32,14 @@ pub fn run_pipeline(
     decoder: &dyn InputDecoder,
     presenter: &dyn OutputPresenter,
 ) -> Result<VfsDirectory, io::Error> {
-    Ok(run_pipeline_with_trace(source, identifier, decoder, presenter)?.presented)
+    Ok(run_pipeline_with_options(
+        source,
+        identifier,
+        decoder,
+        presenter,
+        &NormalizationOptions::default(),
+    )?
+    .presented)
 }
 
 pub fn run_pipeline_with_trace(
@@ -40,6 +47,22 @@ pub fn run_pipeline_with_trace(
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
     presenter: &dyn OutputPresenter,
+) -> Result<PipelineTrace, io::Error> {
+    run_pipeline_with_options(
+        source,
+        identifier,
+        decoder,
+        presenter,
+        &NormalizationOptions::default(),
+    )
+}
+
+pub fn run_pipeline_with_options(
+    source: &dyn InputSource,
+    identifier: &dyn InputIdentifier,
+    decoder: &dyn InputDecoder,
+    presenter: &dyn OutputPresenter,
+    normalization_options: &NormalizationOptions,
 ) -> Result<PipelineTrace, io::Error> {
     let objects = source.enumerate()?;
     let mut traced_objects = Vec::new();
@@ -65,7 +88,7 @@ pub fn run_pipeline_with_trace(
         });
     }
 
-    let normalized = normalize_content(all_content);
+    let normalized = normalize_content(all_content, normalization_options);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
     let presented = presenter.present(&normalized_presentable_content);
 

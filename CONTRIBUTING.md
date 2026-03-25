@@ -2,17 +2,15 @@
 
 Thank you for your interest in contributing!
 
-This document describes the basic development workflow used by this
-repository.
+This document describes the basic development workflow used by this repository.
 
 ---
 
-# Development setup
+## Development setup
 
 RetroMount uses Rust stable.
 
-The repository includes a `rust-toolchain.toml`, so Rustup will
-automatically install the required toolchain.
+The repository includes a `rust-toolchain.toml`, so Rustup will automatically install the required toolchain.
 
 Clone the repository:
 
@@ -29,7 +27,7 @@ cargo build
 
 ---
 
-# Running tests
+## Running tests
 
 ```bash
 cargo test
@@ -37,7 +35,7 @@ cargo test
 
 ---
 
-# Formatting
+## Formatting
 
 All code must pass `rustfmt`.
 
@@ -47,13 +45,13 @@ cargo fmt
 
 CI enforces this via:
 
-```
+```bash
 cargo fmt --all -- --check
 ```
 
 ---
 
-# Linting
+## Linting
 
 Clippy warnings are treated as errors.
 
@@ -63,7 +61,7 @@ cargo clippy --all-targets --all-features
 
 ---
 
-# CI checks
+## CI checks
 
 Pull requests must pass:
 
@@ -76,11 +74,10 @@ across the supported CI platforms.
 
 ---
 
-# Submitting changes
+## Submitting changes
 
 1. Create a feature branch
 2. Ensure CI passes
 3. Open a pull request against `develop`
 
-Please include clear commit messages describing the purpose of the
-change.
+Please include clear commit messages describing the purpose of the change.

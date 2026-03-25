@@ -1,92 +1,125 @@
 # Architecture Boundaries
 
-This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation (see D-001).
+This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation and D-002 (pipeline orchestration unification).
 
 ---
 
-## Pipeline Stages
+## Canonical Orchestration Model
+
+Retromount uses a single orchestration model based on the Phase 3 pipeline:
 
 1. Input
 2. Identify
 3. Decode
 4. Normalize (Core Model)
-5. Present / Encode
+5. Present / Encode (VFS)
+
+All execution paths (preview, inspect, and configured/runtime execution) flow through this pipeline.
+
+There is no alternative orchestration path.
 
 ---
 
-## Input and Discovery Layers
+## Pipeline Stages
 
-Retromount distinguishes between two related but separate concepts within the "Input" stage.
-
-### 1. Discovery Layer (Built-in Input Handlers)
-
-Implemented in: `src/builtin_inputs` (formerly `src/inputs`)
-
-This layer is responsible for:
-
-- discovering and enumerating content from filesystem paths and archives
-- expanding inputs (directories, ZIPs, etc.) into `VirtualFile` representations
-- handling container-specific traversal (e.g. walking directories, reading archive contents)
-
-Key components:
-
-- `InputHandler`
-- `DirectoryInputHandler`
-- `FileInputHandler`
-- `CueInputHandler`
-- `ZipInputHandler`
-- `InputRegistry`
-- `engine::Loader`
-
-This layer answers:
-
-> “What files exist, and how do we enumerate them?”
-
----
-
-### 2. Pipeline Input Layer (Semantic Ingestion)
+### 1. Input
 
 Implemented in: `src/input`
 
-This layer is responsible for:
+Responsible for:
 
-- consuming source objects
-- identifying content types
-- decoding content into structured representations
-- producing normalized `Content` / `GameContent` models
+- enumerating content from sources (directories, archives, files)
+- abstracting over container formats
+- producing a stream of input items for processing
 
 Key components:
 
 - `InputSource`
-- `InputIdentifier`
-- `InputDecoder`
 - `DirectoryInputSource`
 - `ZipInputSource`
+
+This stage answers:
+
+> “What content is available for processing?”
+
+---
+
+### 2. Identify
+
+Responsible for:
+
+- determining what each input item might represent
+- selecting an appropriate decoding strategy
+
+Key components:
+
+- `InputIdentifier`
 - `BasicInputIdentifier`
+
+This stage answers:
+
+> “What is this likely to be?”
+
+---
+
+### 3. Decode
+
+Responsible for:
+
+- parsing input into structured representations
+- interpreting formats (ROMs, CUE/BIN, etc.)
+
+Key components:
+
+- `InputDecoder`
 - `BasicInputDecoder`
 
-This layer answers:
+This stage answers:
 
-> “What is this content, and how should it be interpreted?”
-
----
-
-### Relationship Between the Layers
-
-These layers are adjacent but distinct:
-
-- the **discovery layer** operates on *paths and containers*
-- the **pipeline layer** operates on *content and semantics*
-
-The discovery layer may feed into the pipeline layer, but they are not interchangeable and should not be conflated.
+> “What is this, structurally?”
 
 ---
 
-### Design Principles
+### 4. Normalize (Core Model)
 
-- discovery concerns must not leak into semantic processing
-- semantic processing must not assume filesystem-specific behaviour
-- the boundary between these layers should remain explicit and stable
+Implemented in: `src/core`
+
+Responsible for:
+
+- producing normalized, presentation-agnostic representations of content
+- modelling games, discs, and other semantic entities
+
+Key types:
+
+- `Content`
+- `GameContent`
+- `GamePart`
+- `Disc`
+
+This stage answers:
+
+> “What is this content, independent of how it will be shown?”
+
+---
+
+### 5. Present / Encode
+
+Responsible for:
+
+- transforming normalized content into a view
+- producing filesystem-like output via the VFS
+
+Key components:
+
+- `OutputPresenter`
+- `GenericPresenter`
+- `BasicEncoder`
+- `VfsDirectory`
+- `VfsFile`
+
+This stage answers:
+
+> “How should this content be represented to a consumer?”
 
 ---
 
@@ -94,30 +127,57 @@ The discovery layer may feed into the pipeline layer, but they are not interchan
 
 ### Input → Identify
 
-- Input provides raw sources (files, archives, etc.)
-- No semantic interpretation here
-- May originate from either discovery layer or direct pipeline input sources
+- Input produces raw content items
+- No semantic interpretation occurs here
+- Must not depend on content type assumptions
+
+---
 
 ### Identify → Decode
 
-- Identify determines what something *might be*
-- Decode performs actual parsing/understanding
+- Identify suggests possible content type(s)
+- Decode performs actual parsing and validation
+
+---
 
 ### Decode → Core Model
 
 - Produces `Content` / `GameContent`
-- Must not leak container-specific details
+- Must not leak container or source-specific details
+- Must not encode presentation decisions
+
+---
 
 ### Core Model → Presenter
 
 - Presenter consumes normalized model
 - Must not re-interpret raw inputs
+- Must not depend on source/container details
 
 ---
 
-## Known Boundary Violations (to fix)
+## Design Principles
 
-- [ ] F-001: input vs inputs naming ambiguity (pending rename to `builtin_inputs`)
-- [ ] F-002: loader vs pipeline orchestration ambiguity
+- **Single orchestration model**  
+  All processing flows through the pipeline
+
+- **Separation of concerns**
+  - Input handles enumeration
+  - Identify/Decode handle interpretation
+  - Core model represents semantics
+  - Presenter/Encoder handle output
+
+- **Presentation independence**
+  The core model must not encode output-specific assumptions
+
+- **Extensibility**
+  Each stage should be replaceable or extensible without affecting others
+
+---
+
+## Known Boundary Concerns
+
+- [x] F-001: input vs inputs naming ambiguity (resolved via `builtin_inputs` rename)
+- [x] F-002: loader vs pipeline orchestration ambiguity (resolved via D-002)
 - [ ] F-003: presenter vs encoder responsibility boundary
 - [ ] F-004: potential core model presentation leakage
