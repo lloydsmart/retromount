@@ -41,7 +41,7 @@ jobs:
           shared-key: "retromount-lint"
 
       - name: Install sccache
-        uses: baptiste0928/cargo-install@b687c656bda5733207e629b50a22bf68974a0305 # v3.3.2
+        uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
         with:
           crate: sccache
           version: "0.14.0"
@@ -91,7 +91,7 @@ jobs:
 
       - name: Install sccache
         if: runner.os != 'Windows'
-        uses: baptiste0928/cargo-install@b687c656bda5733207e629b50a22bf68974a0305 # v3.3.2
+        uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
         with:
           crate: sccache
           version: "0.14.0"
@@ -138,7 +138,7 @@ jobs:
           shared-key: "retromount-release-linux"
 
       - name: Install sccache
-        uses: baptiste0928/cargo-install@b687c656bda5733207e629b50a22bf68974a0305 # v3.3.2
+        uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
         with:
           crate: sccache
           version: "0.14.0"
@@ -188,7 +188,7 @@ jobs:
           shared-key: "retromount-package-deb"
 
       - name: Install sccache
-        uses: baptiste0928/cargo-install@b687c656bda5733207e629b50a22bf68974a0305 # v3.3.2
+        uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
         with:
           crate: sccache
           version: "0.14.0"
@@ -202,7 +202,7 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '')
 
       - name: Install cargo-deb
-        uses: baptiste0928/cargo-install@b687c656bda5733207e629b50a22bf68974a0305 # v3.3.2
+        uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
         with:
           crate: cargo-deb
           version: "^2"
