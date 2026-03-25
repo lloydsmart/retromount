@@ -10,6 +10,7 @@ use crate::core::reader_registry::ReaderRegistry;
 ///
 /// Registration order matters:
 /// more specific handlers must be registered before more general ones.
+/// This module contains the built-in path discovery handlers used by InputRegistry.
 pub fn register_builtin_inputs(registry: &mut InputRegistry) {
     registry.register(Box::new(directory_input::DirectoryInputHandler));
     registry.register(Box::new(cue_input::CueInputHandler::new(

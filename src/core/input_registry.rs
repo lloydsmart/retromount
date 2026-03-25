@@ -40,7 +40,7 @@ impl InputRegistry {
 impl Default for InputRegistry {
     fn default() -> Self {
         let mut registry = Self::new();
-        crate::inputs::register_builtin_inputs(&mut registry);
+        crate::builtin_inputs::register_builtin_inputs(&mut registry);
         registry
     }
 }
