@@ -29,8 +29,8 @@ impl InputSource for FileInputSource {
             .path
             .file_name()
             .and_then(|name| name.to_str())
-            .unwrap_or_else(|| self.path.to_string_lossy().as_ref())
-            .to_string();
+            .map(str::to_owned)
+            .unwrap_or_else(|| self.path.to_string_lossy().into_owned());
 
         Ok(vec![SourceObject {
             source: SourceRef::new(self.path.to_string_lossy().into_owned()),
