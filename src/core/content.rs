@@ -135,9 +135,9 @@ pub struct GameContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub enum GamePart {
-    Rom(RomPart),
-    Disc(DiscPart),
+pub struct RomPart {
+    pub source: SourceRef,
+    pub size: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

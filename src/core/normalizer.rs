@@ -45,7 +45,6 @@ pub fn normalize_content(contents: Vec<Content>, options: &NormalizationOptions)
                         .unwrap_or_else(|| derive_platform(&rom.file_name)),
                     parts: vec![GamePart::Rom(RomPart {
                         source: rom.source,
-                        file_name: rom.file_name,
                         size: rom.size,
                     })],
                     consumed_sources: vec![],

@@ -1,4 +1,5 @@
 use crate::core::content::{Content, GameContent, GamePart};
+use crate::core::source::SourceRef;
 use crate::output::encode::{EncodedBacking, EncodedFile, OutputEncoder};
 
 pub struct BasicEncoder;
@@ -20,6 +21,17 @@ impl BasicEncoder {
                 unreachable!("BasicEncoder should only encode normalized playable content")
             }
         }
+    }
+
+    fn file_name_from_source(source: &SourceRef) -> String {
+        let normalized = source.0.replace('\\', "/");
+
+        let leaf = match normalized.rsplit_once('#') {
+            Some((_, member)) => member,
+            None => normalized.rsplit('/').next().unwrap_or(&normalized),
+        };
+
+        leaf.to_string()
     }
 
     fn backing_for(&self, content: &Content) -> EncodedBacking {
@@ -47,7 +59,7 @@ impl BasicEncoder {
 
     fn file_name_for_game_part(&self, game: &GameContent, part: &GamePart) -> String {
         match part {
-            GamePart::Rom(rom) => rom.file_name.clone(),
+            GamePart::Rom(rom) => Self::file_name_from_source(&rom.source),
             GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
         }
     }
@@ -163,7 +175,6 @@ mod tests {
             platform: Platform::Snes,
             parts: vec![GamePart::Rom(RomPart {
                 source: SourceRef::new("file:/roms/Super Mario World.sfc"),
-                file_name: "Super Mario World.sfc".to_string(),
                 size: 4096,
             })],
             consumed_sources: vec![],
@@ -325,5 +336,31 @@ mod tests {
                 source: SourceRef::new("roms/snes/game.nfo"),
             }
         );
+    }
+
+    #[test]
+    fn derives_rom_file_name_from_zip_member_source() {
+        let encoder = BasicEncoder::new();
+
+        let game = GameContent {
+            id: ContentId::new("sonic"),
+            source: SourceRef::new("zip:/roms/megadrive.zip#Sonic the Hedgehog.bin"),
+            title: "Sonic the Hedgehog".to_string(),
+            platform: Platform::Megadrive,
+            parts: vec![],
+            consumed_sources: vec![],
+        };
+
+        let encoded = encoder
+            .encode_game_part(
+                &game,
+                &GamePart::Rom(RomPart {
+                    source: SourceRef::new("zip:/roms/megadrive.zip#Sonic the Hedgehog.bin"),
+                    size: 1024,
+                }),
+            )
+            .unwrap();
+
+        assert_eq!(encoded.name, "Sonic the Hedgehog.bin");
     }
 }
