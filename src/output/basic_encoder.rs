@@ -131,6 +131,7 @@ mod tests {
         BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart,
         TextContent,
     };
+    use crate::core::source::SourceRef;
 
     #[test]
     fn encodes_bytes_content() {

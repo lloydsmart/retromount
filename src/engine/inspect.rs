@@ -155,6 +155,7 @@ fn yes_no(value: bool) -> &'static str {
 mod tests {
     use super::*;
     use crate::core::content::{BytesContent, ContentId};
+    use crate::core::source::{SourceObject, SourceRef};
     use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
     use crate::engine::pipeline::TracedObject;
     use crate::input::identify::InputIdentity;
