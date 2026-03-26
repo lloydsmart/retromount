@@ -313,3 +313,99 @@ This decision builds directly on D-003 and completes the separation between:
 - representation (Encoder)
 
 The pipeline is now cleanly layered end-to-end.
+
+---
+
+## D-005: Separate decoded content from normalized content
+
+**Date:** 2026-03-26  
+**Status:** Proposed  
+**Related:** F-005  
+**Issue:** [#53](https://github.com/lloydsmart/retromount/issues/53)
+
+### D-005 Context
+
+Retromount currently uses `Content` to represent both decoded input artifacts and normalized semantic output.
+
+This means the same model family spans multiple pipeline stages:
+
+- decode produces `Content`
+- normalize consumes `Content` and produces `Content`
+- present consumes normalized `Content`
+- encode consumes normalized `Content`
+
+In practice, later stages do not accept all `Content` variants equally.
+
+For example, presenter and encoder logic already assume that certain pre-normalized variants such as `Rom` and `Disc` should no longer appear after normalization, and treat them as unreachable.
+
+This means the current type boundary is broader than the real stage contract.
+
+### D-005 Decision
+
+Retromount will introduce an explicit type separation between decoded content and normalized content.
+
+- **Decoded content** will represent the direct output of the decode stage
+- **Normalized content** will represent the semantic output of the normalize stage
+- presentation and encoding stages will consume only normalized content
+- pre-normalized variants will no longer be representable at post-normalization stage boundaries
+
+This makes the decode → normalize → present pipeline contract explicit in the type model.
+
+### D-005 Intended Model Shape
+
+The model will be split into two stage-aligned layers:
+
+- a decoded content model for artifacts discovered and interpreted from input sources
+- a normalized content model for semantic entities that are valid after normalization
+
+At minimum, this means:
+
+- ROM and disc artifacts belong to the decoded model
+- game-level semantic entities belong to the normalized model
+- presenter and encoder interfaces will be narrowed to consume normalized content only
+
+The exact type names and module layout may be refined during implementation, but the stage boundary itself must be explicit.
+
+### D-005 Rationale
+
+This change strengthens the pipeline architecture by making stage validity explicit rather than conventional.
+
+It provides:
+
+- clearer stage contracts
+- elimination of impossible states from later pipeline stages
+- removal of `unreachable!()` branches caused by over-broad content types
+- stronger guarantees for future plugin/extensibility work
+- easier reasoning about where transformations occur in the pipeline
+
+This aligns with the architectural direction established by earlier review work:
+
+- D-002 clarified orchestration boundaries
+- D-003 clarified presenter vs encoder responsibilities
+- D-004 clarified semantic vs presentation boundaries
+- D-005 clarifies decode vs normalize boundaries
+
+### D-005 Consequences
+
+- decode will no longer produce the same top-level model used after normalization
+- normalization will become an explicit transformation between two model families
+- presenter and encoder APIs will need to change to consume normalized content only
+- some tests and helper code will need to be updated to reflect the new stage-aligned types
+- plugin/extensibility boundaries will become clearer and safer
+
+### D-005 Alternatives considered
+
+- **Keep a single `Content` model and document stage contracts more clearly**  
+  Rejected — leaves invalid post-normalization states representable and preserves over-broad interfaces
+
+- **Introduce only a wrapper/newtype around `Content` after normalization**  
+  Rejected — improves the boundary somewhat, but still retains a weaker type distinction than the pipeline now warrants
+
+- **Narrow presenter/encoder interfaces without splitting the model family**  
+  Rejected — reduces some ambiguity, but does not fully clarify the decode → normalize transition
+
+### D-005 Notes
+
+This decision intentionally favors architectural clarity over minimal short-term churn.
+
+The goal is not to redesign the pipeline, but to align the type model with the stage boundaries that already exist in practice.

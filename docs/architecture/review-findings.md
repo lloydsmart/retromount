@@ -256,3 +256,5 @@ If decoded content and normalized content share the same broad model without cle
 ### F-005 Decision
 
 TBD
+
+Current evidence suggests the strongest resolution is to introduce an explicit type separation between decoded content and normalized content, rather than relying on a single `Content` model across both stages.
