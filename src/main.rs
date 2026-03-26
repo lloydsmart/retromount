@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use retromount::core::content::{Content, GamePart, Platform as ContentPlatform};
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
-use retromount::core::source::SourceRef;
 use retromount::engine::inspect::run_phase3_inspect;
 use retromount::engine::pipeline::run_pipeline_with_options;
 use retromount::engine::preview::{build_input_source, run_phase3_preview, write_vfs_tree};
@@ -115,11 +114,7 @@ fn log_content_summary(content: &Content) {
             for part in &game.parts {
                 match part {
                     GamePart::Rom(rom) => {
-                        info!(
-                            "    Rom: {} ({} bytes)",
-                            file_name_from_source(&rom.source),
-                            rom.size
-                        );
+                        info!("    Rom: {} ({} bytes)", rom.source.file_name(), rom.size);
                     }
                     GamePart::Disc(disc) => {
                         info!("    Disc {}: {}", disc.disc_number, disc.source);
@@ -133,15 +128,4 @@ fn log_content_summary(content: &Content) {
             info!("    Source: {}", other.source());
         }
     }
-}
-
-fn file_name_from_source(source: &SourceRef) -> String {
-    let normalized = source.0.replace('\\', "/");
-
-    let leaf = match normalized.rsplit_once('#') {
-        Some((_, member)) => member,
-        None => normalized.rsplit('/').next().unwrap_or(&normalized),
-    };
-
-    leaf.to_string()
 }

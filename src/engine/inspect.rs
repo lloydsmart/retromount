@@ -2,7 +2,6 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::core::content::{Content, GamePart};
-use crate::core::source::SourceRef;
 use crate::error::RetromountError;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
@@ -99,11 +98,7 @@ fn write_content_summary<W: Write>(writer: &mut W, content: &Content) -> io::Res
             writeln!(writer, "    Decoded: Rom")?;
             writeln!(writer, "      ID: {}", rom.id)?;
             writeln!(writer, "      Source: {}", rom.source)?;
-            writeln!(
-                writer,
-                "      File name: {}",
-                file_name_from_source(&rom.source)
-            )?;
+            writeln!(writer, "      File name: {}", rom.source.file_name())?;
             writeln!(writer, "      Size: {}", rom.size)?;
         }
         Content::Disc(disc) => {
@@ -126,11 +121,7 @@ fn write_content_summary<W: Write>(writer: &mut W, content: &Content) -> io::Res
                     GamePart::Rom(rom) => {
                         writeln!(writer, "      Part {}: Rom", index + 1)?;
                         writeln!(writer, "        Source: {}", rom.source)?;
-                        writeln!(
-                            writer,
-                            "        File name: {}",
-                            file_name_from_source(&rom.source)
-                        )?;
+                        writeln!(writer, "        File name: {}", rom.source.file_name())?;
                         writeln!(writer, "        Size: {}", rom.size)?;
                     }
                     GamePart::Disc(disc) => {

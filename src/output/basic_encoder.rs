@@ -23,17 +23,6 @@ impl BasicEncoder {
         }
     }
 
-    fn file_name_from_source(source: &SourceRef) -> String {
-        let normalized = source.0.replace('\\', "/");
-
-        let leaf = match normalized.rsplit_once('#') {
-            Some((_, member)) => member,
-            None => normalized.rsplit('/').next().unwrap_or(&normalized),
-        };
-
-        leaf.to_string()
-    }
-
     fn backing_for(&self, content: &Content) -> EncodedBacking {
         match content {
             Content::Bytes(bytes) => EncodedBacking::SourceBacked {
@@ -59,7 +48,7 @@ impl BasicEncoder {
 
     fn file_name_for_game_part(&self, game: &GameContent, part: &GamePart) -> String {
         match part {
-            GamePart::Rom(rom) => Self::file_name_from_source(&rom.source),
+            GamePart::Rom(rom) => rom.source.file_name(),
             GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
         }
     }
