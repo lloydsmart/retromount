@@ -151,22 +151,10 @@ fn yes_no(value: bool) -> &'static str {
     }
 }
 
-fn file_name_from_source(source: &SourceRef) -> String {
-    let normalized = source.0.replace('\\', "/");
-
-    let leaf = match normalized.rsplit_once('#') {
-        Some((_, member)) => member,
-        None => normalized.rsplit('/').next().unwrap_or(&normalized),
-    };
-
-    leaf.to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::content::{BytesContent, ContentId};
-    use crate::core::source::{SourceObject, SourceRef};
     use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
     use crate::engine::pipeline::TracedObject;
     use crate::input::identify::InputIdentity;

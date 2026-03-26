@@ -1,5 +1,4 @@
 use crate::core::content::{Content, GameContent, GamePart};
-use crate::core::source::SourceRef;
 use crate::output::encode::{EncodedBacking, EncodedFile, OutputEncoder};
 
 pub struct BasicEncoder;
@@ -132,7 +131,6 @@ mod tests {
         BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart,
         TextContent,
     };
-    use crate::core::source::SourceRef;
 
     #[test]
     fn encodes_bytes_content() {
