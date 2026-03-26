@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::io;
 
-use crate::core::content::Content;
+use crate::core::content::{Content, ContentKind, DecodedContent, DecodedContentKind};
 use crate::core::normalizer::{normalize_content, NormalizationOptions};
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
@@ -23,7 +23,7 @@ pub struct TracedObject {
     pub object: SourceObject,
     pub identity: InputIdentity,
     pub supported: bool,
-    pub decoded: Vec<Content>,
+    pub decoded: Vec<DecodedContent>,
 }
 
 pub fn run_pipeline(
@@ -66,7 +66,7 @@ pub fn run_pipeline_with_options(
 ) -> Result<PipelineTrace, io::Error> {
     let objects = source.enumerate()?;
     let mut traced_objects = Vec::new();
-    let mut all_content = Vec::new();
+    let mut all_decoded_content = Vec::new();
 
     for object in objects {
         let identity = identifier.identify(&object)?;
@@ -78,7 +78,7 @@ pub fn run_pipeline_with_options(
             Vec::new()
         };
 
-        all_content.extend(decoded.iter().cloned());
+        all_decoded_content.extend(decoded.iter().cloned());
 
         traced_objects.push(TracedObject {
             object,
@@ -88,7 +88,8 @@ pub fn run_pipeline_with_options(
         });
     }
 
-    let normalized = normalize_content(all_content, normalization_options);
+    let legacy_content = decoded_content_to_legacy_content(all_decoded_content);
+    let normalized = normalize_content(legacy_content, normalization_options);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
     let presented = presenter.present(&normalized_presentable_content);
 
@@ -97,6 +98,18 @@ pub fn run_pipeline_with_options(
         normalized,
         presented,
     })
+}
+
+fn decoded_content_to_legacy_content(decoded: Vec<DecodedContent>) -> Vec<Content> {
+    decoded
+        .into_iter()
+        .map(|content| match content {
+            DecodedContent::Bytes(bytes) => Content::Bytes(bytes),
+            DecodedContent::Rom(rom) => Content::Rom(rom.into()),
+            DecodedContent::Disc(disc) => Content::Disc(disc.into()),
+            DecodedContent::Text(text) => Content::Text(text),
+        })
+        .collect()
 }
 
 fn suppress_consumed_content(all_content: &[Content]) -> Vec<Content> {
@@ -117,7 +130,7 @@ mod tests {
     use super::*;
     use std::fs;
 
-    use crate::core::content::ContentKind;
+    use crate::core::content::DecodedContentKind;
     use crate::input::basic_decoder::BasicInputDecoder;
     use crate::input::basic_identifier::BasicInputIdentifier;
     use crate::input::directory_source::DirectoryInputSource;
@@ -207,20 +220,23 @@ mod tests {
         assert_eq!(trace.objects[0].identity, InputIdentity::File);
         assert!(trace.objects[0].supported);
         assert_eq!(trace.objects[0].decoded.len(), 1);
-        assert_eq!(trace.objects[0].decoded[0].kind(), ContentKind::Bytes);
+        assert_eq!(
+            trace.objects[0].decoded[0].kind(),
+            DecodedContentKind::Bytes
+        );
 
         assert_eq!(trace.objects[1].object.name, "mario.sfc");
         assert_eq!(trace.objects[1].identity, InputIdentity::File);
         assert!(trace.objects[1].supported);
         assert_eq!(trace.objects[1].decoded.len(), 1);
-        assert_eq!(trace.objects[1].decoded[0].kind(), ContentKind::Rom);
+        assert_eq!(trace.objects[1].decoded[0].kind(), DecodedContentKind::Rom);
         assert_eq!(trace.normalized[1].kind(), ContentKind::Game);
 
         assert_eq!(trace.objects[2].object.name, "readme.txt");
         assert_eq!(trace.objects[2].identity, InputIdentity::Text);
         assert!(trace.objects[2].supported);
         assert_eq!(trace.objects[2].decoded.len(), 1);
-        assert_eq!(trace.objects[2].decoded[0].kind(), ContentKind::Text);
+        assert_eq!(trace.objects[2].decoded[0].kind(), DecodedContentKind::Text);
         assert_eq!(trace.normalized[2].kind(), ContentKind::Text);
 
         assert_eq!(trace.normalized[0].kind(), ContentKind::Bytes);

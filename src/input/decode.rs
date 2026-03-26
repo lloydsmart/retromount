@@ -1,4 +1,4 @@
-use crate::core::content::Content;
+use crate::core::content::DecodedContent;
 use crate::core::source::SourceObject;
 use crate::input::identify::InputIdentity;
 
@@ -9,5 +9,5 @@ pub trait InputDecoder: Send + Sync {
         &self,
         object: &SourceObject,
         identity: &InputIdentity,
-    ) -> Result<Vec<Content>, std::io::Error>;
+    ) -> Result<Vec<DecodedContent>, std::io::Error>;
 }
