@@ -164,21 +164,22 @@ TBD
 
 ## F-004: The core model boundary needs review to ensure `Content` and `GameContent` remain presentation-agnostic
 
-**Status:** Open  
-**Issue:** [#44](https://github.com/lloydsmart/retromount/issues/44)
+**Status:** Resolved  
+**Issue:** [#44](https://github.com/lloydsmart/retromount/issues/44)  
+**Resolved by:** D-004
 
 ### F-004 Context
 
-The current core model represents the project's normalized understanding of games and content, but it is not yet fully confirmed that these types are free from presentation-specific assumptions.
+The current core model represents the project's normalized understanding of games and content, and must remain independent from output/view decisions.
 
-This finding focuses on keeping the normalized model clean, reusable, and independent from output/view decisions.
+This finding focused on ensuring that `Content`, `GameContent`, and `GamePart` describe semantic content only, without carrying representation-specific details such as filenames.
 
 ### F-004 Evidence
 
 - Phase 3 introduced stronger normalization around `Content` and `GameContent`
-- the system now distinguishes between internal normalized content and output presentation
-- multi-disc grouping, naming conventions, and playable output representation all put pressure on the core/output boundary
-- some output behavior may currently depend on assumptions embedded in normalized model structures
+- the system distinguishes between internal normalized content and output presentation
+- ROM-related filename data had existed in normalized model types (`RomContent` and `RomPart`)
+- output behavior such as filenames and display naming is now handled outside the core model, based on source information and encoder logic
 
 ### F-004 Why it matters
 
@@ -199,4 +200,8 @@ If presentation-specific assumptions leak into `Content` or `GameContent`, then:
 
 ### F-004 Decision
 
-TBD
+Resolved by D-004.
+
+Filename-oriented data has been removed from normalized ROM model types, and ROM naming/metadata presentation is now derived from source information at the encoder and inspection/CLI layers.
+
+The normalized core model now carries semantic information only.

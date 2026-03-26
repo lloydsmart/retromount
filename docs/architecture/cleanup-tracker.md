@@ -39,10 +39,14 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 
 ### F-004: Core model leaking presentation concerns
 
-- [ ] Audit `GameContent`, `DiscPart`, `RomPart` for presentation-specific fields
-- [ ] Identify fields that exist only to support current presenter
-- [ ] Define stricter core model responsibilities
-- [ ] Remove or relocate presentation-derived data where appropriate
+### F-004: Core model leaking presentation concerns
+
+- [x] Audit `GameContent`, `DiscPart`, `RomPart`, and `RomContent` for presentation-specific fields
+- [x] Identify fields that exist only to support current presenter/CLI output
+- [x] Define stricter core model responsibilities
+- [x] Remove or relocate presentation-derived data where appropriate
+- [x] Move ROM filename derivation out of normalized model types
+- [x] Update documentation and findings
 
 ---
 
@@ -63,6 +67,9 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 
 ## Completed decisions
 
+## Completed decisions
+
 - [x] D-001: clarify input vs builtin_inputs boundary
 - [x] D-002: consolidate orchestration onto pipeline
 - [x] D-003: enforce presenter/encoder separation
+- [x] D-004: ensure core model remains presentation-agnostic
