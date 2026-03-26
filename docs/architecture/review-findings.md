@@ -205,3 +205,54 @@ Resolved by D-004.
 Filename-oriented data has been removed from normalized ROM model types, and ROM naming/metadata presentation is now derived from source information at the encoder and inspection/CLI layers.
 
 The normalized core model now carries semantic information only.
+
+---
+
+## F-005: The boundary between decoded content and normalized playable content needs clarification
+
+**Status:** Open  
+**Issue:** [#53](https://github.com/lloydsmart/retromount/issues/53)  
+
+### F-005 Context
+
+Retromount currently uses `Content` to represent both decoded input artifacts and normalized semantic output.
+
+This means the same top-level model family spans multiple stages of the pipeline:
+
+- decode produces `Content`
+- normalize consumes and transforms `Content`
+- present consumes normalized `Content`
+
+While this is workable, it creates ambiguity about whether all `Content` values are equally valid at every post-decode stage.
+
+In particular, some variants represent pre-normalized artifacts (`Rom`, `Disc`, `Bytes`, `Text`), while others represent normalized semantic entities (`Game`).
+
+### F-005 Evidence
+
+- `InputDecoder` produces `Content`
+- `normalize_content()` consumes `Vec<Content>` and produces `Vec<Content>`
+- `GenericPresenter` assumes it should only receive normalized playable content and treats `Content::Rom` / `Content::Disc` as unreachable
+- `BasicEncoder` similarly treats `Content::Rom` / `Content::Disc` as unreachable in presentation-time encoding
+- parts of the pipeline rely on convention rather than type-level distinction to know whether content is decoded or normalized
+
+### F-005 Why it matters
+
+This weakens the stage boundary between decode and normalize.
+
+If decoded content and normalized content share the same broad model without clearer separation, then:
+
+- stage contracts are easier to violate accidentally
+- presenter/encoder code must defend against states that “should not happen”
+- future plugin boundaries become less explicit
+- pipeline reasoning becomes more dependent on convention than on declared types
+
+### F-005 Options
+
+- Keep the current `Content` model and document the stage contract more explicitly
+- Introduce a clearer distinction between decoded content and normalized content
+- Introduce a dedicated normalized/playable model for post-normalization pipeline stages
+- Strengthen type/API boundaries so later stages cannot receive pre-normalized variants accidentally
+
+### F-005 Decision
+
+TBD

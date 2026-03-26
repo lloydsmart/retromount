@@ -48,6 +48,15 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 
 ---
 
+### F-005: Decoded content vs normalized content boundary ambiguity
+
+- [ ] Audit pipeline stage contracts around `Content`
+- [ ] Identify which `Content` variants are valid pre-normalization vs post-normalization
+- [ ] Document current invariants relied on by presenter/encoder layers
+- [ ] Evaluate whether `Content` should continue spanning both decode and normalize stages
+- [ ] Decide whether stronger type separation is needed for normalized/playable content
+- [ ] Update architecture docs and findings
+
 ## Medium priority (post-boundary cleanup)
 
 - [ ] Review naming consistency for presenter / encoder / output terminology
