@@ -74,7 +74,7 @@ where
         if self.is_multi_disc_game(game) {
             self.insert_multi_disc_game(root, game, &base_path);
         } else {
-            let file_path = format!("{}/{}", base_path, file_name(&encoded.name));
+            let file_path = format!("{}/{}", base_path, encoded.name);
             self.insert_file_path(
                 root,
                 &file_path,
@@ -95,25 +95,32 @@ where
 
         disc_parts.sort_by(|left, right| left.disc_number.cmp(&right.disc_number));
 
-        let disc_names: Vec<String> = disc_parts
-            .iter()
-            .map(|disc| format!("{} (Disc {}).cue", game.title, disc.disc_number))
-            .collect();
+        let mut disc_names = Vec::new();
 
         for disc in &disc_parts {
-            let disc_path = format!(
-                "{}/{} (Disc {}).cue",
-                base_path, game.title, disc.disc_number
-            );
+            let encoded = self
+                .encoder
+                .encode_game_part(game, &GamePart::Disc((*disc).clone()))
+                .expect("disc part should encode");
+
+            disc_names.push(encoded.name.clone());
+
+            let disc_path = format!("{}/{}", base_path, encoded.name);
             self.insert_file_path(
                 root,
                 &disc_path,
-                VfsFile::source_backed(file_name(&disc_path), 0, disc.source.clone()),
+                VfsFile::source_backed(file_name(&disc_path), encoded.size, disc.source.clone()),
             );
         }
 
-        let playlist_path = format!("{}/{}.m3u", base_path, game.title);
+        let playlist_encoded = self
+            .encoder
+            .encode_playlist(game, &disc_names)
+            .expect("playlist should encode");
+
+        let playlist_path = format!("{}/{}", base_path, playlist_encoded.name);
         let playlist = disc_names.join("\n") + "\n";
+
         self.insert_file_path(
             root,
             &playlist_path,
