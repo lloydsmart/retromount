@@ -1,11 +1,10 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
-use crate::core::source::SourceRef;
-
 use retromount::core::content::{Content, GamePart, Platform as ContentPlatform};
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
+use retromount::core::source::SourceRef;
 use retromount::engine::inspect::run_phase3_inspect;
 use retromount::engine::pipeline::run_pipeline_with_options;
 use retromount::engine::preview::{build_input_source, run_phase3_preview, write_vfs_tree};
