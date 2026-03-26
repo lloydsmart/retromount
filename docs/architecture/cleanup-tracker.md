@@ -1,28 +1,68 @@
 # Cleanup Tracker
 
-## High priority
+This document tracks architectural findings (F-XXX) and the concrete work required to resolve them.
 
-- [x] Audit `src/input` vs `src/inputs`
-- [x] Identify canonical orchestration path
-- [x] Remove obsolete transitional helpers from Phase 3
+---
 
-### F-002 migration checklist
+## High priority (architecture boundary fixes)
+
+### F-001: Input vs builtin_inputs naming ambiguity
+
+- [x] Rename `src/inputs` → `src/builtin_inputs`
+- [x] Update imports and module references
+- [x] Update architecture documentation
+
+---
+
+### F-002: Loader vs pipeline orchestration ambiguity
 
 - [x] Audit `Loader` responsibilities
 - [x] Identify all `Loader` call sites
-- [x] Map each `Loader` responsibility to a pipeline-aligned destination
-- [x] Rework configured/runtime execution to use pipeline output
+- [x] Map each responsibility to pipeline stages
+- [x] Rework configured/runtime execution to use pipeline
 - [x] Remove `Loader`
-- [x] Remove dead `InputRegistry` / `VirtualFile`-only orchestration code if obsolete
+- [x] Remove dead `InputRegistry` / `VirtualFile` orchestration paths
 - [x] Update architecture docs and findings
 
-## Medium priority
+---
 
-- [ ] Review naming consistency for presenter/view/output terminology
-- [ ] Review registry composition and default registration
-- [ ] Remove dead code and unused helpers
+### F-003: Presenter vs encoder responsibility boundary
 
-## Low priority
+- [x] Move file naming into encoder
+- [x] Remove duplicated naming logic from presenter
+- [x] Introduce encoder support for game parts
+- [x] Introduce encoder support for playlist generation
+- [x] Move file materialization (inline vs source-backed) into encoder
+- [x] Update presenter to consume fully-encoded outputs
 
-- [ ] Add diagrams
-- [ ] Improve module-level docs
+---
+
+### F-004: Core model leaking presentation concerns
+
+- [ ] Audit `GameContent`, `DiscPart`, `RomPart` for presentation-specific fields
+- [ ] Identify fields that exist only to support current presenter
+- [ ] Define stricter core model responsibilities
+- [ ] Remove or relocate presentation-derived data where appropriate
+
+---
+
+## Medium priority (post-boundary cleanup)
+
+- [ ] Review naming consistency for presenter / encoder / output terminology
+- [ ] Review default encoder/presenter composition strategy
+- [ ] Remove dead code and unused helpers after refactors
+- [ ] Audit test coverage for new encoder boundary
+
+---
+
+## Low priority (documentation & polish)
+
+- [ ] Add architecture diagrams (pipeline + boundaries)
+- [ ] Improve module-level documentation
+- [ ] Add examples for alternate encoders/presenters
+
+## Completed decisions
+
+- [x] D-001: clarify input vs builtin_inputs boundary
+- [x] D-002: consolidate orchestration onto pipeline
+- [x] D-003: enforce presenter/encoder separation

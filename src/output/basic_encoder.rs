@@ -1,5 +1,5 @@
-use crate::core::content::{Content, GamePart};
-use crate::output::encode::{EncodedFile, OutputEncoder};
+use crate::core::content::{Content, GameContent, GamePart};
+use crate::output::encode::{EncodedBacking, EncodedFile, OutputEncoder};
 
 pub struct BasicEncoder;
 
@@ -12,10 +12,7 @@ impl BasicEncoder {
         match content {
             Content::Bytes(bytes) => format!("{}.bin", bytes.id),
             Content::Game(game) => match game.parts.as_slice() {
-                [GamePart::Rom(rom)] => rom.file_name.clone(),
-                [GamePart::Disc(disc)] => {
-                    format!("{} (Disc {}).cue", game.title, disc.disc_number)
-                }
+                [part] => self.file_name_for_game_part(game, part),
                 _ => game.title.clone(),
             },
             Content::Text(text) => normalize_text_name(text.id.0.as_ref()),
@@ -25,19 +22,55 @@ impl BasicEncoder {
         }
     }
 
-    fn size_for(&self, content: &Content) -> u64 {
+    fn backing_for(&self, content: &Content) -> EncodedBacking {
         match content {
-            Content::Bytes(bytes) => bytes.size,
-            Content::Game(game) => match game.parts.as_slice() {
-                [GamePart::Rom(rom)] => rom.size,
-                [GamePart::Disc(_)] => 0,
-                _ => 0,
+            Content::Bytes(bytes) => EncodedBacking::SourceBacked {
+                size: bytes.size,
+                source: bytes.source.clone(),
             },
-            Content::Text(text) => text.size,
+            Content::Game(game) => match game.parts.as_slice() {
+                [part] => self.backing_for_game_part(part),
+                _ => EncodedBacking::SourceBacked {
+                    size: 0,
+                    source: game.source.clone(),
+                },
+            },
+            Content::Text(text) => EncodedBacking::SourceBacked {
+                size: text.size,
+                source: text.source.clone(),
+            },
             Content::Rom(_) | Content::Disc(_) => {
                 unreachable!("BasicEncoder should only encode normalized playable content")
             }
         }
+    }
+
+    fn file_name_for_game_part(&self, game: &GameContent, part: &GamePart) -> String {
+        match part {
+            GamePart::Rom(rom) => rom.file_name.clone(),
+            GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
+        }
+    }
+
+    fn backing_for_game_part(&self, part: &GamePart) -> EncodedBacking {
+        match part {
+            GamePart::Rom(rom) => EncodedBacking::SourceBacked {
+                size: rom.size,
+                source: rom.source.clone(),
+            },
+            GamePart::Disc(disc) => EncodedBacking::SourceBacked {
+                size: 0,
+                source: disc.source.clone(),
+            },
+        }
+    }
+
+    fn playlist_name_for(&self, game: &GameContent) -> String {
+        format!("{}.m3u", game.title)
+    }
+
+    fn playlist_backing(&self, entries: &[String]) -> EncodedBacking {
+        EncodedBacking::Inline((entries.join("\n") + "\n").into_bytes())
     }
 }
 
@@ -64,7 +97,29 @@ impl OutputEncoder for BasicEncoder {
     fn encode(&self, content: &Content) -> Result<EncodedFile, std::io::Error> {
         Ok(EncodedFile {
             name: self.file_name_for(content),
-            size: self.size_for(content),
+            backing: self.backing_for(content),
+        })
+    }
+
+    fn encode_game_part(
+        &self,
+        game: &GameContent,
+        part: &GamePart,
+    ) -> Result<EncodedFile, std::io::Error> {
+        Ok(EncodedFile {
+            name: self.file_name_for_game_part(game, part),
+            backing: self.backing_for_game_part(part),
+        })
+    }
+
+    fn encode_playlist(
+        &self,
+        game: &GameContent,
+        entries: &[String],
+    ) -> Result<EncodedFile, std::io::Error> {
+        Ok(EncodedFile {
+            name: self.playlist_name_for(game),
+            backing: self.playlist_backing(entries),
         })
     }
 }
@@ -89,7 +144,13 @@ mod tests {
 
         let encoded = encoder.encode(&content).unwrap();
         assert_eq!(encoded.name, "bios.bin");
-        assert_eq!(encoded.size, 512);
+        assert_eq!(
+            encoded.backing,
+            EncodedBacking::SourceBacked {
+                size: 512,
+                source: SourceRef::new("file:/roms/bios"),
+            }
+        );
     }
 
     #[test]
@@ -110,7 +171,13 @@ mod tests {
 
         let encoded = encoder.encode(&content).unwrap();
         assert_eq!(encoded.name, "Super Mario World.sfc");
-        assert_eq!(encoded.size, 4096);
+        assert_eq!(
+            encoded.backing,
+            EncodedBacking::SourceBacked {
+                size: 4096,
+                source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+            }
+        );
     }
 
     #[test]
@@ -131,7 +198,73 @@ mod tests {
 
         let encoded = encoder.encode(&content).unwrap();
         assert_eq!(encoded.name, "Metal Gear Solid (Disc 1).cue");
-        assert_eq!(encoded.size, 0);
+        assert_eq!(
+            encoded.backing,
+            EncodedBacking::SourceBacked {
+                size: 0,
+                source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
+            }
+        );
+    }
+
+    #[test]
+    fn encodes_disc_part() {
+        let encoder = BasicEncoder::new();
+        let game = GameContent {
+            id: ContentId::new("ff7"),
+            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+            title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![],
+            consumed_sources: vec![],
+        };
+
+        let part = GamePart::Disc(DiscPart {
+            source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
+            disc_number: 2,
+            consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
+        });
+
+        let encoded = encoder.encode_game_part(&game, &part).unwrap();
+        assert_eq!(encoded.name, "Final Fantasy VII (Disc 2).cue");
+        assert_eq!(
+            encoded.backing,
+            EncodedBacking::SourceBacked {
+                size: 0,
+                source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
+            }
+        );
+    }
+
+    #[test]
+    fn encodes_playlist() {
+        let encoder = BasicEncoder::new();
+        let game = GameContent {
+            id: ContentId::new("ff7"),
+            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+            title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![],
+            consumed_sources: vec![],
+        };
+
+        let encoded = encoder
+            .encode_playlist(
+                &game,
+                &[
+                    "Final Fantasy VII (Disc 1).cue".to_string(),
+                    "Final Fantasy VII (Disc 2).cue".to_string(),
+                ],
+            )
+            .unwrap();
+
+        assert_eq!(encoded.name, "Final Fantasy VII.m3u");
+        assert_eq!(
+            encoded.backing,
+            EncodedBacking::Inline(
+                b"Final Fantasy VII (Disc 1).cue\nFinal Fantasy VII (Disc 2).cue\n".to_vec()
+            )
+        );
     }
 
     #[test]
@@ -145,7 +278,13 @@ mod tests {
 
         let encoded = encoder.encode(&content).unwrap();
         assert_eq!(encoded.name, "readme.txt");
-        assert_eq!(encoded.size, 128);
+        assert_eq!(
+            encoded.backing,
+            EncodedBacking::SourceBacked {
+                size: 128,
+                source: SourceRef::new("file:/roms/readme"),
+            }
+        );
     }
 
     #[test]
@@ -159,7 +298,13 @@ mod tests {
 
         let encoded = encoder.encode(&content).unwrap();
         assert_eq!(encoded.name, "mixed/notes.txt");
-        assert_eq!(encoded.size, 10);
+        assert_eq!(
+            encoded.backing,
+            EncodedBacking::SourceBacked {
+                size: 10,
+                source: SourceRef::new("mixed/notes.txt"),
+            }
+        );
     }
 
     #[test]
@@ -173,6 +318,12 @@ mod tests {
 
         let encoded = encoder.encode(&content).unwrap();
         assert_eq!(encoded.name, "roms/snes/game.txt");
-        assert_eq!(encoded.size, 19);
+        assert_eq!(
+            encoded.backing,
+            EncodedBacking::SourceBacked {
+                size: 19,
+                source: SourceRef::new("roms/snes/game.nfo"),
+            }
+        );
     }
 }

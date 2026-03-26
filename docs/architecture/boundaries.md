@@ -1,6 +1,6 @@
 # Architecture Boundaries
 
-This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation and D-002 (pipeline orchestration unification).
+This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation and D-002/D-003.
 
 ---
 
@@ -12,7 +12,8 @@ Retromount uses a single orchestration model based on the Phase 3 pipeline:
 2. Identify
 3. Decode
 4. Normalize (Core Model)
-5. Present / Encode (VFS)
+5. Present (structure)
+6. Encode (materialization → VFS)
 
 All execution paths (preview, inspect, and configured/runtime execution) flow through this pipeline.
 
@@ -102,24 +103,59 @@ This stage answers:
 
 ---
 
-### 5. Present / Encode
+### 5. Present (structure)
 
 Responsible for:
 
-- transforming normalized content into a view
-- producing filesystem-like output via the VFS
+- defining output structure (directories and hierarchy)
+- grouping related content (e.g. multi-disc games)
+- determining layout decisions (e.g. root vs nested placement)
+- deciding when compound artifacts are required (e.g. playlists)
+- constructing the logical VFS tree
 
 Key components:
 
 - `OutputPresenter`
 - `GenericPresenter`
+
+This stage answers:
+
+> “What should the output look like?”
+
+The Presenter must **not**:
+
+- generate filenames or extensions
+- determine file backing (inline vs source-backed)
+- generate file contents
+- perform representation-specific transformations
+
+---
+
+### 6. Encode (materialization → VFS)
+
+Responsible for:
+
+- generating filenames and extensions
+- mapping content to file representations
+- determining file backing (inline vs source-backed)
+- generating file contents (e.g. playlists)
+- applying representation-specific transformations
+
+Key components:
+
+- `OutputEncoder`
 - `BasicEncoder`
-- `VfsDirectory`
 - `VfsFile`
 
 This stage answers:
 
-> “How should this content be represented to a consumer?”
+> “How is this specific item represented?”
+
+The Encoder must **not**:
+
+- define directory structure or layout
+- group content into collections
+- make global presentation decisions
 
 ---
 
@@ -156,16 +192,26 @@ This stage answers:
 
 ---
 
+### Presenter → Encoder
+
+- Presenter defines structure and grouping
+- Encoder defines representation of each item
+- Presenter must not implement representation logic
+- Encoder must not influence structure
+
+---
+
 ## Design Principles
 
 - **Single orchestration model**  
   All processing flows through the pipeline
 
-- **Separation of concerns**
+- **Strict separation of concerns**
   - Input handles enumeration
   - Identify/Decode handle interpretation
   - Core model represents semantics
-  - Presenter/Encoder handle output
+  - Presenter defines structure
+  - Encoder defines representation
 
 - **Presentation independence**
   The core model must not encode output-specific assumptions
@@ -179,5 +225,5 @@ This stage answers:
 
 - [x] F-001: input vs inputs naming ambiguity (resolved via `builtin_inputs` rename)
 - [x] F-002: loader vs pipeline orchestration ambiguity (resolved via D-002)
-- [ ] F-003: presenter vs encoder responsibility boundary
+- [x] F-003: presenter vs encoder responsibility boundary (resolved via D-003)
 - [ ] F-004: potential core model presentation leakage

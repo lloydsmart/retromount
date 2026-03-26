@@ -1,5 +1,5 @@
 use crate::core::content::{Content, DiscPart, GameContent, GamePart};
-use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
+use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
 
@@ -52,11 +52,7 @@ where
                     self.insert_file_path(
                         &mut root,
                         &entry.encoded.name,
-                        VfsFile::source_backed(
-                            file_name(&entry.encoded.name),
-                            entry.encoded.size,
-                            entry.content.source().clone(),
-                        ),
+                        entry.encoded.to_vfs_file(),
                     );
                 }
                 Content::Rom(_) | Content::Disc(_) => {
@@ -74,12 +70,8 @@ where
         if self.is_multi_disc_game(game) {
             self.insert_multi_disc_game(root, game, &base_path);
         } else {
-            let file_path = format!("{}/{}", base_path, file_name(&encoded.name));
-            self.insert_file_path(
-                root,
-                &file_path,
-                VfsFile::source_backed(file_name(&file_path), encoded.size, game.source.clone()),
-            );
+            let file_path = format!("{}/{}", base_path, encoded.name);
+            self.insert_file_path(root, &file_path, encoded.to_vfs_file());
         }
     }
 
@@ -95,33 +87,35 @@ where
 
         disc_parts.sort_by(|left, right| left.disc_number.cmp(&right.disc_number));
 
-        let disc_names: Vec<String> = disc_parts
-            .iter()
-            .map(|disc| format!("{} (Disc {}).cue", game.title, disc.disc_number))
-            .collect();
+        let mut disc_names = Vec::new();
 
         for disc in &disc_parts {
-            let disc_path = format!(
-                "{}/{} (Disc {}).cue",
-                base_path, game.title, disc.disc_number
-            );
-            self.insert_file_path(
-                root,
-                &disc_path,
-                VfsFile::source_backed(file_name(&disc_path), 0, disc.source.clone()),
-            );
+            let encoded = self
+                .encoder
+                .encode_game_part(game, &GamePart::Disc((*disc).clone()))
+                .expect("disc part should encode");
+
+            disc_names.push(encoded.name.clone());
+
+            let disc_path = format!("{}/{}", base_path, encoded.name);
+            self.insert_file_path(root, &disc_path, encoded.to_vfs_file());
         }
 
-        let playlist_path = format!("{}/{}.m3u", base_path, game.title);
-        let playlist = disc_names.join("\n") + "\n";
-        self.insert_file_path(
-            root,
-            &playlist_path,
-            VfsFile::inline(file_name(&playlist_path), playlist.into_bytes()),
-        );
+        let playlist_encoded = self
+            .encoder
+            .encode_playlist(game, &disc_names)
+            .expect("playlist should encode");
+
+        let playlist_path = format!("{}/{}", base_path, playlist_encoded.name);
+        self.insert_file_path(root, &playlist_path, playlist_encoded.to_vfs_file());
     }
 
-    fn insert_file_path(&self, root: &mut VfsDirectory, path: &str, file: VfsFile) {
+    fn insert_file_path(
+        &self,
+        root: &mut VfsDirectory,
+        path: &str,
+        file: crate::core::vfs::VfsFile,
+    ) {
         let normalized = normalize_path(path);
         let (parents, _) = split_parent_dirs(&normalized);
         let directory = ensure_directory(root, &parents);
@@ -166,15 +160,6 @@ fn split_parent_dirs(path: &str) -> (Vec<String>, String) {
             file_name.to_string(),
         ),
         None => (Vec::new(), normalized),
-    }
-}
-
-fn file_name(path: &str) -> String {
-    let normalized = normalize_path(path);
-
-    match normalized.rsplit_once('/') {
-        Some((_, file_name)) => file_name.to_string(),
-        None => normalized,
     }
 }
 
