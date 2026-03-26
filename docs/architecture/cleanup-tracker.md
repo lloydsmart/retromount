@@ -67,8 +67,6 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 
 ## Completed decisions
 
-## Completed decisions
-
 - [x] D-001: clarify input vs builtin_inputs boundary
 - [x] D-002: consolidate orchestration onto pipeline
 - [x] D-003: enforce presenter/encoder separation
