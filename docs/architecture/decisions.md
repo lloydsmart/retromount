@@ -103,16 +103,16 @@ Configured and runtime execution are migrated onto the pipeline, and `engine::Lo
 
 ### D-002 Notes
 
-This decision has been implemented. The Loader and associated discovery orchestration model have been removed.  
+This decision has been implemented. The Loader and associated discovery orchestration model have been removed.
 
 ---
 
 ## D-003: Define clear boundary between Presenter and Encoder responsibilities
 
 **Date:** 2026-03-25  
-**Related findings:** F-003  
-**Issue:** #43  
-**Status:** Accepted
+**Status:** Implemented  
+**Related:** F-003  
+**Issue:** #43
 
 ---
 
@@ -136,7 +136,7 @@ The Presenter operates on normalized content (`Content`, `GameContent`, `GamePar
 - defining the output structure (directories and hierarchy)
 - grouping related content (e.g. multi-disc games)
 - determining layout decisions (e.g. root vs nested placement)
-- deciding when compound artifacts are required (e.g. M3U playlists)
+- deciding when compound artifacts are required (e.g. playlists)
 - constructing the logical VFS tree
 
 The Presenter answers:
@@ -146,7 +146,8 @@ The Presenter answers:
 The Presenter must **not**:
 
 - implement filename or extension rules
-- perform low-level file representation logic
+- perform file materialization logic
+- determine backing type (inline vs source-backed)
 - reinterpret raw inputs or bypass normalized content
 
 ---
@@ -157,8 +158,9 @@ The Encoder operates at the level of individual output items and is responsible 
 
 - generating filenames and extensions
 - defining how a content item is materialized as a file
-- mapping content parts to VFS file nodes
-- determining whether content is inline, generated, or source-backed
+- determining file backing (inline vs source-backed)
+- generating file contents (e.g. playlists)
+- mapping content parts to file representations
 - applying representation-specific transformations (e.g. `.nfo` → `.txt`)
 
 The Encoder answers:
@@ -179,11 +181,13 @@ The Encoder must **not**:
 |-----------------------------------------|-----------|
 | Multi-disc games as directories         | Presenter |
 | Platform-based folder structure         | Presenter |
-| Whether to generate an M3U playlist     | Presenter |
+| Whether to generate a playlist          | Presenter |
 | Disc filename `(Disc 1).cue`            | Encoder   |
 | ROM filename and extension              | Encoder   |
 | Text file normalization (`.nfo → .txt`) | Encoder   |
 | Binary output naming (`.bin`)           | Encoder   |
+| File backing (inline vs source-backed)  | Encoder   |
+| Playlist file contents                  | Encoder   |
 
 ---
 
@@ -191,12 +195,13 @@ The Encoder must **not**:
 
 Separating structure from representation provides:
 
-- clearer architectural boundaries
-- easier reasoning about output behavior
-- improved extensibility for future output formats
-- better support for plugin-style view customization
+- clear and enforceable architectural boundaries
+- elimination of duplicated representation logic
+- easier reasoning about output behaviour
+- improved extensibility for alternate output formats
+- a clean extension point for future plugin systems
 
-This aligns with the overall pipeline design:
+This aligns with the pipeline design:
 
 - normalization defines *what the content is*
 - presentation defines *how it is organized*
@@ -206,11 +211,10 @@ This aligns with the overall pipeline design:
 
 ### Consequences
 
-- existing Presenter and Encoder implementations should be reviewed for responsibility leaks
-- logic currently implemented in the wrong layer should be migrated:
-  - structural/grouping logic → Presenter
-  - naming/representation logic → Encoder
-- future features (e.g. alternate views, export formats) should target the appropriate abstraction
+- naming and representation logic has been removed from Presenter implementations
+- file materialization (including backing type and generated content) is now owned by Encoder
+- Presenter operates purely as a structural transformation over normalized content
+- `OutputEncoder` becomes a primary extension point for output formats
 
 ---
 
@@ -229,5 +233,5 @@ This aligns with the overall pipeline design:
 
 ### Notes
 
-This decision clarifies the output boundary without introducing new functionality.  
-Implementation will focus on aligning existing code with this responsibility split.
+This decision has been fully implemented.  
+The Presenter/Encoder boundary is now enforced in code, with no remaining responsibility overlap.
