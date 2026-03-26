@@ -183,7 +183,6 @@ The architecture review work in this directory aims to:
 
 ## Next Focus Areas
 
-- F-003: clarify presenter vs encoder responsibilities
 - F-004: ensure the core model remains presentation-agnostic
 - improve module-level documentation
 - introduce diagrams for better visualization of the pipeline
