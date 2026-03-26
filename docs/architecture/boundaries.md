@@ -227,3 +227,49 @@ The Encoder must **not**:
 - [x] F-002: loader vs pipeline orchestration ambiguity (resolved via D-002)
 - [x] F-003: presenter vs encoder responsibility boundary (resolved via D-003)
 - [x] F-004: core model presentation leakage (resolved via D-004)
+
+## Decode → Normalize Boundary
+
+Following D-005, Retromount separates decoded content from normalized content.
+
+### Decoded content
+
+The decode stage produces `DecodedContent`, representing raw interpreted artifacts from input sources.
+
+```rust
+pub enum DecodedContent {
+    Bytes(BytesContent),
+    Rom(DecodedRomContent),
+    Disc(DecodedDiscContent),
+    Text(TextContent),
+}
+```
+
+### Normalized content
+
+The normalize stage produces `NormalizedContent`, representing semantic entities valid for presentation.
+
+```rust
+pub enum NormalizedContent {
+    Bytes(BytesContent),
+    Game(GameContent),
+    Text(TextContent),
+}
+```
+
+### Pipeline contracts
+
+- decoder → `Vec<DecodedContent>`
+- normalizer → `Vec<NormalizedContent>`
+- presenter → consumes `NormalizedContent`
+- encoder → consumes `NormalizedContent`
+
+Pre-normalized artifacts such as ROMs and discs are not visible beyond the normalization stage.
+
+### Rationale
+
+This boundary ensures:
+
+- explicit stage contracts
+- elimination of impossible post-normalization states
+- clearer plugin and extension boundaries

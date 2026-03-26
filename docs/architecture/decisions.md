@@ -409,3 +409,5 @@ This aligns with the architectural direction established by earlier review work:
 This decision intentionally favors architectural clarity over minimal short-term churn.
 
 The goal is not to redesign the pipeline, but to align the type model with the stage boundaries that already exist in practice.
+
+See boundaries.md for the detailed model shape and pipeline contracts.
