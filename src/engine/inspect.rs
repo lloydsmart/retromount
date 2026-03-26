@@ -98,7 +98,7 @@ fn write_content_summary<W: Write>(writer: &mut W, content: &Content) -> io::Res
             writeln!(writer, "    Decoded: Rom")?;
             writeln!(writer, "      ID: {}", rom.id)?;
             writeln!(writer, "      Source: {}", rom.source)?;
-            writeln!(writer, "      File name: {}", rom.file_name)?;
+            writeln!(writer, "      File name: {}", rom.source.file_name())?;
             writeln!(writer, "      Size: {}", rom.size)?;
         }
         Content::Disc(disc) => {
@@ -121,7 +121,7 @@ fn write_content_summary<W: Write>(writer: &mut W, content: &Content) -> io::Res
                     GamePart::Rom(rom) => {
                         writeln!(writer, "      Part {}: Rom", index + 1)?;
                         writeln!(writer, "        Source: {}", rom.source)?;
-                        writeln!(writer, "        File name: {}", rom.file_name)?;
+                        writeln!(writer, "        File name: {}", rom.source.file_name())?;
                         writeln!(writer, "        Size: {}", rom.size)?;
                     }
                     GamePart::Disc(disc) => {

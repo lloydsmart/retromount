@@ -114,7 +114,7 @@ fn log_content_summary(content: &Content) {
             for part in &game.parts {
                 match part {
                     GamePart::Rom(rom) => {
-                        info!("    Rom: {} ({} bytes)", rom.file_name, rom.size);
+                        info!("    Rom: {} ({} bytes)", rom.source.file_name(), rom.size);
                     }
                     GamePart::Disc(disc) => {
                         info!("    Disc {}: {}", disc.disc_number, disc.source);

@@ -183,6 +183,6 @@ The architecture review work in this directory aims to:
 
 ## Next Focus Areas
 
-- F-004: ensure the core model remains presentation-agnostic
+- review the next architectural boundary concern after D-004
 - improve module-level documentation
 - introduce diagrams for better visualization of the pipeline

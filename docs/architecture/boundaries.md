@@ -179,8 +179,8 @@ The Encoder must **not**:
 ### Decode → Core Model
 
 - Produces `Content` / `GameContent`
-- Must not leak container or source-specific details
-- Must not encode presentation decisions
+- May retain source provenance needed for semantic interpretation
+- Must not encode presentation decisions such as filenames, extensions, or naming conventions
 
 ---
 
@@ -226,4 +226,4 @@ The Encoder must **not**:
 - [x] F-001: input vs inputs naming ambiguity (resolved via `builtin_inputs` rename)
 - [x] F-002: loader vs pipeline orchestration ambiguity (resolved via D-002)
 - [x] F-003: presenter vs encoder responsibility boundary (resolved via D-003)
-- [ ] F-004: potential core model presentation leakage
+- [x] F-004: core model presentation leakage (resolved via D-004)

@@ -38,14 +38,13 @@ pub fn normalize_content(contents: Vec<Content>, options: &NormalizationOptions)
                 pending.push(PendingOutput::Direct(Content::Game(GameContent {
                     id: rom.id.clone(),
                     source: rom.source.clone(),
-                    title: leaf_stem(&rom.file_name),
+                    title: leaf_stem_from_source(&rom.source),
                     platform: options
                         .platform_hint
                         .clone()
-                        .unwrap_or_else(|| derive_platform(&rom.file_name)),
+                        .unwrap_or_else(|| derive_platform_from_source(&rom.source)),
                     parts: vec![GamePart::Rom(RomPart {
                         source: rom.source,
-                        file_name: rom.file_name,
                         size: rom.size,
                     })],
                     consumed_sources: vec![],
@@ -95,6 +94,25 @@ fn derive_platform(path: &str) -> Platform {
     let normalized = path.to_lowercase().replace('\\', "/");
 
     platform_from_segments(&normalized).unwrap_or_else(|| platform_from_extension(&normalized))
+}
+
+fn derive_platform_from_source(source: &SourceRef) -> Platform {
+    let normalized = source_path_for_matching(source);
+    derive_platform(&normalized)
+}
+
+fn source_path_for_matching(source: &SourceRef) -> String {
+    let raw = source.0.as_ref();
+
+    match raw.split_once('#') {
+        Some((_, member)) => member.replace('\\', "/"),
+        None => raw.replace('\\', "/"),
+    }
+}
+
+fn leaf_stem_from_source(source: &SourceRef) -> String {
+    let normalized = source_path_for_matching(source);
+    leaf_stem(&normalized)
 }
 
 fn platform_from_segments(path: &str) -> Option<Platform> {
@@ -174,7 +192,7 @@ fn normalize_disc_group(
         platform: options
             .platform_hint
             .clone()
-            .unwrap_or_else(|| derive_platform(&primary.source.to_string())),
+            .unwrap_or_else(|| derive_platform_from_source(&primary.source)),
         parts,
         consumed_sources,
     }
@@ -226,7 +244,6 @@ mod tests {
             vec![Content::Rom(RomContent {
                 id: ContentId::new("smw"),
                 source: SourceRef::new("file:/roms/Super Mario World.sfc"),
-                file_name: "Super Mario World.sfc".to_string(),
                 size: 4096,
             })],
             &NormalizationOptions::default(),
@@ -245,7 +262,6 @@ mod tests {
 
         match &game.parts[0] {
             GamePart::Rom(part) => {
-                assert_eq!(part.file_name, "Super Mario World.sfc");
                 assert_eq!(part.size, 4096);
             }
             other => panic!("expected rom part, got {other:?}"),
@@ -303,7 +319,6 @@ mod tests {
                 Content::Rom(RomContent {
                     id: ContentId::new("discs/ps1_multi/game_disc1.bin"),
                     source: SourceRef::new("file:/roms/discs/ps1_multi/game_disc1.bin"),
-                    file_name: "discs/ps1_multi/game_disc1.bin".to_string(),
                     size: 6,
                 }),
                 Content::Disc(DiscContent {
@@ -361,12 +376,11 @@ mod tests {
     }
 
     #[test]
-    fn derives_rom_game_title_from_leaf_name() {
+    fn derives_rom_game_title_from_source_leaf_name() {
         let normalized = normalize_content(
             vec![Content::Rom(RomContent {
                 id: ContentId::new("roms/snes/Super Mario World.sfc"),
                 source: SourceRef::new("file:/roms/snes/Super Mario World.sfc"),
-                file_name: "roms/snes/Super Mario World.sfc".to_string(),
                 size: 4096,
             })],
             &NormalizationOptions::default(),
@@ -400,5 +414,12 @@ mod tests {
         assert_eq!(derive_platform("roms/game.smc"), Platform::Snes);
         assert_eq!(derive_platform("roms/game.nes"), Platform::Nes);
         assert_eq!(derive_platform("roms/game.cue"), Platform::Unknown);
+    }
+
+    #[test]
+    fn derives_platform_from_zip_member_source() {
+        let source =
+            SourceRef::new("zip:/roms/collection.zip#roms/megadrive/Sonic the Hedgehog.bin");
+        assert_eq!(derive_platform_from_source(&source), Platform::Megadrive);
     }
 }

@@ -223,7 +223,6 @@ mod tests {
                 platform: Platform::Megadrive,
                 parts: vec![GamePart::Rom(RomPart {
                     source: SourceRef::new("zip:/roms/megadrive.zip#sonic.bin"),
-                    file_name: "Sonic the Hedgehog.bin".to_string(),
                     size: 1024,
                 })],
                 consumed_sources: vec![],
@@ -264,7 +263,6 @@ mod tests {
             platform: Platform::Snes,
             parts: vec![GamePart::Rom(RomPart {
                 source: SourceRef::new("file:/roms/Super Mario World.sfc"),
-                file_name: "Super Mario World.sfc".to_string(),
                 size: 4096,
             })],
             consumed_sources: vec![],
@@ -368,7 +366,6 @@ mod tests {
                 platform: Platform::Ps1,
                 parts: vec![GamePart::Rom(RomPart {
                     source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
-                    file_name: "Crash Bandicoot.bin".to_string(),
                     size: 1024,
                 })],
                 consumed_sources: vec![],

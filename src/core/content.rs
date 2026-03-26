@@ -111,7 +111,6 @@ pub struct BytesContent {
 pub struct RomContent {
     pub id: ContentId,
     pub source: SourceRef,
-    pub file_name: String,
     pub size: u64,
 }
 
@@ -143,7 +142,6 @@ pub enum GamePart {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RomPart {
     pub source: SourceRef,
-    pub file_name: String,
     pub size: u64,
 }
 
@@ -171,7 +169,6 @@ mod tests {
         let content = Content::Rom(RomContent {
             id: ContentId::new("game"),
             source: SourceRef::new("src:game"),
-            file_name: "game.sfc".to_string(),
             size: 123,
         });
 
@@ -188,7 +185,6 @@ mod tests {
             platform: Platform::Snes,
             parts: vec![GamePart::Rom(RomPart {
                 source: SourceRef::new("file:/roms/game.sfc"),
-                file_name: "game.sfc".to_string(),
                 size: 123,
             })],
             consumed_sources: vec![],

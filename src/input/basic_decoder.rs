@@ -64,7 +64,6 @@ impl InputDecoder for BasicInputDecoder {
                     Content::Rom(RomContent {
                         id,
                         source: object.source.clone(),
-                        file_name: object.name.clone(),
                         size,
                     })
                 } else {
@@ -213,11 +212,6 @@ fn path_without_extension(name: &str) -> String {
 fn parse_disc_info_from_name(name: &str) -> (String, u32) {
     let lower = name.to_lowercase();
 
-    // patterns like:
-    // game_disc1
-    // game-disc2
-    // game cd1
-    // game (disc 2)
     let patterns = ["disc", "cd", "disk", "vol"];
 
     for pattern in patterns {

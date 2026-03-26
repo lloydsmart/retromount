@@ -235,3 +235,81 @@ This aligns with the pipeline design:
 
 This decision has been fully implemented.  
 The Presenter/Encoder boundary is now enforced in code, with no remaining responsibility overlap.
+
+---
+
+## D-004: Ensure core model remains presentation-agnostic
+
+**Date:** 2026-03-26  
+**Status:** Implemented  
+**Related:** F-004
+
+### D-004 Context
+
+The core model should describe content semantically, independently from how that content is presented or materialized in output views.
+
+Earlier iterations of the model included filename-oriented data in `RomPart`, which introduced representation concerns into the normalization layer.
+
+This created tension with D-003, which established that naming and materialization belong to the Encoder, not the core model.
+
+### D-004 Decision
+
+The core model (`Content`, `GameContent`, `GamePart`) will contain only semantic information about content and must not encode presentation or representation decisions.
+
+- The core model defines what the content is
+- The Presenter defines how content is structured
+- The Encoder defines how content is represented
+
+### D-004 Rules
+
+The core model may include:
+
+- intrinsic identifiers (e.g. title, platform)
+- structural relationships (e.g. multi-disc ordering)
+- source references and sizes
+
+The core model must not include:
+
+- filenames or extensions
+- formatting or naming conventions
+- output-specific representation details
+
+### D-004 Changes
+
+- removed filename-related data from `RomPart`
+- ensured all filename generation is handled exclusively by `OutputEncoder`
+- updated encoder logic to derive filenames from source information
+
+### D-004 Rationale
+
+This enforces a strict separation between semantics and representation:
+
+- eliminates presentation leakage into the core model
+- ensures consistency with D-003 (Presenter vs Encoder boundary)
+- enables alternate output formats without modifying core structures
+- simplifies reasoning about data flow through the pipeline
+
+### D-004 Consequences
+
+- the core model is now fully presentation-agnostic
+- all naming and representation logic is centralized in the Encoder
+- Presenter operates purely on structure without relying on embedded naming hints
+- future encoders can define entirely different naming schemes without impacting core logic
+
+### D-004 Alternatives considered
+
+- **Retain filename in `RomPart` for convenience**  
+  Rejected — introduces representation concerns into the core model and duplicates encoder responsibility
+
+- **Remove disc numbering from `DiscPart`**  
+  Rejected — disc ordering is intrinsic to the content and required for correct grouping and semantics
+
+### D-004 Notes
+
+This decision builds directly on D-003 and completes the separation between:
+
+- semantic model (core)
+- structural layout (Presenter)
+- representation (Encoder)
+
+The pipeline is now cleanly layered end-to-end.
