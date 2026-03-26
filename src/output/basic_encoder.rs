@@ -25,6 +25,24 @@ impl BasicEncoder {
         }
     }
 
+    fn file_name_for_game_part(&self, game: &GameContent, part: &GamePart) -> String {
+        match part {
+            GamePart::Rom(rom) => rom.file_name.clone(),
+            GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
+        }
+    }
+
+    fn size_for_game_part(&self, part: &GamePart) -> u64 {
+        match part {
+            GamePart::Rom(rom) => rom.size,
+            GamePart::Disc(_) => 0,
+        }
+    }
+
+    fn playlist_name_for(&self, game: &GameContent) -> String {
+        format!("{}.m3u", game.title)
+    }
+
     fn size_for(&self, content: &Content) -> u64 {
         match content {
             Content::Bytes(bytes) => bytes.size,
@@ -65,6 +83,28 @@ impl OutputEncoder for BasicEncoder {
         Ok(EncodedFile {
             name: self.file_name_for(content),
             size: self.size_for(content),
+        })
+    }
+
+    fn encode_game_part(
+        &self,
+        game: &GameContent,
+        part: &GamePart,
+    ) -> Result<EncodedFile, std::io::Error> {
+        Ok(EncodedFile {
+            name: self.file_name_for_game_part(game, part),
+            size: self.size_for_game_part(part),
+        })
+    }
+
+    fn encode_playlist(
+        &self,
+        game: &GameContent,
+        _entries: &[String],
+    ) -> Result<EncodedFile, std::io::Error> {
+        Ok(EncodedFile {
+            name: self.playlist_name_for(game),
+            size: 0,
         })
     }
 }
