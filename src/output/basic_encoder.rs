@@ -1,4 +1,4 @@
-use crate::core::content::{Content, GamePart};
+use crate::core::content::{Content, GameContent, GamePart};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 
 pub struct BasicEncoder;
