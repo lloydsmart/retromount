@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::io;
 
-use crate::core::content::{Content, ContentKind, DecodedContent, DecodedContentKind};
+use crate::core::content::{Content, DecodedContent};
 use crate::core::normalizer::{normalize_content, NormalizationOptions};
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
@@ -130,7 +130,7 @@ mod tests {
     use super::*;
     use std::fs;
 
-    use crate::core::content::DecodedContentKind;
+    use crate::core::content::{ContentKind, DecodedContentKind};
     use crate::input::basic_decoder::BasicInputDecoder;
     use crate::input::basic_identifier::BasicInputIdentifier;
     use crate::input::directory_source::DirectoryInputSource;
