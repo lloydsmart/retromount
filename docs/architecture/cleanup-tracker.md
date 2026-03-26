@@ -39,8 +39,6 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 
 ### F-004: Core model leaking presentation concerns
 
-### F-004: Core model leaking presentation concerns
-
 - [x] Audit `GameContent`, `DiscPart`, `RomPart`, and `RomContent` for presentation-specific fields
 - [x] Identify fields that exist only to support current presenter/CLI output
 - [x] Define stricter core model responsibilities
