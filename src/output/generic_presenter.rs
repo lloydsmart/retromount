@@ -11,7 +11,7 @@ where
 }
 
 #[derive(Debug, Clone)]
-struct PresentedEntry {
+struct EncodedEntry {
     content: NormalizedContent,
     encoded: EncodedFile,
 }
@@ -24,23 +24,20 @@ where
         Self { encoder }
     }
 
-    fn encode_entries(&self, content: &[NormalizedContent]) -> Vec<PresentedEntry> {
+    fn encode_entries(&self, content: &[NormalizedContent]) -> Vec<EncodedEntry> {
         content
             .iter()
             .filter(|item| self.encoder.can_encode(item))
             .filter_map(|item| {
-                self.encoder
-                    .encode(item)
-                    .ok()
-                    .map(|encoded| PresentedEntry {
-                        content: item.clone(),
-                        encoded,
-                    })
+                self.encoder.encode(item).ok().map(|encoded| EncodedEntry {
+                    content: item.clone(),
+                    encoded,
+                })
             })
             .collect()
     }
 
-    fn build_root_children(&self, entries: &[PresentedEntry]) -> Vec<VfsNode> {
+    fn build_root_children(&self, entries: &[EncodedEntry]) -> Vec<VfsNode> {
         let mut root = VfsDirectory::new("");
 
         for entry in entries {
@@ -90,7 +87,12 @@ where
             let encoded = self
                 .encoder
                 .encode_game_part(game, &GamePart::Disc((*disc).clone()))
-                .expect("disc part should encode");
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "multi-disc game part should encode for '{}' disc {}: {err}",
+                        game.title, disc.disc_number
+                    )
+                });
 
             disc_names.push(encoded.name.clone());
 
@@ -101,7 +103,12 @@ where
         let playlist_encoded = self
             .encoder
             .encode_playlist(game, &disc_names)
-            .expect("playlist should encode");
+            .unwrap_or_else(|err| {
+                panic!(
+                    "multi-disc playlist should encode for '{}': {err}",
+                    game.title
+                )
+            });
 
         let playlist_path = format!("{}/{}", base_path, playlist_encoded.name);
         self.insert_file_path(root, &playlist_path, playlist_encoded.to_vfs_file());
@@ -133,10 +140,10 @@ where
     E: OutputEncoder + Send + Sync,
 {
     fn present(&self, content: &[NormalizedContent]) -> VfsDirectory {
-        let entries = self.encode_entries(content);
-        let children = self.build_root_children(&entries);
+        let encoded_entries = self.encode_entries(content);
+        let root_children = self.build_root_children(&encoded_entries);
 
-        VfsDirectory::with_children("", children)
+        VfsDirectory::with_children("", root_children)
     }
 }
 

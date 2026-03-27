@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::io;
 
-use crate::core::content::{DecodedContent, NormalizedContent};
+use crate::core::content::{ContentMeta, DecodedContent, NormalizedContent};
 use crate::core::normalizer::{normalize_decoded_content, NormalizationOptions};
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
@@ -15,7 +15,7 @@ use serde::Serialize;
 pub struct PipelineTrace {
     pub objects: Vec<TracedObject>,
     pub normalized: Vec<NormalizedContent>,
-    pub presented: VfsDirectory,
+    pub output_vfs: VfsDirectory,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -39,7 +39,7 @@ pub fn run_pipeline(
         presenter,
         &NormalizationOptions::default(),
     )?
-    .presented)
+    .output_vfs)
 }
 
 pub fn run_pipeline_with_trace(
@@ -90,12 +90,12 @@ pub fn run_pipeline_with_options(
 
     let normalized = normalize_decoded_content(all_decoded_content, normalization_options);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
-    let presented = presenter.present(&normalized_presentable_content);
+    let output_vfs = presenter.present(&normalized_presentable_content);
 
     Ok(PipelineTrace {
         objects: traced_objects,
         normalized,
-        presented,
+        output_vfs,
     })
 }
 
@@ -196,7 +196,7 @@ mod tests {
         assert_eq!(trace.normalized.len(), 3);
 
         let names: Vec<&str> = trace
-            .presented
+            .output_vfs
             .children
             .iter()
             .map(|node| node.name())

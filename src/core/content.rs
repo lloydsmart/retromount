@@ -57,6 +57,12 @@ impl fmt::Display for ContentId {
     }
 }
 
+pub trait ContentMeta {
+    fn id(&self) -> &ContentId;
+    fn source(&self) -> &SourceRef;
+    fn consumed_sources(&self) -> &[SourceRef];
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum DecodedContent {
     Bytes(BytesContent),
@@ -74,8 +80,10 @@ impl DecodedContent {
             Self::Text(_) => DecodedContentKind::Text,
         }
     }
+}
 
-    pub fn id(&self) -> &ContentId {
+impl ContentMeta for DecodedContent {
+    fn id(&self) -> &ContentId {
         match self {
             Self::Bytes(v) => &v.id,
             Self::Rom(v) => &v.id,
@@ -84,7 +92,7 @@ impl DecodedContent {
         }
     }
 
-    pub fn source(&self) -> &SourceRef {
+    fn source(&self) -> &SourceRef {
         match self {
             Self::Bytes(v) => &v.source,
             Self::Rom(v) => &v.source,
@@ -93,7 +101,7 @@ impl DecodedContent {
         }
     }
 
-    pub fn consumed_sources(&self) -> &[SourceRef] {
+    fn consumed_sources(&self) -> &[SourceRef] {
         match self {
             Self::Disc(v) => &v.consumed_sources,
             _ => &[],
@@ -116,8 +124,10 @@ impl NormalizedContent {
             Self::Text(_) => NormalizedContentKind::Text,
         }
     }
+}
 
-    pub fn id(&self) -> &ContentId {
+impl ContentMeta for NormalizedContent {
+    fn id(&self) -> &ContentId {
         match self {
             Self::Bytes(v) => &v.id,
             Self::Game(v) => &v.id,
@@ -125,7 +135,7 @@ impl NormalizedContent {
         }
     }
 
-    pub fn source(&self) -> &SourceRef {
+    fn source(&self) -> &SourceRef {
         match self {
             Self::Bytes(v) => &v.source,
             Self::Game(v) => &v.source,
@@ -133,7 +143,7 @@ impl NormalizedContent {
         }
     }
 
-    pub fn consumed_sources(&self) -> &[SourceRef] {
+    fn consumed_sources(&self) -> &[SourceRef] {
         match self {
             Self::Game(v) => &v.consumed_sources,
             _ => &[],
@@ -243,5 +253,40 @@ mod tests {
         assert_eq!(Platform::Nes.to_string(), "nes");
         assert_eq!(Platform::Megadrive.to_string(), "megadrive");
         assert_eq!(Platform::Unknown.to_string(), "unknown");
+    }
+
+    #[test]
+    fn returns_decoded_content_metadata_via_trait() {
+        let content = DecodedContent::Disc(DecodedDiscContent {
+            id: ContentId::new("disc-1"),
+            source: SourceRef::new("cue:/roms/game-disc1.cue"),
+            title: "Game".to_string(),
+            disc_number: 1,
+            consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+        });
+
+        assert_eq!(content.id().to_string(), "disc-1");
+        assert_eq!(content.source().to_string(), "cue:/roms/game-disc1.cue");
+        assert_eq!(content.consumed_sources().len(), 1);
+    }
+
+    #[test]
+    fn returns_normalized_content_metadata_via_trait() {
+        let content = NormalizedContent::Game(GameContent {
+            id: ContentId::new("game"),
+            source: SourceRef::new("cue:/roms/game-disc1.cue"),
+            title: "Game".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![GamePart::Disc(DiscPart {
+                source: SourceRef::new("cue:/roms/game-disc1.cue"),
+                disc_number: 1,
+                consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+            })],
+            consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+        });
+
+        assert_eq!(content.id().to_string(), "game");
+        assert_eq!(content.source().to_string(), "cue:/roms/game-disc1.cue");
+        assert_eq!(content.consumed_sources().len(), 1);
     }
 }

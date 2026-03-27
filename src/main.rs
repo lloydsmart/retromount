@@ -1,7 +1,9 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
-use retromount::core::content::{GamePart, NormalizedContent, Platform as ContentPlatform};
+use retromount::core::content::{
+    ContentMeta, GamePart, NormalizedContent, Platform as ContentPlatform,
+};
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
 use retromount::engine::inspect::run_phase3_inspect;
@@ -80,7 +82,7 @@ fn run_configured_views() -> Result<(), RetromountError> {
         }
 
         let mut rendered = Vec::new();
-        write_vfs_tree(&mut rendered, &trace.presented)
+        write_vfs_tree(&mut rendered, &trace.output_vfs)
             .map_err(RetromountError::ConfigFileError)?;
         let rendered = String::from_utf8(rendered)
             .map_err(|err| RetromountError::LoadError(err.to_string()))?;
