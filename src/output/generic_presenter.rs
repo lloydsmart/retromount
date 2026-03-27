@@ -121,8 +121,12 @@ where
         file: crate::core::vfs::VfsFile,
     ) {
         let normalized = normalize_path(path);
-        let (parents, _) = split_parent_dirs(&normalized);
+        let (parents, file_name) = split_parent_dirs(&normalized);
         let directory = ensure_directory(root, &parents);
+
+        let mut file = file;
+        file.name = file_name;
+
         directory.add_child(VfsNode::File(file));
     }
 
@@ -410,5 +414,47 @@ mod tests {
 
         let names: Vec<&str> = ps1.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["Crash Bandicoot", "Final Fantasy VII"]);
+    }
+
+    #[test]
+    fn presents_text_content_with_relative_path_using_leaf_file_name() {
+        let presenter = GenericPresenter::new(BasicEncoder::new());
+
+        let content = vec![NormalizedContent::Text(TextContent {
+            id: ContentId::new("mixed/notes"),
+            source: SourceRef::new("file:/roms/mixed/notes.txt"),
+            size: 12,
+        })];
+
+        let root = presenter.present(&content);
+
+        let mixed = match root.find_directory("mixed") {
+            Some(dir) => dir,
+            None => panic!("expected mixed directory"),
+        };
+
+        let names: Vec<&str> = mixed.children().iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["notes.txt"]);
+    }
+
+    #[test]
+    fn presents_bytes_content_with_relative_path_using_leaf_file_name() {
+        let presenter = GenericPresenter::new(BasicEncoder::new());
+
+        let content = vec![NormalizedContent::Bytes(BytesContent {
+            id: ContentId::new("zips/gameboy_collection.zip"),
+            source: SourceRef::new("file:/roms/zips/gameboy_collection.zip"),
+            size: 481,
+        })];
+
+        let root = presenter.present(&content);
+
+        let zips = match root.find_directory("zips") {
+            Some(dir) => dir,
+            None => panic!("expected zips directory"),
+        };
+
+        let names: Vec<&str> = zips.children().iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["gameboy_collection.zip.bin"]);
     }
 }
