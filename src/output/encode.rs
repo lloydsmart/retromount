@@ -20,9 +20,7 @@ impl EncodedFile {
             EncodedBacking::SourceBacked { source, size } => {
                 VfsFile::source_backed(&self.name, *size, source.clone())
             }
-            EncodedBacking::Inline(contents) => {
-                VfsFile::inline(&self.name, contents.clone())
-            }
+            EncodedBacking::Inline(contents) => VfsFile::inline(&self.name, contents.clone()),
         }
     }
 }
