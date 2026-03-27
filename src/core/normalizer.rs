@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::core::content::{
     BytesContent, ContentId, DecodedContent, DecodedDiscContent, DecodedRomContent, DiscPart,
-    GameContent, GamePart, NormalizedContent, Platform, TextContent, RomPart,
+    GameContent, GamePart, NormalizedContent, Platform, RomPart, TextContent,
 };
 use crate::core::source::SourceRef;
 
@@ -39,20 +39,22 @@ pub fn normalize_content(
                     continue;
                 }
 
-                pending.push(PendingOutput::Direct(NormalizedContent::Game(GameContent {
-                    id: rom.id.clone(),
-                    source: rom.source.clone(),
-                    title: leaf_stem_from_source(&rom.source),
-                    platform: options
-                        .platform_hint
-                        .clone()
-                        .unwrap_or_else(|| derive_platform_from_source(&rom.source)),
-                    parts: vec![GamePart::Rom(RomPart {
-                        source: rom.source,
-                        size: rom.size,
-                    })],
-                    consumed_sources: vec![],
-                })));
+                pending.push(PendingOutput::Direct(NormalizedContent::Game(
+                    GameContent {
+                        id: rom.id.clone(),
+                        source: rom.source.clone(),
+                        title: leaf_stem_from_source(&rom.source),
+                        platform: options
+                            .platform_hint
+                            .clone()
+                            .unwrap_or_else(|| derive_platform_from_source(&rom.source)),
+                        parts: vec![GamePart::Rom(RomPart {
+                            source: rom.source,
+                            size: rom.size,
+                        })],
+                        consumed_sources: vec![],
+                    },
+                )));
             }
             DecodedContent::Disc(disc) => {
                 let key = disc_group_key(&disc);
