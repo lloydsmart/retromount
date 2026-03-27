@@ -1,12 +1,44 @@
-use crate::core::content::Content;
+use crate::core::content::{GameContent, GamePart, NormalizedContent};
+use crate::core::source::SourceRef;
+use crate::core::vfs::VfsFile;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EncodedBacking {
+    SourceBacked { source: SourceRef, size: u64 },
+    Inline(Vec<u8>),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedFile {
     pub name: String,
-    pub size: u64,
+    pub backing: EncodedBacking,
+}
+
+impl EncodedFile {
+    pub fn to_vfs_file(&self) -> VfsFile {
+        match &self.backing {
+            EncodedBacking::SourceBacked { source, size } => {
+                VfsFile::source_backed(&self.name, *size, source.clone())
+            }
+            EncodedBacking::Inline(contents) => VfsFile::inline(&self.name, contents.clone()),
+        }
+    }
 }
 
 pub trait OutputEncoder: Send + Sync {
-    fn can_encode(&self, content: &Content) -> bool;
-    fn encode(&self, content: &Content) -> Result<EncodedFile, std::io::Error>;
+    fn can_encode(&self, content: &NormalizedContent) -> bool;
+
+    fn encode(&self, content: &NormalizedContent) -> Result<EncodedFile, std::io::Error>;
+
+    fn encode_game_part(
+        &self,
+        game: &GameContent,
+        part: &GamePart,
+    ) -> Result<EncodedFile, std::io::Error>;
+
+    fn encode_playlist(
+        &self,
+        game: &GameContent,
+        entries: &[String],
+    ) -> Result<EncodedFile, std::io::Error>;
 }

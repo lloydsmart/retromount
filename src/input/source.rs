@@ -3,6 +3,7 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum InputSourceKind {
+    File,
     Directory,
     Zip,
 }
@@ -10,6 +11,7 @@ pub enum InputSourceKind {
 impl InputSourceKind {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::File => "File",
             Self::Directory => "Directory",
             Self::Zip => "Zip",
         }

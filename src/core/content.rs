@@ -5,10 +5,16 @@ use std::sync::Arc;
 use crate::core::source::SourceRef;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub enum ContentKind {
+pub enum DecodedContentKind {
     Bytes,
     Rom,
     Disc,
+    Text,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum NormalizedContentKind {
+    Bytes,
     Game,
     Text,
 }
@@ -51,49 +57,94 @@ impl fmt::Display for ContentId {
     }
 }
 
+pub trait ContentMeta {
+    fn id(&self) -> &ContentId;
+    fn source(&self) -> &SourceRef;
+    fn consumed_sources(&self) -> &[SourceRef];
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub enum Content {
+pub enum DecodedContent {
     Bytes(BytesContent),
-    Rom(RomContent),
-    Disc(DiscContent),
-    Game(GameContent),
+    Rom(DecodedRomContent),
+    Disc(DecodedDiscContent),
     Text(TextContent),
 }
 
-impl Content {
-    pub fn kind(&self) -> ContentKind {
+impl DecodedContent {
+    pub fn kind(&self) -> DecodedContentKind {
         match self {
-            Self::Bytes(_) => ContentKind::Bytes,
-            Self::Rom(_) => ContentKind::Rom,
-            Self::Disc(_) => ContentKind::Disc,
-            Self::Game(_) => ContentKind::Game,
-            Self::Text(_) => ContentKind::Text,
+            Self::Bytes(_) => DecodedContentKind::Bytes,
+            Self::Rom(_) => DecodedContentKind::Rom,
+            Self::Disc(_) => DecodedContentKind::Disc,
+            Self::Text(_) => DecodedContentKind::Text,
         }
     }
+}
 
-    pub fn id(&self) -> &ContentId {
+impl ContentMeta for DecodedContent {
+    fn id(&self) -> &ContentId {
         match self {
             Self::Bytes(v) => &v.id,
             Self::Rom(v) => &v.id,
             Self::Disc(v) => &v.id,
+            Self::Text(v) => &v.id,
+        }
+    }
+
+    fn source(&self) -> &SourceRef {
+        match self {
+            Self::Bytes(v) => &v.source,
+            Self::Rom(v) => &v.source,
+            Self::Disc(v) => &v.source,
+            Self::Text(v) => &v.source,
+        }
+    }
+
+    fn consumed_sources(&self) -> &[SourceRef] {
+        match self {
+            Self::Disc(v) => &v.consumed_sources,
+            _ => &[],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum NormalizedContent {
+    Bytes(BytesContent),
+    Game(GameContent),
+    Text(TextContent),
+}
+
+impl NormalizedContent {
+    pub fn kind(&self) -> NormalizedContentKind {
+        match self {
+            Self::Bytes(_) => NormalizedContentKind::Bytes,
+            Self::Game(_) => NormalizedContentKind::Game,
+            Self::Text(_) => NormalizedContentKind::Text,
+        }
+    }
+}
+
+impl ContentMeta for NormalizedContent {
+    fn id(&self) -> &ContentId {
+        match self {
+            Self::Bytes(v) => &v.id,
             Self::Game(v) => &v.id,
             Self::Text(v) => &v.id,
         }
     }
 
-    pub fn source(&self) -> &SourceRef {
+    fn source(&self) -> &SourceRef {
         match self {
             Self::Bytes(v) => &v.source,
-            Self::Rom(v) => &v.source,
-            Self::Disc(v) => &v.source,
             Self::Game(v) => &v.source,
             Self::Text(v) => &v.source,
         }
     }
 
-    pub fn consumed_sources(&self) -> &[SourceRef] {
+    fn consumed_sources(&self) -> &[SourceRef] {
         match self {
-            Self::Disc(v) => &v.consumed_sources,
             Self::Game(v) => &v.consumed_sources,
             _ => &[],
         }
@@ -108,15 +159,14 @@ pub struct BytesContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct RomContent {
+pub struct DecodedRomContent {
     pub id: ContentId,
     pub source: SourceRef,
-    pub file_name: String,
     pub size: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct DiscContent {
+pub struct DecodedDiscContent {
     pub id: ContentId,
     pub source: SourceRef,
     pub title: String,
@@ -143,7 +193,6 @@ pub enum GamePart {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RomPart {
     pub source: SourceRef,
-    pub file_name: String,
     pub size: u64,
 }
 
@@ -167,76 +216,34 @@ mod tests {
     use crate::core::source::SourceRef;
 
     #[test]
-    fn returns_content_kind() {
-        let content = Content::Rom(RomContent {
+    fn returns_decoded_content_kind() {
+        let content = DecodedContent::Rom(DecodedRomContent {
             id: ContentId::new("game"),
             source: SourceRef::new("src:game"),
-            file_name: "game.sfc".to_string(),
             size: 123,
         });
 
-        assert_eq!(content.kind(), ContentKind::Rom);
+        assert_eq!(content.kind(), DecodedContentKind::Rom);
         assert_eq!(content.id().to_string(), "game");
     }
 
     #[test]
-    fn returns_game_content_kind() {
-        let content = Content::Game(GameContent {
+    fn returns_normalized_content_kind() {
+        let content = NormalizedContent::Game(GameContent {
             id: ContentId::new("game"),
             source: SourceRef::new("file:/roms/game.sfc"),
             title: "game".to_string(),
             platform: Platform::Snes,
             parts: vec![GamePart::Rom(RomPart {
                 source: SourceRef::new("file:/roms/game.sfc"),
-                file_name: "game.sfc".to_string(),
                 size: 123,
             })],
             consumed_sources: vec![],
         });
 
-        assert_eq!(content.kind(), ContentKind::Game);
+        assert_eq!(content.kind(), NormalizedContentKind::Game);
         assert_eq!(content.id().to_string(), "game");
         assert_eq!(content.source().to_string(), "file:/roms/game.sfc");
-    }
-
-    #[test]
-    fn returns_source_and_consumed_sources() {
-        let content = Content::Disc(DiscContent {
-            id: ContentId::new("game"),
-            source: SourceRef::new("cue:/roms/game.cue"),
-            title: "game".to_string(),
-            disc_number: 1,
-            consumed_sources: vec![SourceRef::new("cue:/roms/game.bin")],
-        });
-
-        assert_eq!(content.source().to_string(), "cue:/roms/game.cue");
-        assert_eq!(content.consumed_sources().len(), 1);
-        assert_eq!(
-            content.consumed_sources()[0].to_string(),
-            "cue:/roms/game.bin"
-        );
-    }
-
-    #[test]
-    fn returns_game_consumed_sources() {
-        let content = Content::Game(GameContent {
-            id: ContentId::new("ff7"),
-            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-            title: "Final Fantasy VII".to_string(),
-            platform: Platform::Ps1,
-            parts: vec![GamePart::Disc(DiscPart {
-                source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
-            })],
-            consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
-        });
-
-        assert_eq!(content.consumed_sources().len(), 1);
-        assert_eq!(
-            content.consumed_sources()[0].to_string(),
-            "cue:/roms/ff7-disc1.bin"
-        );
     }
 
     #[test]
@@ -246,5 +253,40 @@ mod tests {
         assert_eq!(Platform::Nes.to_string(), "nes");
         assert_eq!(Platform::Megadrive.to_string(), "megadrive");
         assert_eq!(Platform::Unknown.to_string(), "unknown");
+    }
+
+    #[test]
+    fn returns_decoded_content_metadata_via_trait() {
+        let content = DecodedContent::Disc(DecodedDiscContent {
+            id: ContentId::new("disc-1"),
+            source: SourceRef::new("cue:/roms/game-disc1.cue"),
+            title: "Game".to_string(),
+            disc_number: 1,
+            consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+        });
+
+        assert_eq!(content.id().to_string(), "disc-1");
+        assert_eq!(content.source().to_string(), "cue:/roms/game-disc1.cue");
+        assert_eq!(content.consumed_sources().len(), 1);
+    }
+
+    #[test]
+    fn returns_normalized_content_metadata_via_trait() {
+        let content = NormalizedContent::Game(GameContent {
+            id: ContentId::new("game"),
+            source: SourceRef::new("cue:/roms/game-disc1.cue"),
+            title: "Game".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![GamePart::Disc(DiscPart {
+                source: SourceRef::new("cue:/roms/game-disc1.cue"),
+                disc_number: 1,
+                consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+            })],
+            consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+        });
+
+        assert_eq!(content.id().to_string(), "game");
+        assert_eq!(content.source().to_string(), "cue:/roms/game-disc1.cue");
+        assert_eq!(content.consumed_sources().len(), 1);
     }
 }

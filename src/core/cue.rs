@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use crate::core::disc::Disc;
-use crate::core::game_image::GameImage;
-use crate::core::platform::Platform;
 use crate::core::track::{Track, TrackSource, TrackType};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,30 +72,6 @@ pub fn cue_to_disc(cue_text: &str, cue_dir: &Path, disc_number: u32) -> Disc {
     Disc {
         number: disc_number,
         tracks,
-    }
-}
-
-pub fn cue_to_game_image(
-    cue_path: &Path,
-    cue_text: &str,
-    disc_number: u32,
-    platform: Platform,
-) -> GameImage {
-    let cue_dir = cue_path.parent().unwrap_or_else(|| Path::new("."));
-    let disc = cue_to_disc(cue_text, cue_dir, disc_number);
-
-    let title = cue_path
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| cue_path.display().to_string());
-
-    let id = title.to_ascii_lowercase().replace(' ', "_");
-
-    GameImage {
-        id,
-        title,
-        platform,
-        discs: vec![disc],
     }
 }
 
@@ -225,28 +199,5 @@ FILE "track01.bin" BINARY
         assert_eq!(disc.tracks.len(), 1);
         assert_eq!(disc.tracks[0].kind, TrackType::Data);
         assert_eq!(disc.tracks[0].sector_size, 2048);
-    }
-
-    #[test]
-    fn converts_cue_to_game_image() {
-        let cue_path = Path::new("/roms/ps1/Ridge Racer.cue");
-
-        let cue = r#"
-    FILE "track01.bin" BINARY
-    TRACK 01 MODE1/2352
-        INDEX 01 00:00:00
-    FILE "track02.bin" BINARY
-    TRACK 02 AUDIO
-        INDEX 01 00:00:00
-    "#;
-
-        let game = cue_to_game_image(cue_path, cue, 1, Platform::PlayStation);
-
-        assert_eq!(game.id, "ridge_racer");
-        assert_eq!(game.title, "Ridge Racer");
-        assert_eq!(game.platform, Platform::PlayStation);
-        assert_eq!(game.discs.len(), 1);
-        assert_eq!(game.discs[0].number, 1);
-        assert_eq!(game.discs[0].tracks.len(), 2);
     }
 }

@@ -6,6 +6,7 @@ use crate::error::RetromountError;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
 use crate::input::directory_source::DirectoryInputSource;
+use crate::input::file_source::FileInputSource;
 use crate::input::source::InputSource;
 use crate::input::zip_source::ZipInputSource;
 use crate::output::basic_encoder::BasicEncoder;
@@ -34,13 +35,16 @@ pub fn build_input_source(path: &Path) -> Result<Box<dyn InputSource>, Retromoun
         return Ok(Box::new(DirectoryInputSource::new(path)));
     }
 
-    if path.is_file()
-        && path
+    if path.is_file() {
+        if path
             .extension()
             .and_then(|ext| ext.to_str())
             .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
-    {
-        return Ok(Box::new(ZipInputSource::new(path)));
+        {
+            return Ok(Box::new(ZipInputSource::new(path)));
+        }
+
+        return Ok(Box::new(FileInputSource::new(path)));
     }
 
     Err(RetromountError::UnsupportedFormat)
