@@ -1,6 +1,6 @@
 use crate::core::content::{GameContent, GamePart, NormalizedContent};
 use crate::core::source::SourceRef;
-use crate::core::vfs::{FileBacking, VfsFile};
+use crate::core::vfs::VfsFile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EncodedBacking {
@@ -16,15 +16,14 @@ pub struct EncodedFile {
 
 impl EncodedFile {
     pub fn to_vfs_file(&self) -> VfsFile {
-        let backing = match &self.backing {
-            EncodedBacking::SourceBacked { source, size } => FileBacking::SourceBacked {
-                source: source.clone(),
-                size: *size,
-            },
-            EncodedBacking::Inline(contents) => FileBacking::Inline(contents.clone()),
-        };
-
-        VfsFile::with_backing(&self.name, backing)
+        match &self.backing {
+            EncodedBacking::SourceBacked { source, size } => {
+                VfsFile::source_backed(&self.name, *size, source.clone())
+            }
+            EncodedBacking::Inline(contents) => {
+                VfsFile::inline(&self.name, contents.clone())
+            }
+        }
     }
 }
 
