@@ -48,17 +48,17 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 
 ---
 
-### F-005: Decoded content vs normalized content boundary ambiguity
+### F-005: Decode → Normalize boundary definition
 
 **Issue:** [#53](https://github.com/lloydsmart/retromount/issues/53)
 
-- [ ] Define decoded content model
-- [ ] Define normalized content model
+- [x] Define decoded content model
+- [x] Define normalized content model
 - [ ] Update decoder to produce decoded content only
 - [ ] Update normalizer to transform decoded content into normalized content
-- [ ] Narrow presenter interfaces to normalized content only
-- [ ] Narrow encoder interfaces to normalized content only
-- [ ] Remove impossible post-normalization variants from presenter/encoder paths
+- [x] Narrow presenter interfaces to normalized content only
+- [x] Narrow encoder interfaces to normalized content only
+- [x] Remove impossible post-normalization variants from presenter/encoder paths
 - [ ] Remove `unreachable!()` branches caused by over-broad content types
 - [ ] Update architecture docs and findings
 - [ ] Update tests for new stage-aligned types

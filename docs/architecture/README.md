@@ -123,7 +123,16 @@ This split ensures that decoded artifacts and normalized semantic entities are n
 
 ### Presentation and encoding
 
-The presenter and encoder transform normalized content into a virtual filesystem representation.
+The output stage transforms normalized content into a virtual filesystem representation.
+
+Within that stage:
+
+- the presenter determines structure, grouping, and layout
+- the encoder materializes individual output files
+
+In the default implementation, the presenter composes an encoder while constructing the VFS tree.
+
+Together, they produce the final VFS tree exposed to consumers.
 
 Key components:
 

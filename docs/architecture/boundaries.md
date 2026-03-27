@@ -129,6 +129,15 @@ The Presenter must **not**:
 - generate file contents
 - perform representation-specific transformations
 
+In the default Phase 3 implementation, the presenter composes an encoder while constructing the VFS tree.
+
+Conceptually:
+
+- presentation owns structure and layout decisions
+- encoding owns file materialization
+
+This preserves the architectural boundary while allowing a simple default composition.
+
 ---
 
 ### 6. Encode (materialization → VFS)
@@ -182,6 +191,7 @@ The Encoder must **not**:
 - Normalize consumes `DecodedContent` and produces `NormalizedContent`
 - Source provenance may be retained where needed for semantic interpretation
 - Normalized content must not encode presentation decisions such as filenames, extensions, or naming conventions
+- Normalization is the only stage where decoded artifacts may be aggregated, merged, or transformed into higher-level semantic entities (e.g. discs → games)
 
 ---
 
@@ -228,7 +238,7 @@ The Encoder must **not**:
 - [x] F-002: loader vs pipeline orchestration ambiguity (resolved via D-002)
 - [x] F-003: presenter vs encoder responsibility boundary (resolved via D-003)
 - [x] F-004: core model presentation leakage (resolved via D-004)
-- [x] F-005: decoded vs normalized content boundary ambiguity (resolved via D-005)
+- [x] F-005: decoded vs normalized content boundary defined (D-005 implemented)
 
 ## Decode → Normalize Boundary
 
