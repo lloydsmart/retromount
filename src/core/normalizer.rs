@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::content::{
-    BytesContent, ContentId, DecodedContent, DecodedDiscContent, DecodedRomContent, DiscPart,
-    GameContent, GamePart, NormalizedContent, Platform, RomPart, TextContent,
+    ContentId, DecodedContent, DecodedDiscContent, DiscPart, GameContent, GamePart,
+    NormalizedContent, Platform, RomPart,
 };
 use crate::core::source::SourceRef;
 
@@ -250,7 +250,7 @@ mod tests {
     use super::*;
     use crate::core::content::{
         ContentId, DecodedContent, DecodedContentKind, DecodedDiscContent, DecodedRomContent,
-        GamePart, NormalizedContent, NormalizedContentKind,
+        GamePart, NormalizedContent, NormalizedContentKind, TextContent,
     };
     use crate::core::source::SourceRef;
 

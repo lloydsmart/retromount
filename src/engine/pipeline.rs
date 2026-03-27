@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::io;
 
-use crate::core::content::{Content, DecodedContent};
+use crate::core::content::{DecodedContent, NormalizedContent};
 use crate::core::normalizer::{normalize_content, NormalizationOptions};
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
@@ -11,10 +11,9 @@ use crate::input::source::InputSource;
 use crate::output::present::OutputPresenter;
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
 pub struct PipelineTrace {
     pub objects: Vec<TracedObject>,
-    pub normalized: Vec<Content>,
+    pub normalized: Vec<NormalizedContent>,
     pub presented: VfsDirectory,
 }
 
@@ -88,8 +87,7 @@ pub fn run_pipeline_with_options(
         });
     }
 
-    let legacy_content = decoded_content_to_legacy_content(all_decoded_content);
-    let normalized = normalize_content(legacy_content, normalization_options);
+    let normalized = normalize_content(all_decoded_content, normalization_options);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
     let presented = presenter.present(&normalized_presentable_content);
 
@@ -100,19 +98,7 @@ pub fn run_pipeline_with_options(
     })
 }
 
-fn decoded_content_to_legacy_content(decoded: Vec<DecodedContent>) -> Vec<Content> {
-    decoded
-        .into_iter()
-        .map(|content| match content {
-            DecodedContent::Bytes(bytes) => Content::Bytes(bytes),
-            DecodedContent::Rom(rom) => Content::Rom(rom.into()),
-            DecodedContent::Disc(disc) => Content::Disc(disc.into()),
-            DecodedContent::Text(text) => Content::Text(text),
-        })
-        .collect()
-}
-
-fn suppress_consumed_content(all_content: &[Content]) -> Vec<Content> {
+fn suppress_consumed_content(all_content: &[NormalizedContent]) -> Vec<NormalizedContent> {
     let consumed_sources: HashSet<_> = all_content
         .iter()
         .flat_map(|content| content.consumed_sources().iter().cloned())
