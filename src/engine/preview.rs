@@ -1,7 +1,13 @@
 use std::io::{self, Write};
 use std::path::Path;
 
+use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::engine::components::default_pipeline_components;
+use crate::error::RetromountError;
+use crate::input::directory_source::DirectoryInputSource;
+use crate::input::file_source::FileInputSource;
+use crate::input::source::InputSource;
+use crate::input::zip_source::ZipInputSource;
 
 use super::pipeline::run_pipeline;
 
