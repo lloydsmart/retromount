@@ -6,13 +6,10 @@ use retromount::core::content::{
 };
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
+use retromount::engine::components::default_pipeline_components;
 use retromount::engine::inspect::run_phase3_inspect;
 use retromount::engine::pipeline::run_pipeline_with_options;
 use retromount::engine::preview::{build_input_source, run_phase3_preview, write_vfs_tree};
-use retromount::input::basic_decoder::BasicInputDecoder;
-use retromount::input::basic_identifier::BasicInputIdentifier;
-use retromount::output::basic_encoder::BasicEncoder;
-use retromount::output::generic_presenter::GenericPresenter;
 use retromount::{RetromountError, ViewConfig};
 
 fn main() -> Result<(), RetromountError> {
@@ -52,9 +49,7 @@ fn run_configured_views() -> Result<(), RetromountError> {
 
     info!("Loaded {} view(s) from config", config.len());
 
-    let identifier = BasicInputIdentifier::new();
-    let decoder = BasicInputDecoder::new();
-    let presenter = GenericPresenter::new(BasicEncoder::new());
+    let components = default_pipeline_components();
 
     for view in &config {
         info!("View: {}", view.name);
@@ -65,9 +60,9 @@ fn run_configured_views() -> Result<(), RetromountError> {
 
         let trace = run_pipeline_with_options(
             source.as_ref(),
-            &identifier,
-            &decoder,
-            &presenter,
+            components.identifier.as_ref(),
+            components.decoder.as_ref(),
+            components.presenter.as_ref(),
             &NormalizationOptions {
                 platform_hint: Some(map_view_platform(&view.platform)),
             },
