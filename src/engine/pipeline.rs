@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::io;
 
 use crate::core::content::{DecodedContent, NormalizedContent};
-use crate::core::normalizer::{normalize_content, NormalizationOptions};
+use crate::core::normalizer::{normalize_decoded_content, NormalizationOptions};
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
 use crate::input::decode::InputDecoder;
@@ -88,7 +88,7 @@ pub fn run_pipeline_with_options(
         });
     }
 
-    let normalized = normalize_content(all_decoded_content, normalization_options);
+    let normalized = normalize_decoded_content(all_decoded_content, normalization_options);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
     let presented = presenter.present(&normalized_presentable_content);
 

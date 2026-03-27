@@ -23,7 +23,16 @@ enum PendingOutput {
     DiscGroup(DiscGroupKey),
 }
 
-pub fn normalize_content(
+/// Transforms decoded content into normalized domain models.
+///
+/// This is the canonical boundary between decoding and presentation.
+///
+/// - Input: `DecodedContent`
+/// - Output: `NormalizedContent`
+///
+/// All grouping, classification, and semantic enrichment happens here.
+/// Downstream stages must not depend on decoder-specific details.
+pub(crate) fn normalize_decoded_content(
     contents: Vec<DecodedContent>,
     options: &NormalizationOptions,
 ) -> Vec<NormalizedContent> {
@@ -256,7 +265,7 @@ mod tests {
 
     #[test]
     fn normalizes_rom_to_game() {
-        let normalized = normalize_content(
+        let normalized = normalize_decoded_content(
             vec![DecodedContent::Rom(DecodedRomContent {
                 id: ContentId::new("smw"),
                 source: SourceRef::new("file:/roms/Super Mario World.sfc"),
@@ -286,7 +295,7 @@ mod tests {
 
     #[test]
     fn groups_discs_into_single_game() {
-        let normalized = normalize_content(
+        let normalized = normalize_decoded_content(
             vec![
                 DecodedContent::Disc(DecodedDiscContent {
                     id: ContentId::new("ps1/ff7-disc2"),
@@ -330,7 +339,7 @@ mod tests {
 
     #[test]
     fn suppresses_roms_consumed_by_discs() {
-        let normalized = normalize_content(
+        let normalized = normalize_decoded_content(
             vec![
                 DecodedContent::Rom(DecodedRomContent {
                     id: ContentId::new("discs/ps1_multi/game_disc1.bin"),
@@ -368,7 +377,7 @@ mod tests {
 
     #[test]
     fn does_not_merge_same_title_from_different_directories() {
-        let normalized = normalize_content(
+        let normalized = normalize_decoded_content(
             vec![
                 DecodedContent::Disc(DecodedDiscContent {
                     id: ContentId::new("ps1_multi/game_disc1.cue"),
@@ -393,7 +402,7 @@ mod tests {
 
     #[test]
     fn derives_rom_game_title_from_source_leaf_name() {
-        let normalized = normalize_content(
+        let normalized = normalize_decoded_content(
             vec![DecodedContent::Rom(DecodedRomContent {
                 id: ContentId::new("roms/snes/Super Mario World.sfc"),
                 source: SourceRef::new("file:/roms/snes/Super Mario World.sfc"),
