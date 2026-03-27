@@ -2,11 +2,8 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::core::content::{DecodedContent, GamePart, NormalizedContent};
+use crate::engine::components::default_pipeline_components;
 use crate::error::RetromountError;
-use crate::input::basic_decoder::BasicInputDecoder;
-use crate::input::basic_identifier::BasicInputIdentifier;
-use crate::output::basic_encoder::BasicEncoder;
-use crate::output::generic_presenter::GenericPresenter;
 
 use super::pipeline::{run_pipeline_with_trace, PipelineTrace};
 use super::preview::{build_input_source, write_vfs_tree};
@@ -14,12 +11,13 @@ use super::preview::{build_input_source, write_vfs_tree};
 pub fn run_phase3_inspect(path: &Path, json: bool) -> Result<(), RetromountError> {
     let source = build_input_source(path)?;
     let kind = source.kind();
-
-    let identifier = BasicInputIdentifier::new();
-    let decoder = BasicInputDecoder::new();
-    let presenter = GenericPresenter::new(BasicEncoder::new());
-
-    let trace = run_pipeline_with_trace(source.as_ref(), &identifier, &decoder, &presenter)?;
+    let components = default_pipeline_components();
+    let trace = run_pipeline_with_trace(
+        source.as_ref(),
+        components.identifier.as_ref(),
+        components.decoder.as_ref(),
+        components.presenter.as_ref(),
+    )?;
 
     if json {
         let output = serde_json::to_string_pretty(&trace)

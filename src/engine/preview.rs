@@ -1,27 +1,19 @@
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::core::vfs::{VfsDirectory, VfsNode};
-use crate::error::RetromountError;
-use crate::input::basic_decoder::BasicInputDecoder;
-use crate::input::basic_identifier::BasicInputIdentifier;
-use crate::input::directory_source::DirectoryInputSource;
-use crate::input::file_source::FileInputSource;
-use crate::input::source::InputSource;
-use crate::input::zip_source::ZipInputSource;
-use crate::output::basic_encoder::BasicEncoder;
-use crate::output::generic_presenter::GenericPresenter;
+use crate::engine::components::default_pipeline_components;
 
 use super::pipeline::run_pipeline;
 
 pub fn run_phase3_preview(path: &Path) -> Result<(), RetromountError> {
     let source = build_input_source(path)?;
-
-    let identifier = BasicInputIdentifier::new();
-    let decoder = BasicInputDecoder::new();
-    let presenter = GenericPresenter::new(BasicEncoder::new());
-
-    let root = run_pipeline(source.as_ref(), &identifier, &decoder, &presenter)?;
+    let components = default_pipeline_components();
+    let root = run_pipeline(
+        source.as_ref(),
+        components.identifier.as_ref(),
+        components.decoder.as_ref(),
+        components.presenter.as_ref(),
+    )?;
 
     let stdout = io::stdout();
     let mut handle = stdout.lock();
