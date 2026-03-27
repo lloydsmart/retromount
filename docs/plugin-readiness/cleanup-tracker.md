@@ -8,24 +8,24 @@ This document tracks concrete implementation work for plugin readiness.
 
 ### F-101: Centralize pipeline component construction
 
-- [ ] Introduce PipelineComponents struct
-- [ ] Add default_pipeline_components() factory
-- [ ] Export composition module from engine
+- [x] Introduce PipelineComponents struct
+- [x] Add default_pipeline_components() factory
+- [x] Export composition module from engine
 
 ---
 
 ### F-102: Remove hardcoded construction from entrypoints
 
-- [ ] Update main.rs to use centralized components
-- [ ] Update engine/preview.rs to use centralized components
-- [ ] Update engine/inspect.rs to use centralized components
+- [x] Update main.rs to use centralized components
+- [x] Update engine/preview.rs to use centralized components
+- [x] Update engine/inspect.rs to use centralized components
 
 ---
 
 ### F-103: Ensure pipeline only depends on trait interfaces
 
-- [ ] Verify pipeline does not construct concrete implementations
-- [ ] Confirm all stages use trait objects only
+- [x] Verify pipeline does not construct concrete implementations
+- [x] Confirm all stages use trait objects only
 
 ---
 
@@ -43,8 +43,8 @@ This document tracks concrete implementation work for plugin readiness.
 
 ### F-105: Define application-level composition boundary
 
-- [ ] Ensure all entrypoints use PipelineComponents
-- [ ] Remove duplicate wiring logic
+- [x] Ensure all entrypoints use PipelineComponents
+- [x] Remove duplicate wiring logic
 
 ---
 
