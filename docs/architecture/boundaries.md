@@ -1,6 +1,6 @@
 # Architecture Boundaries
 
-This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation and D-002/D-003.
+This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation and D-002 through D-005.
 
 ---
 
@@ -81,7 +81,7 @@ This stage answers:
 
 ---
 
-### 4. Normalize (Core Model)
+### 4. Normalize (Decoded → Normalized Boundary)
 
 Implemented in: `src/core`
 
@@ -92,10 +92,10 @@ Responsible for:
 
 Key types:
 
-- `Content`
+- `DecodedContent`
+- `NormalizedContent`
 - `GameContent`
 - `GamePart`
-- `Disc`
 
 This stage answers:
 
@@ -176,19 +176,20 @@ The Encoder must **not**:
 
 ---
 
-### Decode → Core Model
+### Decode → Normalize
 
-- Produces `Content` / `GameContent`
-- May retain source provenance needed for semantic interpretation
-- Must not encode presentation decisions such as filenames, extensions, or naming conventions
+- Decode produces `DecodedContent`
+- Normalize consumes `DecodedContent` and produces `NormalizedContent`
+- Source provenance may be retained where needed for semantic interpretation
+- Normalized content must not encode presentation decisions such as filenames, extensions, or naming conventions
 
 ---
 
-### Core Model → Presenter
+### Normalized Model → Presenter
 
-- Presenter consumes normalized model
+- Presenter consumes `NormalizedContent`
 - Must not re-interpret raw inputs
-- Must not depend on source/container details
+- Must not depend on decoder-specific details
 
 ---
 
@@ -227,6 +228,7 @@ The Encoder must **not**:
 - [x] F-002: loader vs pipeline orchestration ambiguity (resolved via D-002)
 - [x] F-003: presenter vs encoder responsibility boundary (resolved via D-003)
 - [x] F-004: core model presentation leakage (resolved via D-004)
+- [x] F-005: decoded vs normalized content boundary ambiguity (resolved via D-005)
 
 ## Decode → Normalize Boundary
 

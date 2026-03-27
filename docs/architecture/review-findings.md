@@ -85,19 +85,15 @@ This duality introduced ambiguity about the canonical execution model.
 
 ### F-002 Evidence
 
-- `main.rs` uses `engine::loader::Loader` in configured runtime execution
-- `Loader` orchestrates discovery through `InputRegistry` and returns either:
-  - `Vec<VirtualFile>` via `discover_path()`, or
-  - `GameImage` via `load_game_image()`
 - `engine::pipeline` orchestrates the Phase 3 semantic flow:
   - `InputSource`
   - `InputIdentifier`
   - `InputDecoder`
-  - `normalize_content()`
+  - `normalize_decoded_content()`
   - `OutputPresenter`
   - `VfsDirectory`
 - `engine::preview` and `engine::inspect` use the pipeline path rather than `Loader`
-- the two paths operate over different intermediate models (`VirtualFile` / `GameImage` vs `Content` / `VfsDirectory`)
+- the two paths operate over different intermediate models (`VirtualFile` / `GameImage` vs decoded/normalized pipeline models and `VfsDirectory`)
 
 ### F-002 Why it matters
 
@@ -210,34 +206,35 @@ The normalized core model now carries semantic information only.
 
 ## F-005: The boundary between decoded content and normalized playable content needs clarification
 
-**Status:** Open  
+**Status:** Resolved  
 **Issue:** [#53](https://github.com/lloydsmart/retromount/issues/53)  
+**Resolved by:** D-005
 
 ### F-005 Context
 
-Retromount currently uses `Content` to represent both decoded input artifacts and normalized semantic output.
+Retromount previously used a single `Content` model to represent both decoded input artifacts and normalized semantic output.
 
-This means the same top-level model family spans multiple stages of the pipeline:
+This meant the same top-level model family spanned multiple stages of the pipeline:
 
-- decode produces `Content`
-- normalize consumes and transforms `Content`
-- present consumes normalized `Content`
+- decode produced `Content`
+- normalize consumed and transformed `Content`
+- present consumed normalized `Content`
 
-While this is workable, it creates ambiguity about whether all `Content` values are equally valid at every post-decode stage.
+While workable, this created ambiguity about whether all `Content` values were equally valid at every post-decode stage.
 
-In particular, some variants represent pre-normalized artifacts (`Rom`, `Disc`, `Bytes`, `Text`), while others represent normalized semantic entities (`Game`).
+In particular, some variants represented pre-normalized artifacts (`Rom`, `Disc`, `Bytes`, `Text`), while others represented normalized semantic entities (`Game`).
 
 ### F-005 Evidence
 
-- `InputDecoder` produces `Content`
-- `normalize_content()` consumes `Vec<Content>` and produces `Vec<Content>`
-- `GenericPresenter` assumes it should only receive normalized playable content and treats `Content::Rom` / `Content::Disc` as unreachable
-- `BasicEncoder` similarly treats `Content::Rom` / `Content::Disc` as unreachable in presentation-time encoding
-- parts of the pipeline rely on convention rather than type-level distinction to know whether content is decoded or normalized
+- `InputDecoder` previously produced `Content`
+- `normalize_content()` previously consumed `Vec<Content>` and produced `Vec<Content>`
+- `GenericPresenter` previously assumed it should only receive normalized playable content and treated `Content::Rom` / `Content::Disc` as unreachable
+- `BasicEncoder` similarly treated `Content::Rom` / `Content::Disc` as unreachable in presentation-time encoding
+- parts of the pipeline relied on convention rather than type-level distinction to know whether content was decoded or normalized
 
 ### F-005 Why it matters
 
-This weakens the stage boundary between decode and normalize.
+This weakened the stage boundary between decode and normalize.
 
 If decoded content and normalized content share the same broad model without clearer separation, then:
 
@@ -255,6 +252,13 @@ If decoded content and normalized content share the same broad model without cle
 
 ### F-005 Decision
 
-TBD
+Resolved by D-005.
 
-Current evidence suggests the strongest resolution is to introduce an explicit type separation between decoded content and normalized content, rather than relying on a single `Content` model across both stages.
+Retromount now uses an explicit type separation between decoded content and normalized content:
+
+- decode produces `DecodedContent`
+- normalize consumes `DecodedContent` and produces `NormalizedContent`
+- present consumes `NormalizedContent`
+- encode consumes `NormalizedContent`
+
+This makes the decode → normalize → present pipeline contract explicit in the type model and removes impossible pre-normalized variants from post-normalization stage boundaries.
