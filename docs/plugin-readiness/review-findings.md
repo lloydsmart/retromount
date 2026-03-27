@@ -34,6 +34,7 @@ All entrypoints now consume the centralized composition boundary.
 The pipeline must not depend on concrete implementations in order to support substitution and future plugin systems.
 
 The runtime pipeline now depends exclusively on trait interfaces:
+
 - `InputIdentifier`
 - `InputDecoder`
 - `OutputPresenter`
@@ -48,6 +49,7 @@ The runtime pipeline now depends exclusively on trait interfaces:
 The current design assumes a presenter is constructed with a single encoder.
 
 Future output systems (e.g. MiSTer, Batocera) may require:
+
 - Multiple encoding strategies
 - Context-aware encoding
 - More flexible composition models
@@ -64,6 +66,7 @@ This relationship needs to be reviewed to ensure it does not constrain future de
 The application previously lacked a clearly defined composition boundary.
 
 This has now been established via `PipelineComponents`, ensuring:
+
 - All entrypoints share consistent wiring
 - No duplicate construction logic exists
 - The system is ready for alternate implementations
@@ -78,6 +81,7 @@ This has now been established via `PipelineComponents`, ensuring:
 A mechanism is required to register alternate implementations of pipeline components at compile time.
 
 This should enable:
+
 - Extension of input handlers
 - Swappable presenters
 - Future plugin-style extensibility without runtime loading
