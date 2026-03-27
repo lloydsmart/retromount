@@ -1,4 +1,4 @@
-use crate::core::content::{Content, DiscPart, GameContent, GamePart};
+use crate::core::content::{DiscPart, GameContent, GamePart, NormalizedContent};
 use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
@@ -12,7 +12,7 @@ where
 
 #[derive(Debug, Clone)]
 struct PresentedEntry {
-    content: Content,
+    content: NormalizedContent,
     encoded: EncodedFile,
 }
 
@@ -24,7 +24,7 @@ where
         Self { encoder }
     }
 
-    fn encode_entries(&self, content: &[Content]) -> Vec<PresentedEntry> {
+    fn encode_entries(&self, content: &[NormalizedContent]) -> Vec<PresentedEntry> {
         content
             .iter()
             .filter(|item| self.encoder.can_encode(item))
@@ -45,18 +45,15 @@ where
 
         for entry in entries {
             match &entry.content {
-                Content::Game(game) => {
+                NormalizedContent::Game(game) => {
                     self.insert_game_node(&mut root, game, &entry.encoded);
                 }
-                Content::Bytes(_) | Content::Text(_) => {
+                NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
                     self.insert_file_path(
                         &mut root,
                         &entry.encoded.name,
                         entry.encoded.to_vfs_file(),
                     );
-                }
-                Content::Rom(_) | Content::Disc(_) => {
-                    unreachable!("GenericPresenter should only receive normalized playable content")
                 }
             }
         }
@@ -135,7 +132,7 @@ impl<E> OutputPresenter for GenericPresenter<E>
 where
     E: OutputEncoder + Send + Sync,
 {
-    fn present(&self, content: &[Content]) -> VfsDirectory {
+    fn present(&self, content: &[NormalizedContent]) -> VfsDirectory {
         let entries = self.encode_entries(content);
         let children = self.build_root_children(&entries);
 
@@ -199,8 +196,8 @@ fn ensure_directory<'a>(root: &'a mut VfsDirectory, parents: &[String]) -> &'a m
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart,
-        TextContent,
+        BytesContent, ContentId, DiscPart, GameContent, GamePart, NormalizedContent, Platform,
+        RomPart, TextContent,
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
@@ -211,12 +208,12 @@ mod tests {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![
-            Content::Bytes(BytesContent {
+            NormalizedContent::Bytes(BytesContent {
                 id: ContentId::new("bios"),
                 source: SourceRef::new("bios"),
                 size: 512,
             }),
-            Content::Game(GameContent {
+            NormalizedContent::Game(GameContent {
                 id: ContentId::new("sonic"),
                 source: SourceRef::new("zip:/roms/megadrive.zip#sonic.bin"),
                 title: "Sonic the Hedgehog".to_string(),
@@ -227,7 +224,7 @@ mod tests {
                 })],
                 consumed_sources: vec![],
             }),
-            Content::Game(GameContent {
+            NormalizedContent::Game(GameContent {
                 id: ContentId::new("ff7"),
                 source: SourceRef::new("cue:/roms/ff7.cue"),
                 title: "Final Fantasy VII".to_string(),
@@ -239,7 +236,7 @@ mod tests {
                 })],
                 consumed_sources: vec![SourceRef::new("cue:/roms/ff7.bin")],
             }),
-            Content::Text(TextContent {
+            NormalizedContent::Text(TextContent {
                 id: ContentId::new("manifest"),
                 source: SourceRef::new("file:/roms/manifest"),
                 size: 64,
@@ -256,7 +253,7 @@ mod tests {
     fn presents_single_rom_game_as_file_in_platform_title_directory() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
-        let content = vec![Content::Game(GameContent {
+        let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("smw"),
             source: SourceRef::new("file:/roms/Super Mario World.sfc"),
             title: "Super Mario World".to_string(),
@@ -291,7 +288,7 @@ mod tests {
     fn presents_multi_disc_game_as_directory_with_playlist_in_library_view() {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
-        let content = vec![Content::Game(GameContent {
+        let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("ff7"),
             source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
             title: "Final Fantasy VII".to_string(),
@@ -359,7 +356,7 @@ mod tests {
         let presenter = GenericPresenter::new(BasicEncoder::new());
 
         let content = vec![
-            Content::Game(GameContent {
+            NormalizedContent::Game(GameContent {
                 id: ContentId::new("crash-bandicoot"),
                 source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
                 title: "Crash Bandicoot".to_string(),
@@ -370,7 +367,7 @@ mod tests {
                 })],
                 consumed_sources: vec![],
             }),
-            Content::Game(GameContent {
+            NormalizedContent::Game(GameContent {
                 id: ContentId::new("ff7"),
                 source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
                 title: "Final Fantasy VII".to_string(),
