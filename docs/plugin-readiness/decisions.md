@@ -6,10 +6,10 @@ This document records architectural decisions made during the plugin-readiness r
 
 ## D-101: Introduce a centralized pipeline composition boundary
 
-A PipelineComponents struct will define the concrete implementations used
+A `PipelineComponents` struct will define the concrete implementations used
 by the pipeline.
 
-### Rationale
+**Rationale**
 
 - Provides a single composition boundary
 - Decouples application entrypoints from concrete implementations
@@ -21,7 +21,7 @@ by the pipeline.
 
 Initial plugin-readiness will be achieved through compile-time composition.
 
-### Rationale
+**Rationale**
 
 - Avoids complexity of dynamic loading
 - Establishes stable interfaces first
@@ -33,7 +33,7 @@ Initial plugin-readiness will be achieved through compile-time composition.
 
 Normalization remains an internal pipeline stage implemented as a function.
 
-### Rationale
+**Rationale**
 
 - Central to core domain semantics
 - No immediate need for alternative implementations
@@ -45,9 +45,9 @@ Normalization remains an internal pipeline stage implemented as a function.
 
 Presenters define output structure and layout, and may internally use encoders.
 
-### Rationale
+**Rationale**
 
-- Aligns with target systems (MiSTer, Batocera, etc.)
+- Aligns with target systems such as MiSTer, Batocera, and PS2
 - Keeps output concerns grouped logically
 - Allows presenters to evolve independently of engine
 
@@ -60,7 +60,7 @@ Application-level architecture must not assume:
 - One presenter per system
 - One encoder per presenter
 
-### Rationale
+**Rationale**
 
 - Future presenters may require multiple encoding strategies
 - Avoids premature constraints on output design

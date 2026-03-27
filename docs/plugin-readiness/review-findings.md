@@ -6,14 +6,14 @@ This document tracks architectural findings related to plugin readiness.
 
 ## F-101: Pipeline component construction is duplicated
 
-Pipeline components (InputIdentifier, InputDecoder, OutputPresenter, encoder)
+Pipeline components (`InputIdentifier`, `InputDecoder`, `OutputPresenter`, encoder)
 are constructed directly in multiple application entrypoints:
 
-- main.rs
-- engine/preview.rs
-- engine/inspect.rs
+- `main.rs`
+- `engine/preview.rs`
+- `engine/inspect.rs`
 
-### Impact
+**Impact**
 
 - No single composition boundary exists
 - Hard to swap implementations globally
@@ -23,13 +23,10 @@ are constructed directly in multiple application entrypoints:
 
 ## F-102: Default presenter/encoder composition is hardcoded
 
-The default composition:
+The default composition of `GenericPresenter` with `BasicEncoder` is constructed
+directly at the application edge.
 
-GenericPresenter + BasicEncoder
-
-is constructed directly at the application edge.
-
-### Impact
+**Impact**
 
 - Presenter/encoder pairing is not configurable
 - Prevents alternate presenters from being introduced cleanly
@@ -41,14 +38,14 @@ is constructed directly at the application edge.
 
 Traits exist for:
 
-- InputIdentifier
-- InputDecoder
-- OutputPresenter
-- OutputEncoder
+- `InputIdentifier`
+- `InputDecoder`
+- `OutputPresenter`
+- `OutputEncoder`
 
 However, there is no centralized mechanism for supplying implementations.
 
-### Impact
+**Impact**
 
 - System is extensible in theory but not in practice
 - Application code depends on concrete types rather than interfaces
@@ -59,7 +56,7 @@ However, there is no centralized mechanism for supplying implementations.
 
 Current design assumes a presenter is constructed with a single encoder.
 
-### Impact
+**Impact**
 
 - Future presenters (e.g. MiSTer, Batocera) may require:
   - Multiple encoding strategies
@@ -71,9 +68,9 @@ Current design assumes a presenter is constructed with a single encoder.
 ## F-105: No explicit composition boundary for pipeline execution
 
 The pipeline accepts trait objects, but there is no explicit
-"pipeline components" abstraction.
+`PipelineComponents` abstraction.
 
-### Impact
+**Impact**
 
 - No clear boundary between engine and application composition
 - Harder to introduce plugin systems later

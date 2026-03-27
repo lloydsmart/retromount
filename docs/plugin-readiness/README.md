@@ -17,14 +17,16 @@ The goal of this review is to:
 
 ## Scope
 
-This phase focuses on **compile-time composition** only.
+This phase focuses on compile-time composition only.
 
 We are **not** introducing:
+
 - Dynamic plugin loading
 - A plugin registry system
 - Pluggable normalization
 
 Instead, we aim to:
+
 - Centralize construction of pipeline components
 - Remove hardcoded dependencies from application entrypoints
 - Ensure the engine operates purely on trait-based abstractions
@@ -43,4 +45,4 @@ This work builds on the architecture boundary review:
 - Presenter/encoder responsibilities are separated
 - Core models are presentation-agnostic
 
-The plugin-readiness review focuses on **how implementations are composed and injected**.
+The plugin-readiness review focuses on how implementations are composed and injected.
