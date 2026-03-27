@@ -80,8 +80,8 @@ pub fn write_inspect_report<W: Write>(
     }
 
     writeln!(writer)?;
-    writeln!(writer, "Presented VFS:")?;
-    write_vfs_tree(writer, &trace.presented)?;
+    writeln!(writer, "Output VFS:")?;
+    write_vfs_tree(writer, &trace.output_vfs)?;
 
     Ok(())
 }
@@ -206,7 +206,7 @@ mod tests {
                 source: SourceRef::new("zip:/tmp/library.zip#misc/blob.dat"),
                 size: 0,
             })],
-            presented: VfsDirectory::with_children(
+            output_vfs: VfsDirectory::with_children(
                 "",
                 vec![VfsNode::File(VfsFile::new("blob.dat.bin"))],
             ),
@@ -226,7 +226,7 @@ mod tests {
         assert!(rendered.contains("Supported: yes"));
         assert!(rendered.contains("Decoded: Bytes"));
         assert!(rendered.contains("Normalized:"));
-        assert!(rendered.contains("Presented VFS:"));
+        assert!(rendered.contains("Output VFS:"));
         assert!(rendered.contains("blob.dat.bin"));
     }
 }

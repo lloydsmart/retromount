@@ -11,7 +11,7 @@ where
 }
 
 #[derive(Debug, Clone)]
-struct PresentedEntry {
+struct EncodedEntry {
     content: NormalizedContent,
     encoded: EncodedFile,
 }
@@ -24,23 +24,20 @@ where
         Self { encoder }
     }
 
-    fn encode_entries(&self, content: &[NormalizedContent]) -> Vec<PresentedEntry> {
+    fn encode_entries(&self, content: &[NormalizedContent]) -> Vec<EncodedEntry> {
         content
             .iter()
             .filter(|item| self.encoder.can_encode(item))
             .filter_map(|item| {
-                self.encoder
-                    .encode(item)
-                    .ok()
-                    .map(|encoded| PresentedEntry {
-                        content: item.clone(),
-                        encoded,
-                    })
+                self.encoder.encode(item).ok().map(|encoded| EncodedEntry {
+                    content: item.clone(),
+                    encoded,
+                })
             })
             .collect()
     }
 
-    fn build_root_children(&self, entries: &[PresentedEntry]) -> Vec<VfsNode> {
+    fn build_root_children(&self, entries: &[EncodedEntry]) -> Vec<VfsNode> {
         let mut root = VfsDirectory::new("");
 
         for entry in entries {
