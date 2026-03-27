@@ -11,6 +11,7 @@ use crate::input::source::InputSource;
 use crate::output::present::OutputPresenter;
 use serde::Serialize;
 
+#[derive(Debug, Clone, Serialize)]
 pub struct PipelineTrace {
     pub objects: Vec<TracedObject>,
     pub normalized: Vec<NormalizedContent>,
@@ -116,7 +117,7 @@ mod tests {
     use super::*;
     use std::fs;
 
-    use crate::core::content::{ContentKind, DecodedContentKind};
+    use crate::core::content::{DecodedContentKind, NormalizedContentKind};
     use crate::input::basic_decoder::BasicInputDecoder;
     use crate::input::basic_identifier::BasicInputIdentifier;
     use crate::input::directory_source::DirectoryInputSource;
@@ -216,17 +217,17 @@ mod tests {
         assert!(trace.objects[1].supported);
         assert_eq!(trace.objects[1].decoded.len(), 1);
         assert_eq!(trace.objects[1].decoded[0].kind(), DecodedContentKind::Rom);
-        assert_eq!(trace.normalized[1].kind(), ContentKind::Game);
+        assert_eq!(trace.normalized[1].kind(), NormalizedContentKind::Game);
 
         assert_eq!(trace.objects[2].object.name, "readme.txt");
         assert_eq!(trace.objects[2].identity, InputIdentity::Text);
         assert!(trace.objects[2].supported);
         assert_eq!(trace.objects[2].decoded.len(), 1);
         assert_eq!(trace.objects[2].decoded[0].kind(), DecodedContentKind::Text);
-        assert_eq!(trace.normalized[2].kind(), ContentKind::Text);
+        assert_eq!(trace.normalized[2].kind(), NormalizedContentKind::Text);
 
-        assert_eq!(trace.normalized[0].kind(), ContentKind::Bytes);
-        assert_eq!(trace.normalized[1].kind(), ContentKind::Game);
-        assert_eq!(trace.normalized[2].kind(), ContentKind::Text);
+        assert_eq!(trace.normalized[0].kind(), NormalizedContentKind::Bytes);
+        assert_eq!(trace.normalized[1].kind(), NormalizedContentKind::Game);
+        assert_eq!(trace.normalized[2].kind(), NormalizedContentKind::Text);
     }
 }
