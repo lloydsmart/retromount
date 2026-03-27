@@ -1,4 +1,4 @@
-use crate::core::content::{Content, GameContent, GamePart};
+use crate::core::content::{GameContent, GamePart, NormalizedContent};
 use crate::output::encode::{EncodedBacking, EncodedFile, OutputEncoder};
 
 pub struct BasicEncoder;
@@ -8,40 +8,34 @@ impl BasicEncoder {
         Self
     }
 
-    fn file_name_for(&self, content: &Content) -> String {
+    fn file_name_for(&self, content: &NormalizedContent) -> String {
         match content {
-            Content::Bytes(bytes) => format!("{}.bin", bytes.id),
-            Content::Game(game) => match game.parts.as_slice() {
+            NormalizedContent::Bytes(bytes) => format!("{}.bin", bytes.id),
+            NormalizedContent::Game(game) => match game.parts.as_slice() {
                 [part] => self.file_name_for_game_part(game, part),
                 _ => game.title.clone(),
             },
-            Content::Text(text) => normalize_text_name(text.id.0.as_ref()),
-            Content::Rom(_) | Content::Disc(_) => {
-                unreachable!("BasicEncoder should only encode normalized playable content")
-            }
+            NormalizedContent::Text(text) => normalize_text_name(text.id.0.as_ref()),
         }
     }
 
-    fn backing_for(&self, content: &Content) -> EncodedBacking {
+    fn backing_for(&self, content: &NormalizedContent) -> EncodedBacking {
         match content {
-            Content::Bytes(bytes) => EncodedBacking::SourceBacked {
+            NormalizedContent::Bytes(bytes) => EncodedBacking::SourceBacked {
                 size: bytes.size,
                 source: bytes.source.clone(),
             },
-            Content::Game(game) => match game.parts.as_slice() {
+            NormalizedContent::Game(game) => match game.parts.as_slice() {
                 [part] => self.backing_for_game_part(part),
                 _ => EncodedBacking::SourceBacked {
                     size: 0,
                     source: game.source.clone(),
                 },
             },
-            Content::Text(text) => EncodedBacking::SourceBacked {
+            NormalizedContent::Text(text) => EncodedBacking::SourceBacked {
                 size: text.size,
                 source: text.source.clone(),
             },
-            Content::Rom(_) | Content::Disc(_) => {
-                unreachable!("BasicEncoder should only encode normalized playable content")
-            }
         }
     }
 
@@ -90,11 +84,11 @@ fn normalize_text_name(path: &str) -> String {
 }
 
 impl OutputEncoder for BasicEncoder {
-    fn can_encode(&self, _content: &Content) -> bool {
+    fn can_encode(&self, _content: &NormalizedContent) -> bool {
         true
     }
 
-    fn encode(&self, content: &Content) -> Result<EncodedFile, std::io::Error> {
+    fn encode(&self, content: &NormalizedContent) -> Result<EncodedFile, std::io::Error> {
         Ok(EncodedFile {
             name: self.file_name_for(content),
             backing: self.backing_for(content),
@@ -128,15 +122,15 @@ impl OutputEncoder for BasicEncoder {
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, Content, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart,
-        TextContent,
+        BytesContent, ContentId, DiscPart, GameContent, GamePart, NormalizedContent, Platform,
+        RomPart, TextContent,
     };
     use crate::core::source::SourceRef;
 
     #[test]
     fn encodes_bytes_content() {
         let encoder = BasicEncoder::new();
-        let content = Content::Bytes(BytesContent {
+        let content = NormalizedContent::Bytes(BytesContent {
             id: ContentId::new("bios"),
             source: SourceRef::new("file:/roms/bios"),
             size: 512,
@@ -156,7 +150,7 @@ mod tests {
     #[test]
     fn encodes_single_rom_game_content() {
         let encoder = BasicEncoder::new();
-        let content = Content::Game(GameContent {
+        let content = NormalizedContent::Game(GameContent {
             id: ContentId::new("smw"),
             source: SourceRef::new("file:/roms/Super Mario World.sfc"),
             title: "Super Mario World".to_string(),
@@ -182,7 +176,7 @@ mod tests {
     #[test]
     fn encodes_single_disc_game_content() {
         let encoder = BasicEncoder::new();
-        let content = Content::Game(GameContent {
+        let content = NormalizedContent::Game(GameContent {
             id: ContentId::new("mgs"),
             source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
             title: "Metal Gear Solid".to_string(),
@@ -269,7 +263,7 @@ mod tests {
     #[test]
     fn encodes_text_content() {
         let encoder = BasicEncoder::new();
-        let content = Content::Text(TextContent {
+        let content = NormalizedContent::Text(TextContent {
             id: ContentId::new("readme"),
             source: SourceRef::new("file:/roms/readme"),
             size: 128,
@@ -289,7 +283,7 @@ mod tests {
     #[test]
     fn preserves_relative_path_for_text_content() {
         let encoder = BasicEncoder::new();
-        let content = Content::Text(TextContent {
+        let content = NormalizedContent::Text(TextContent {
             id: ContentId::new("mixed/notes"),
             source: SourceRef::new("mixed/notes.txt"),
             size: 10,
@@ -309,7 +303,7 @@ mod tests {
     #[test]
     fn normalizes_text_extension_from_id_path() {
         let encoder = BasicEncoder::new();
-        let content = Content::Text(TextContent {
+        let content = NormalizedContent::Text(TextContent {
             id: ContentId::new("roms/snes/game"),
             source: SourceRef::new("roms/snes/game.nfo"),
             size: 19,
