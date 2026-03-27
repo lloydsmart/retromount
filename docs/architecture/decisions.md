@@ -112,7 +112,7 @@ This decision has been implemented. The Loader and associated discovery orchestr
 **Date:** 2026-03-25  
 **Status:** Implemented  
 **Related:** F-003  
-**Issue:** #43
+**Issue:** [#43](https://github.com/lloydsmart/retromount/issues/43)
 
 ---
 
@@ -131,7 +131,7 @@ These roles are complementary and must remain distinct.
 
 #### Presenter
 
-The Presenter operates on normalized content (`Content`, `GameContent`, `GamePart`) and is responsible for:
+The Presenter operates on normalized content (`NormalizedContent`, `GameContent`, `GamePart`) and is responsible for:
 
 - defining the output structure (directories and hierarchy)
 - grouping related content (e.g. multi-disc games)
@@ -254,7 +254,7 @@ This created tension with D-003, which established that naming and materializati
 
 ### D-004 Decision
 
-The core model (`Content`, `GameContent`, `GamePart`) will contain only semantic information about content and must not encode presentation or representation decisions.
+The normalized core model (`NormalizedContent`, `GameContent`, `GamePart`) will contain only semantic information about content and must not encode presentation or representation decisions.
 
 - The core model defines what the content is
 - The Presenter defines how content is structured
@@ -319,52 +319,48 @@ The pipeline is now cleanly layered end-to-end.
 ## D-005: Separate decoded content from normalized content
 
 **Date:** 2026-03-26  
-**Status:** Proposed  
+**Status:** Implemented  
 **Related:** F-005  
 **Issue:** [#53](https://github.com/lloydsmart/retromount/issues/53)
 
 ### D-005 Context
 
-Retromount currently uses `Content` to represent both decoded input artifacts and normalized semantic output.
+Retromount previously used a single `Content` model to represent both decoded input artifacts and normalized semantic output.
 
-This means the same model family spans multiple pipeline stages:
+This meant the same model family spanned multiple pipeline stages:
 
-- decode produces `Content`
-- normalize consumes `Content` and produces `Content`
-- present consumes normalized `Content`
-- encode consumes normalized `Content`
+- decode produced `Content`
+- normalize consumed `Content` and produced `Content`
+- present consumed normalized `Content`
+- encode consumed normalized `Content`
 
-In practice, later stages do not accept all `Content` variants equally.
+In practice, later stages did not accept all `Content` variants equally.
 
-For example, presenter and encoder logic already assume that certain pre-normalized variants such as `Rom` and `Disc` should no longer appear after normalization, and treat them as unreachable.
-
-This means the current type boundary is broader than the real stage contract.
+Presenter and encoder logic had to assume that certain pre-normalized variants such as `Rom` and `Disc` should no longer appear after normalization, which made the type boundary broader than the real stage contract.
 
 ### D-005 Decision
 
-Retromount will introduce an explicit type separation between decoded content and normalized content.
+Retromount now uses an explicit type separation between decoded content and normalized content.
 
-- **Decoded content** will represent the direct output of the decode stage
-- **Normalized content** will represent the semantic output of the normalize stage
-- presentation and encoding stages will consume only normalized content
-- pre-normalized variants will no longer be representable at post-normalization stage boundaries
+- **Decoded content** represents the direct output of the decode stage
+- **Normalized content** represents the semantic output of the normalize stage
+- presentation and encoding stages consume only normalized content
+- pre-normalized variants are no longer representable at post-normalization stage boundaries
 
 This makes the decode → normalize → present pipeline contract explicit in the type model.
 
-### D-005 Intended Model Shape
+### D-005 Implemented Model Shape
 
-The model will be split into two stage-aligned layers:
+The model is now split into two stage-aligned layers:
 
 - a decoded content model for artifacts discovered and interpreted from input sources
 - a normalized content model for semantic entities that are valid after normalization
 
-At minimum, this means:
+In practice:
 
 - ROM and disc artifacts belong to the decoded model
 - game-level semantic entities belong to the normalized model
-- presenter and encoder interfaces will be narrowed to consume normalized content only
-
-The exact type names and module layout may be refined during implementation, but the stage boundary itself must be explicit.
+- presenter and encoder interfaces consume normalized content only
 
 ### D-005 Rationale
 
@@ -383,15 +379,15 @@ This aligns with the architectural direction established by earlier review work:
 - D-002 clarified orchestration boundaries
 - D-003 clarified presenter vs encoder responsibilities
 - D-004 clarified semantic vs presentation boundaries
-- D-005 clarifies decode vs normalize boundaries
+- D-005 clarified decode vs normalize boundaries
 
 ### D-005 Consequences
 
-- decode will no longer produce the same top-level model used after normalization
-- normalization will become an explicit transformation between two model families
-- presenter and encoder APIs will need to change to consume normalized content only
-- some tests and helper code will need to be updated to reflect the new stage-aligned types
-- plugin/extensibility boundaries will become clearer and safer
+- decode no longer produces the same top-level model used after normalization
+- normalization is now an explicit transformation between two model families
+- presenter and encoder APIs consume normalized content only
+- the legacy `Content` abstraction has been removed
+- plugin/extensibility boundaries are clearer and safer
 
 ### D-005 Alternatives considered
 
@@ -406,8 +402,12 @@ This aligns with the architectural direction established by earlier review work:
 
 ### D-005 Notes
 
-This decision intentionally favors architectural clarity over minimal short-term churn.
+This decision has been fully implemented.
 
-The goal is not to redesign the pipeline, but to align the type model with the stage boundaries that already exist in practice.
+The pipeline is now explicitly layered as:
 
-See boundaries.md for the detailed model shape and pipeline contracts.
+- decoded content
+- normalized content
+- presented/encoded output
+
+See `boundaries.md` for the detailed model shape and pipeline contracts.

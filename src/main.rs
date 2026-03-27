@@ -1,7 +1,7 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
-use retromount::core::content::{Content, GamePart, Platform as ContentPlatform};
+use retromount::core::content::{GamePart, NormalizedContent, Platform as ContentPlatform};
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
 use retromount::engine::inspect::run_phase3_inspect;
@@ -102,9 +102,9 @@ fn map_view_platform(platform: &ConfigPlatform) -> ContentPlatform {
     }
 }
 
-fn log_content_summary(content: &Content) {
+fn log_content_summary(content: &NormalizedContent) {
     match content {
-        Content::Game(game) => {
+        NormalizedContent::Game(game) => {
             info!("  Game:");
             info!("    ID: {}", game.id);
             info!("    Title: {}", game.title);

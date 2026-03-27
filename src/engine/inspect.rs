@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::core::content::{Content, GamePart};
+use crate::core::content::{DecodedContent, GamePart, NormalizedContent};
 use crate::error::RetromountError;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
@@ -62,7 +62,7 @@ pub fn write_inspect_report<W: Write>(
                 writeln!(writer, "    Decoded: (none)")?;
             } else {
                 for content in &object.decoded {
-                    write_content_summary(writer, content)?;
+                    write_decoded_content_summary(writer, content)?;
                 }
             }
         }
@@ -75,7 +75,7 @@ pub fn write_inspect_report<W: Write>(
     } else {
         for content in &trace.normalized {
             writeln!(writer, "  - {:?}", content.kind())?;
-            write_content_summary(writer, content)?;
+            write_normalized_content_summary(writer, content)?;
         }
     }
 
@@ -86,30 +86,19 @@ pub fn write_inspect_report<W: Write>(
     Ok(())
 }
 
-fn write_content_summary<W: Write>(writer: &mut W, content: &Content) -> io::Result<()> {
+fn write_normalized_content_summary<W: Write>(
+    writer: &mut W,
+    content: &NormalizedContent,
+) -> io::Result<()> {
     match content {
-        Content::Bytes(bytes) => {
-            writeln!(writer, "    Decoded: Bytes")?;
+        NormalizedContent::Bytes(bytes) => {
+            writeln!(writer, "    Content: Bytes")?;
             writeln!(writer, "      ID: {}", bytes.id)?;
             writeln!(writer, "      Source: {}", bytes.source)?;
             writeln!(writer, "      Size: {}", bytes.size)?;
         }
-        Content::Rom(rom) => {
-            writeln!(writer, "    Decoded: Rom")?;
-            writeln!(writer, "      ID: {}", rom.id)?;
-            writeln!(writer, "      Source: {}", rom.source)?;
-            writeln!(writer, "      File name: {}", rom.source.file_name())?;
-            writeln!(writer, "      Size: {}", rom.size)?;
-        }
-        Content::Disc(disc) => {
-            writeln!(writer, "    Decoded: Disc")?;
-            writeln!(writer, "      ID: {}", disc.id)?;
-            writeln!(writer, "      Source: {}", disc.source)?;
-            writeln!(writer, "      Title: {}", disc.title)?;
-            writeln!(writer, "      Disc number: {}", disc.disc_number)?;
-        }
-        Content::Game(game) => {
-            writeln!(writer, "    Decoded: Game")?;
+        NormalizedContent::Game(game) => {
+            writeln!(writer, "    Content: Game")?;
             writeln!(writer, "      ID: {}", game.id)?;
             writeln!(writer, "      Source: {}", game.source)?;
             writeln!(writer, "      Title: {}", game.title)?;
@@ -132,7 +121,43 @@ fn write_content_summary<W: Write>(writer: &mut W, content: &Content) -> io::Res
                 }
             }
         }
-        Content::Text(text) => {
+        NormalizedContent::Text(text) => {
+            writeln!(writer, "    Content: Text")?;
+            writeln!(writer, "      ID: {}", text.id)?;
+            writeln!(writer, "      Source: {}", text.source)?;
+            writeln!(writer, "      Size: {}", text.size)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn write_decoded_content_summary<W: Write>(
+    writer: &mut W,
+    content: &DecodedContent,
+) -> io::Result<()> {
+    match content {
+        DecodedContent::Bytes(bytes) => {
+            writeln!(writer, "    Decoded: Bytes")?;
+            writeln!(writer, "      ID: {}", bytes.id)?;
+            writeln!(writer, "      Source: {}", bytes.source)?;
+            writeln!(writer, "      Size: {}", bytes.size)?;
+        }
+        DecodedContent::Rom(rom) => {
+            writeln!(writer, "    Decoded: Rom")?;
+            writeln!(writer, "      ID: {}", rom.id)?;
+            writeln!(writer, "      Source: {}", rom.source)?;
+            writeln!(writer, "      File name: {}", rom.source.file_name())?;
+            writeln!(writer, "      Size: {}", rom.size)?;
+        }
+        DecodedContent::Disc(disc) => {
+            writeln!(writer, "    Decoded: Disc")?;
+            writeln!(writer, "      ID: {}", disc.id)?;
+            writeln!(writer, "      Source: {}", disc.source)?;
+            writeln!(writer, "      Title: {}", disc.title)?;
+            writeln!(writer, "      Disc number: {}", disc.disc_number)?;
+        }
+        DecodedContent::Text(text) => {
             writeln!(writer, "    Decoded: Text")?;
             writeln!(writer, "      ID: {}", text.id)?;
             writeln!(writer, "      Source: {}", text.source)?;
@@ -154,7 +179,7 @@ fn yes_no(value: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::content::{BytesContent, ContentId};
+    use crate::core::content::{BytesContent, ContentId, DecodedContent, NormalizedContent};
     use crate::core::source::{SourceObject, SourceRef};
     use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
     use crate::engine::pipeline::TracedObject;
@@ -170,13 +195,13 @@ mod tests {
                 },
                 identity: InputIdentity::File,
                 supported: true,
-                decoded: vec![Content::Bytes(BytesContent {
+                decoded: vec![DecodedContent::Bytes(BytesContent {
                     id: ContentId::new("blob.dat"),
                     source: SourceRef::new("zip:/tmp/library.zip#misc/blob.dat"),
                     size: 0,
                 })],
             }],
-            normalized: vec![Content::Bytes(BytesContent {
+            normalized: vec![NormalizedContent::Bytes(BytesContent {
                 id: ContentId::new("blob.dat"),
                 source: SourceRef::new("zip:/tmp/library.zip#misc/blob.dat"),
                 size: 0,

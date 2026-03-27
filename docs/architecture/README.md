@@ -67,7 +67,7 @@ This structure ensures that:
 
 Retromount is built around a single, unified processing pipeline:
 
-Input → Identify → Decode → Normalize → Present → VFS
+Input → Identify → Decode (`DecodedContent`) → Normalize (`NormalizedContent`) → Present → Encode → VFS
 
 All execution modes (preview, inspect, and runtime) use this pipeline.
 
@@ -106,18 +106,18 @@ These steps transform raw input into structured data suitable for normalization.
 
 ---
 
-### Normalized core model
+### Decoded and normalized models
 
-The core model represents content in a presentation-agnostic way.
+Retromount separates decoded content from normalized content.
 
 Key types include:
 
-- `Content`
+- `DecodedContent`
+- `NormalizedContent`
 - `GameContent`
 - `GamePart`
-- `Disc`
 
-This layer defines what the content is, independent of how it will be shown.
+This split ensures that decoded artifacts and normalized semantic entities are not represented by the same top-level model.
 
 ---
 
@@ -183,6 +183,6 @@ The architecture review work in this directory aims to:
 
 ## Next Focus Areas
 
-- review the next architectural boundary concern after D-004
+- review the next architectural boundary concern after D-005
 - improve module-level documentation
 - introduce diagrams for better visualization of the pipeline

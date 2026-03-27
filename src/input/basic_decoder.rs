@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::core::content::{
-    BytesContent, Content, ContentId, DiscContent, RomContent, TextContent,
+    BytesContent, ContentId, DecodedContent, DecodedDiscContent, DecodedRomContent, TextContent,
 };
 use crate::core::cue::parse_cue;
 use crate::core::reader::Reader;
@@ -37,12 +37,12 @@ impl InputDecoder for BasicInputDecoder {
         &self,
         object: &SourceObject,
         identity: &InputIdentity,
-    ) -> Result<Vec<Content>, io::Error> {
+    ) -> Result<Vec<DecodedContent>, io::Error> {
         let id = ContentId::new(object.name.clone());
         let size = content_size_for(object)?;
 
         let content = match identity {
-            InputIdentity::Text => Content::Text(TextContent {
+            InputIdentity::Text => DecodedContent::Text(TextContent {
                 id: ContentId::new(path_without_extension(&object.name)),
                 source: object.source.clone(),
                 size,
@@ -51,7 +51,7 @@ impl InputDecoder for BasicInputDecoder {
                 let raw_name = file_stem_or_name_from_object(object);
                 let (title, disc_number) = parse_disc_info_from_name(&raw_name);
 
-                Content::Disc(DiscContent {
+                DecodedContent::Disc(DecodedDiscContent {
                     id,
                     source: object.source.clone(),
                     title,
@@ -61,20 +61,20 @@ impl InputDecoder for BasicInputDecoder {
             }
             InputIdentity::File => {
                 if looks_like_rom_name(&object.name) {
-                    Content::Rom(RomContent {
+                    DecodedContent::Rom(DecodedRomContent {
                         id,
                         source: object.source.clone(),
                         size,
                     })
                 } else {
-                    Content::Bytes(BytesContent {
+                    DecodedContent::Bytes(BytesContent {
                         id,
                         source: object.source.clone(),
                         size,
                     })
                 }
             }
-            InputIdentity::Unknown => Content::Bytes(BytesContent {
+            InputIdentity::Unknown => DecodedContent::Bytes(BytesContent {
                 id,
                 source: object.source.clone(),
                 size,
@@ -261,7 +261,7 @@ mod tests {
 
         let content = decoder.decode(&object, &InputIdentity::Text).unwrap();
         assert_eq!(content.len(), 1);
-        assert!(matches!(content[0], Content::Text(_)));
+        assert!(matches!(content[0], DecodedContent::Text(_)));
     }
 
     #[test]
@@ -278,7 +278,7 @@ mod tests {
 
         let content = decoder.decode(&object, &InputIdentity::File).unwrap();
         assert_eq!(content.len(), 1);
-        assert!(matches!(content[0], Content::Rom(_)));
+        assert!(matches!(content[0], DecodedContent::Rom(_)));
     }
 
     #[test]
@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(content.len(), 1);
 
         match &content[0] {
-            Content::Rom(rom) => assert_eq!(rom.size, 7),
+            DecodedContent::Rom(rom) => assert_eq!(rom.size, 7),
             other => panic!("expected Rom content, got {other:?}"),
         }
     }
@@ -341,7 +341,7 @@ FILE "game.bin" BINARY
         assert_eq!(content.len(), 1);
 
         match &content[0] {
-            Content::Disc(disc) => {
+            DecodedContent::Disc(disc) => {
                 assert_eq!(disc.consumed_sources.len(), 1);
                 assert_eq!(
                     disc.consumed_sources[0].to_string(),
@@ -391,7 +391,7 @@ FILE "game.bin" BINARY
         assert_eq!(content.len(), 1);
 
         match &content[0] {
-            Content::Disc(disc) => {
+            DecodedContent::Disc(disc) => {
                 assert_eq!(disc.consumed_sources.len(), 1);
                 assert_eq!(
                     disc.consumed_sources[0].to_string(),
@@ -450,7 +450,7 @@ FILE "game.bin" BINARY
         let content = decoder.decode(&object, &InputIdentity::Text).unwrap();
 
         match &content[0] {
-            Content::Text(text) => assert_eq!(text.id.to_string(), "mixed/notes"),
+            DecodedContent::Text(text) => assert_eq!(text.id.to_string(), "mixed/notes"),
             other => panic!("expected text content, got {other:?}"),
         }
     }
@@ -470,7 +470,7 @@ FILE "game.bin" BINARY
         let content = decoder.decode(&object, &InputIdentity::Text).unwrap();
 
         match &content[0] {
-            Content::Text(text) => assert_eq!(text.id.to_string(), "roms/snes/game"),
+            DecodedContent::Text(text) => assert_eq!(text.id.to_string(), "roms/snes/game"),
             other => panic!("expected text content, got {other:?}"),
         }
     }
