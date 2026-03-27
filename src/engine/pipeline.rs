@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::io;
 
-use crate::core::content::{DecodedContent, NormalizedContent};
+use crate::core::content::{ContentMeta, DecodedContent, NormalizedContent};
 use crate::core::normalizer::{normalize_decoded_content, NormalizationOptions};
 use crate::core::source::SourceObject;
 use crate::core::vfs::VfsDirectory;
