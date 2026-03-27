@@ -13,7 +13,7 @@ are constructed directly in multiple application entrypoints:
 - `engine/preview.rs`
 - `engine/inspect.rs`
 
-**Impact**
+### Impact of F-101
 
 - No single composition boundary exists
 - Hard to swap implementations globally
@@ -26,7 +26,7 @@ are constructed directly in multiple application entrypoints:
 The default composition of `GenericPresenter` with `BasicEncoder` is constructed
 directly at the application edge.
 
-**Impact**
+### Impact of F-102
 
 - Presenter/encoder pairing is not configurable
 - Prevents alternate presenters from being introduced cleanly
@@ -45,7 +45,7 @@ Traits exist for:
 
 However, there is no centralized mechanism for supplying implementations.
 
-**Impact**
+### Impact of F-103
 
 - System is extensible in theory but not in practice
 - Application code depends on concrete types rather than interfaces
@@ -56,7 +56,7 @@ However, there is no centralized mechanism for supplying implementations.
 
 Current design assumes a presenter is constructed with a single encoder.
 
-**Impact**
+### Impact of F-104
 
 - Future presenters (e.g. MiSTer, Batocera) may require:
   - Multiple encoding strategies
@@ -70,7 +70,7 @@ Current design assumes a presenter is constructed with a single encoder.
 The pipeline accepts trait objects, but there is no explicit
 `PipelineComponents` abstraction.
 
-**Impact**
+### Impact of F-105
 
 - No clear boundary between engine and application composition
 - Harder to introduce plugin systems later
