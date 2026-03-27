@@ -87,7 +87,12 @@ where
             let encoded = self
                 .encoder
                 .encode_game_part(game, &GamePart::Disc((*disc).clone()))
-                .expect("disc part should encode");
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "multi-disc game part should encode for '{}' disc {}: {err}",
+                        game.title, disc.disc_number
+                    )
+                });
 
             disc_names.push(encoded.name.clone());
 
@@ -98,7 +103,12 @@ where
         let playlist_encoded = self
             .encoder
             .encode_playlist(game, &disc_names)
-            .expect("playlist should encode");
+            .unwrap_or_else(|err| {
+                panic!(
+                    "multi-disc playlist should encode for '{}': {err}",
+                    game.title
+                )
+            });
 
         let playlist_path = format!("{}/{}", base_path, playlist_encoded.name);
         self.insert_file_path(root, &playlist_path, playlist_encoded.to_vfs_file());
