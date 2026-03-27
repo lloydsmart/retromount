@@ -140,10 +140,10 @@ where
     E: OutputEncoder + Send + Sync,
 {
     fn present(&self, content: &[NormalizedContent]) -> VfsDirectory {
-        let entries = self.encode_entries(content);
-        let children = self.build_root_children(&entries);
+        let encoded_entries = self.encode_entries(content);
+        let root_children = self.build_root_children(&encoded_entries);
 
-        VfsDirectory::with_children("", children)
+        VfsDirectory::with_children("", root_children)
     }
 }
 
