@@ -1,76 +1,85 @@
-# Plugin Readiness Findings
+# Architecture Review Findings
 
-This document tracks architectural findings related to plugin readiness.
-
----
-
-## F-101: Pipeline component construction is duplicated
-
-Pipeline components (`InputIdentifier`, `InputDecoder`, `OutputPresenter`, encoder)
-are constructed directly in multiple application entrypoints:
-
-- `main.rs`
-- `engine/preview.rs`
-- `engine/inspect.rs`
-
-### Impact of F-101
-
-- No single composition boundary exists
-- Hard to swap implementations globally
-- Increases risk of divergence between entrypoints
+This document captures findings from the post-Phase 3 architecture review.
 
 ---
 
-## F-102: Default presenter/encoder composition is hardcoded
+## F-101: Centralize pipeline component construction
 
-The default composition of `GenericPresenter` with `BasicEncoder` is constructed
-directly at the application edge.
+**Status:** Completed  
+**Issue:** [#58](https://github.com/lloydsmart/retromount/issues/58)
 
-### Impact of F-102
+Pipeline components were previously constructed in multiple locations across the application, leading to duplication and inconsistent wiring.
 
-- Presenter/encoder pairing is not configurable
-- Prevents alternate presenters from being introduced cleanly
-- Couples application logic to specific implementations
+This has been resolved by introducing a centralized composition boundary via `PipelineComponents` and `default_pipeline_components()`.
 
 ---
 
-## F-103: Extension points exist but are not surfaced through composition
+## F-102: Remove hardcoded construction from entrypoints
 
-Traits exist for:
+**Status:** Completed  
+**Issue:** [#59](https://github.com/lloydsmart/retromount/issues/59)
 
+Entrypoints previously constructed pipeline components directly, coupling application logic to concrete implementations.
+
+All entrypoints now consume the centralized composition boundary.
+
+---
+
+## F-103: Ensure pipeline depends only on trait interfaces
+
+**Status:** Completed  
+**Issue:** [#60](https://github.com/lloydsmart/retromount/issues/60)
+
+The pipeline must not depend on concrete implementations in order to support substitution and future plugin systems.
+
+The runtime pipeline now depends exclusively on trait interfaces:
 - `InputIdentifier`
 - `InputDecoder`
 - `OutputPresenter`
-- `OutputEncoder`
-
-However, there is no centralized mechanism for supplying implementations.
-
-### Impact of F-103
-
-- System is extensible in theory but not in practice
-- Application code depends on concrete types rather than interfaces
 
 ---
 
-## F-104: Presenter/encoder relationship may be too rigid
+## F-104: Review presenter and encoder relationship
 
-Current design assumes a presenter is constructed with a single encoder.
+**Status:** Open  
+**Issue:** [#61](https://github.com/lloydsmart/retromount/issues/61)
 
-### Impact of F-104
+The current design assumes a presenter is constructed with a single encoder.
 
-- Future presenters (e.g. MiSTer, Batocera) may require:
-  - Multiple encoding strategies
-  - More flexible encoding services
-- Current structure may need to evolve to support richer composition
+Future output systems (e.g. MiSTer, Batocera) may require:
+- Multiple encoding strategies
+- Context-aware encoding
+- More flexible composition models
+
+This relationship needs to be reviewed to ensure it does not constrain future development.
 
 ---
 
-## F-105: No explicit composition boundary for pipeline execution
+## F-105: Define application-level composition boundary
 
-The pipeline accepts trait objects, but there is no explicit
-`PipelineComponents` abstraction.
+**Status:** Completed  
+**Issue:** [#62](https://github.com/lloydsmart/retromount/issues/62)
 
-### Impact of F-105
+The application previously lacked a clearly defined composition boundary.
 
-- No clear boundary between engine and application composition
-- Harder to introduce plugin systems later
+This has now been established via `PipelineComponents`, ensuring:
+- All entrypoints share consistent wiring
+- No duplicate construction logic exists
+- The system is ready for alternate implementations
+
+---
+
+## F-106: Define plugin registration model (compile-time)
+
+**Status:** Open  
+**Issue:** [#63](https://github.com/lloydsmart/retromount/issues/63)
+
+A mechanism is required to register alternate implementations of pipeline components at compile time.
+
+This should enable:
+- Extension of input handlers
+- Swappable presenters
+- Future plugin-style extensibility without runtime loading
+
+This is a prerequisite for Phase 4 extensibility work.
