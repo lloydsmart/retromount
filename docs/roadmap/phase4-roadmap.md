@@ -1,0 +1,202 @@
+# Phase 4 Roadmap
+
+This document defines the planned evolution of Retromount following completion of Phase 3 and the architecture/plugin readiness reviews.
+
+It is intentionally concise and focused on execution.
+
+---
+
+## Scope
+
+Retromount is a filesystem-oriented transformation and presentation layer for retro content collections.
+
+It:
+
+* normalizes existing content
+* reorganizes it
+* exposes it for different consumers
+
+It does **not**:
+
+* scrape metadata
+* download artwork or assets
+* manage ROM libraries
+* replace ROM managers
+
+> Retromount projects collections. It does not curate them.
+
+---
+
+## Phase 4A — Mountable Filesystem
+
+### Goal
+
+Expose the Virtual File System (VFS) as a real, read-only filesystem via FUSE.
+
+---
+
+### Branch
+
+feature/phase4a-fuse-mount
+
+---
+
+### Success Criteria
+
+* `retromount mount <input> <mountpoint>` works
+* Directories can be browsed (`ls`)
+* Files can be read (`cat`, emulator, etc.)
+* Output matches `preview` / `inspect`
+* Multi-disc handling and playlists behave correctly
+* Read-only filesystem
+* No FUSE-specific logic leaks into core abstractions
+
+---
+
+### Work Items
+
+* CLI mount command
+* FUSE adapter layer
+* Mount session (inode/path index)
+* Directory operations (`lookup`, `readdir`, `getattr`)
+* File operations (`open`, `read`)
+* Real-world validation
+
+---
+
+### Implementation Order
+
+1. Mount command scaffold
+2. Mount session / indexing layer
+3. Directory traversal
+4. File read support
+5. Validation and hardening
+
+---
+
+### Commit Slices
+
+* feat(cli): add mount command scaffold
+* feat(mount): add mount session index for VFS nodes
+* feat(fuse): implement read-only directory traversal
+* feat(fuse): implement regular file reads
+* test(mount): add VFS indexing coverage
+* docs: document phase4a mount scope
+
+---
+
+### Progress Checklist
+
+* [ ] mount command added
+* [ ] FUSE adapter created
+* [ ] mount session/index implemented
+* [ ] directory traversal works
+* [ ] file reads work
+* [ ] tested with shell tools
+* [ ] tested with a real consumer
+* [ ] core refactors kept separate from adapter glue
+* [ ] documentation updated
+
+---
+
+### Notes
+
+* This phase is both implementation and validation
+* If architectural gaps are discovered, fix them in core rather than working around them in the adapter
+* Keep scope tightly limited to read-only filesystem support
+
+---
+
+## Phase 4B — Consumer Views
+
+### Goal
+
+Support multiple filesystem layouts for different consumers without changing core normalization.
+
+---
+
+### Branch (suggested)
+
+feature/phase4b-consumer-views
+
+---
+
+### Success Criteria
+
+* Multiple presentation strategies supported
+* Same input can produce different layouts
+* Core pipeline remains unchanged
+
+---
+
+### Work Items
+
+* View abstraction layer
+* At least two layouts (e.g. grouped vs flat)
+* CLI or config selection of view
+
+---
+
+## Phase 4C — Presentation Policy
+
+### Goal
+
+Make output deterministic, predictable, and configurable.
+
+---
+
+### Branch (suggested)
+
+feature/phase4c-presentation-policy
+
+---
+
+### Success Criteria
+
+* Stable naming rules
+* Clear handling of duplicates and ambiguity
+* Configurable behaviour (lightweight)
+
+---
+
+### Work Items
+
+* Naming policy
+* Conflict resolution rules
+* Optional filtering based on existing data
+
+---
+
+## Phase 4D — Plugin System (Deferred)
+
+### Goal
+
+Enable external extensions to the pipeline (inputs, transforms, outputs).
+
+---
+
+### Branch (future)
+
+feature/plugin-system
+
+---
+
+### Success Criteria
+
+* External components can integrate via stable interfaces
+* Interfaces validated by Phase 4A–4C work
+
+---
+
+## Guiding Principle
+
+Phase 3 proved the model.
+Phase 4 proves the model works in reality.
+
+---
+
+## Maintenance Rules
+
+* This is a living document — update it if reality diverges
+* If scope changes, document why
+* Keep phases focused and bounded
