@@ -29,19 +29,19 @@ It does **not**:
 
 ## Phase 4A — Mountable Filesystem
 
-### Goal
+### Phase 4A Goal
 
 Expose the Virtual File System (VFS) as a real, read-only filesystem via FUSE.
 
 ---
 
-### Branch
+### Phase 4A Branch
 
 feature/phase4a-fuse-mount
 
 ---
 
-### Success Criteria
+### Phase 4A Success Criteria
 
 * `retromount mount <input> <mountpoint>` works
 * Directories can be browsed (`ls`)
@@ -53,7 +53,7 @@ feature/phase4a-fuse-mount
 
 ---
 
-### Work Items
+### Phase 4A Work Items
 
 * CLI mount command
 * FUSE adapter layer
@@ -64,7 +64,7 @@ feature/phase4a-fuse-mount
 
 ---
 
-### Implementation Order
+### Phase 4A Implementation Order
 
 1. Mount command scaffold
 2. Mount session / indexing layer
@@ -74,7 +74,7 @@ feature/phase4a-fuse-mount
 
 ---
 
-### Commit Slices
+### Phase 4A Commit Slices
 
 * feat(cli): add mount command scaffold
 * feat(mount): add mount session index for VFS nodes
@@ -85,7 +85,7 @@ feature/phase4a-fuse-mount
 
 ---
 
-### Progress Checklist
+### Phase 4A Progress Checklist
 
 * [ ] mount command added
 * [ ] FUSE adapter created
@@ -99,7 +99,7 @@ feature/phase4a-fuse-mount
 
 ---
 
-### Notes
+### Phase 4A Notes
 
 * This phase is both implementation and validation
 * If architectural gaps are discovered, fix them in core rather than working around them in the adapter
@@ -109,19 +109,19 @@ feature/phase4a-fuse-mount
 
 ## Phase 4B — Consumer Views
 
-### Goal
+### Phase 4B Goal
 
 Support multiple filesystem layouts for different consumers without changing core normalization.
 
 ---
 
-### Branch (suggested)
+### Phase 4B Branch
 
 feature/phase4b-consumer-views
 
 ---
 
-### Success Criteria
+### Phase 4B Success Criteria
 
 * Multiple presentation strategies supported
 * Same input can produce different layouts
@@ -129,7 +129,7 @@ feature/phase4b-consumer-views
 
 ---
 
-### Work Items
+### Phase 4B Work Items
 
 * View abstraction layer
 * At least two layouts (e.g. grouped vs flat)
@@ -139,19 +139,19 @@ feature/phase4b-consumer-views
 
 ## Phase 4C — Presentation Policy
 
-### Goal
+### Phase 4C Goal
 
 Make output deterministic, predictable, and configurable.
 
 ---
 
-### Branch (suggested)
+### Phase 4C Branch
 
 feature/phase4c-presentation-policy
 
 ---
 
-### Success Criteria
+### Phase 4C Success Criteria
 
 * Stable naming rules
 * Clear handling of duplicates and ambiguity
@@ -159,7 +159,7 @@ feature/phase4c-presentation-policy
 
 ---
 
-### Work Items
+### Phase 4C Work Items
 
 * Naming policy
 * Conflict resolution rules
@@ -169,19 +169,19 @@ feature/phase4c-presentation-policy
 
 ## Phase 4D — Plugin System (Deferred)
 
-### Goal
+### Phase 4D Goal
 
 Enable external extensions to the pipeline (inputs, transforms, outputs).
 
 ---
 
-### Branch (future)
+### Phase 4D Branch
 
 feature/plugin-system
 
 ---
 
-### Success Criteria
+### Phase 4D Success Criteria
 
 * External components can integrate via stable interfaces
 * Interfaces validated by Phase 4A–4C work
