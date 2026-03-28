@@ -1,7 +1,9 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
-use retromount::core::content::{GamePart, NormalizedContent, Platform as ContentPlatform};
+use retromount::core::content::{
+    ContentMeta, GamePart, NormalizedContent, Platform as ContentPlatform,
+};
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
 use retromount::engine::components::default_pipeline_components;
