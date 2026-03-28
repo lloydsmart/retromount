@@ -34,7 +34,7 @@ pub fn run_mount_command(input: &Path, mountpoint: &Path) -> Result<(), Retromou
     info!("Root child entries: {}", root_children);
 
     let fs = RetromountFuseFs::new(session);
+    let config = RetromountFuseFs::config();
 
-    mount2(fs, mountpoint, &RetromountFuseFs::mount_options())
-        .map_err(|err| RetromountError::LoadError(err.to_string()))
+    mount2(fs, mountpoint, &config).map_err(|err| RetromountError::LoadError(err.to_string()))
 }

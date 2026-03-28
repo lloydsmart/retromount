@@ -1,13 +1,13 @@
 use std::ffi::OsStr;
+use std::io;
 use std::time::{Duration, SystemTime};
 
 use fuser::{
-    FileAttr, FileType, Filesystem, KernelConfig, MountOption, ReplyAttr, ReplyDirectory,
-    ReplyEntry, Request,
+    Config, FileAttr, FileHandle, FileType, Filesystem, Generation, INodeNo, KernelConfig,
+    ReplyAttr, ReplyDirectory, ReplyEntry, Request,
 };
-use libc::{EIO, ENOENT};
 
-use crate::mount::session::{MountNodeKind, MountSession};
+use crate::mount::session::{MountNode, MountNodeKind, MountSession};
 
 const TTL: Duration = Duration::from_secs(1);
 
@@ -20,15 +20,11 @@ impl RetromountFuseFs {
         Self { session }
     }
 
-    pub fn mount_options() -> Vec<MountOption> {
-        vec![
-            MountOption::RO,
-            MountOption::FSName("retromount".to_string()),
-            MountOption::DefaultPermissions,
-        ]
+    pub fn config() -> Config {
+        Config::default()
     }
 
-    fn file_attr_for_node(&self, node: &crate::mount::session::MountNode) -> FileAttr {
+    fn file_attr_for_node(&self, node: &MountNode) -> FileAttr {
         let kind = match node.kind {
             MountNodeKind::Directory { .. } => FileType::Directory,
             MountNodeKind::File => FileType::RegularFile,
@@ -46,7 +42,7 @@ impl RetromountFuseFs {
         };
 
         FileAttr {
-            ino: node.inode,
+            ino: INodeNo(node.inode),
             size,
             blocks: 0,
             atime: SystemTime::UNIX_EPOCH,
@@ -69,28 +65,28 @@ impl RetromountFuseFs {
 }
 
 impl Filesystem for RetromountFuseFs {
-    fn init(&mut self, _req: &Request<'_>, _config: &mut KernelConfig) -> Result<(), libc::c_int> {
+    fn init(&mut self, _req: &Request, _config: &mut KernelConfig) -> io::Result<()> {
         Ok(())
     }
 
-    fn lookup(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(&self, _req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEntry) {
         let Some(name) = name.to_str() else {
-            reply.error(ENOENT);
+            reply.error(fuser::Errno::ENOENT);
             return;
         };
 
-        let Some(node) = self.session.lookup_child(parent, name) else {
-            reply.error(ENOENT);
+        let Some(node) = self.session.lookup_child(parent.0, name) else {
+            reply.error(fuser::Errno::ENOENT);
             return;
         };
 
         let attr = self.file_attr_for_node(node);
-        reply.entry(&TTL, &attr, 0);
+        reply.entry(&TTL, &attr, Generation(0));
     }
 
-    fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
-        let Some(node) = self.session.get(ino) else {
-            reply.error(ENOENT);
+    fn getattr(&self, _req: &Request, ino: INodeNo, _fh: Option<FileHandle>, reply: ReplyAttr) {
+        let Some(node) = self.session.get(ino.0) else {
+            reply.error(fuser::Errno::ENOENT);
             return;
         };
 
@@ -99,34 +95,34 @@ impl Filesystem for RetromountFuseFs {
     }
 
     fn readdir(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
+        &self,
+        _req: &Request,
+        ino: INodeNo,
+        _fh: FileHandle,
+        offset: u64,
         mut reply: ReplyDirectory,
     ) {
-        let Some(node) = self.session.get(ino) else {
-            reply.error(ENOENT);
+        let Some(node) = self.session.get(ino.0) else {
+            reply.error(fuser::Errno::ENOENT);
             return;
         };
 
         let MountNodeKind::Directory { .. } = &node.kind else {
-            reply.error(ENOENT);
+            reply.error(fuser::Errno::ENOENT);
             return;
         };
 
-        let Some(children) = self.session.children(ino) else {
-            reply.error(EIO);
+        let Some(children) = self.session.children(ino.0) else {
+            reply.error(fuser::Errno::EIO);
             return;
         };
 
-        let mut entries: Vec<(u64, FileType, String)> = Vec::new();
+        let mut entries: Vec<(INodeNo, FileType, String)> = Vec::new();
 
         entries.push((ino, FileType::Directory, ".".to_string()));
 
-        let parent_inode = node.parent_inode.unwrap_or(ino);
-        entries.push((parent_inode, FileType::Directory, "..".to_string()));
+        let parent_inode = node.parent_inode.unwrap_or(ino.0);
+        entries.push((INodeNo(parent_inode), FileType::Directory, "..".to_string()));
 
         for child in children {
             let file_type = match child.kind {
@@ -134,13 +130,13 @@ impl Filesystem for RetromountFuseFs {
                 MountNodeKind::File => FileType::RegularFile,
             };
 
-            entries.push((child.inode, file_type, child.name.clone()));
+            entries.push((INodeNo(child.inode), file_type, child.name.clone()));
         }
 
         for (index, (entry_ino, file_type, name)) in
             entries.into_iter().enumerate().skip(offset as usize)
         {
-            let full = reply.add(entry_ino, (index + 1) as i64, file_type, name);
+            let full = reply.add(entry_ino, (index + 1) as u64, file_type, name);
             if full {
                 break;
             }
