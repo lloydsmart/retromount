@@ -1,11 +1,13 @@
 use std::path::Path;
 
+use fuser::mount2;
 use log::info;
 
 use crate::engine::components::default_pipeline_components;
 use crate::engine::pipeline::run_pipeline;
 use crate::engine::preview::build_input_source;
 use crate::error::RetromountError;
+use crate::mount::fuse_fs::RetromountFuseFs;
 use crate::mount::session::MountSession;
 
 pub fn run_mount_command(input: &Path, mountpoint: &Path) -> Result<(), RetromountError> {
@@ -31,8 +33,8 @@ pub fn run_mount_command(input: &Path, mountpoint: &Path) -> Result<(), Retromou
     info!("Root inode: {}", session.root_inode());
     info!("Root child entries: {}", root_children);
 
-    Err(RetromountError::LoadError(format!(
-        "mount is not implemented yet for mountpoint: {}",
-        mountpoint.display()
-    )))
+    let fs = RetromountFuseFs::new(session);
+
+    mount2(fs, mountpoint, &RetromountFuseFs::mount_options())
+        .map_err(|err| RetromountError::LoadError(err.to_string()))
 }
