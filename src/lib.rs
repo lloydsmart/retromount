@@ -7,6 +7,7 @@ pub mod core;
 pub mod engine;
 pub mod error;
 pub mod input;
+pub mod mount;
 pub mod output;
 pub mod readers;
 
