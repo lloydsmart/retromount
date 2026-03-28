@@ -171,10 +171,25 @@ impl MountSessionBuilder {
 mod tests {
     use super::*;
 
+    fn sample_root() -> VfsDirectory {
+        VfsDirectory::with_children(
+            "",
+            vec![
+                VfsNode::Directory(VfsDirectory::with_children(
+                    "Example Game",
+                    vec![
+                        VfsNode::File(VfsFile::new("disc1.chd")),
+                        VfsNode::File(VfsFile::new("game.m3u")),
+                    ],
+                )),
+                VfsNode::File(VfsFile::new("readme.txt")),
+            ],
+        )
+    }
+
     #[test]
     fn root_inode_is_one() {
-        let root = VfsDirectory::with_children("", vec![VfsNode::File(VfsFile::new("game.rom"))]);
-
+        let root = sample_root();
         let session = MountSession::from_root(&root);
 
         assert_eq!(session.root_inode(), 1);
@@ -183,7 +198,6 @@ mod tests {
     #[test]
     fn can_lookup_child_by_name() {
         let root = VfsDirectory::with_children("", vec![VfsNode::File(VfsFile::new("game.rom"))]);
-
         let session = MountSession::from_root(&root);
 
         let child = session
@@ -202,7 +216,6 @@ mod tests {
         );
 
         let root = VfsDirectory::with_children("", vec![VfsNode::Directory(disc_dir)]);
-
         let session = MountSession::from_root(&root);
 
         let game_dir = session
@@ -217,5 +230,66 @@ mod tests {
 
         assert_eq!(disc.parent_inode, Some(game_dir.inode));
         assert!(matches!(disc.kind, MountNodeKind::File));
+    }
+
+    #[test]
+    fn node_count_covers_root_and_all_descendants() {
+        let root = sample_root();
+        let session = MountSession::from_root(&root);
+
+        assert_eq!(session.node_count(), 5);
+    }
+
+    #[test]
+    fn children_returns_directory_entries() {
+        let root = sample_root();
+        let session = MountSession::from_root(&root);
+
+        let names: Vec<_> = session
+            .children(session.root_inode())
+            .expect("root should have children")
+            .into_iter()
+            .map(|node| node.name.as_str())
+            .collect();
+
+        assert_eq!(names, vec!["Example Game", "readme.txt"]);
+    }
+
+    #[test]
+    fn lookup_child_returns_none_for_missing_entry() {
+        let root = sample_root();
+        let session = MountSession::from_root(&root);
+
+        let missing = session.lookup_child(session.root_inode(), "does-not-exist.txt");
+        assert!(missing.is_none());
+    }
+
+    #[test]
+    fn children_returns_none_for_file_inode() {
+        let root = sample_root();
+        let session = MountSession::from_root(&root);
+
+        let file = session
+            .lookup_child(session.root_inode(), "readme.txt")
+            .expect("expected root file");
+
+        assert!(session.children(file.inode).is_none());
+    }
+
+    #[test]
+    fn nested_nodes_have_correct_parent_inode() {
+        let root = sample_root();
+        let session = MountSession::from_root(&root);
+
+        let game_dir = session
+            .lookup_child(session.root_inode(), "Example Game")
+            .expect("expected game directory");
+
+        let playlist = session
+            .lookup_child(game_dir.inode, "game.m3u")
+            .expect("expected playlist file");
+
+        assert_eq!(game_dir.parent_inode, Some(session.root_inode()));
+        assert_eq!(playlist.parent_inode, Some(game_dir.inode));
     }
 }
