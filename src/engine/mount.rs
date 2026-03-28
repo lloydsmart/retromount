@@ -9,10 +9,9 @@ use crate::error::RetromountError;
 use crate::mount::session::MountSession;
 
 #[cfg(target_os = "linux")]
-use crate::mount::fuse_fs::RetromountFuseFs;
-
+use crate::mount::adapter::FilesystemAdapter;
 #[cfg(target_os = "linux")]
-use fuser::mount2;
+use crate::mount::fuse_fs::RetromountFuseFs;
 
 pub fn run_mount_command(input: &Path, mountpoint: &Path) -> Result<(), RetromountError> {
     let source = build_input_source(input)?;
@@ -42,10 +41,7 @@ pub fn run_mount_command(input: &Path, mountpoint: &Path) -> Result<(), Retromou
 
 #[cfg(target_os = "linux")]
 fn mount_session(session: MountSession, mountpoint: &Path) -> Result<(), RetromountError> {
-    let fs = RetromountFuseFs::new(session);
-    let config = RetromountFuseFs::config();
-
-    mount2(fs, mountpoint, &config).map_err(|err| RetromountError::LoadError(err.to_string()))
+    RetromountFuseFs::new(session).mount(mountpoint)
 }
 
 #[cfg(not(target_os = "linux"))]

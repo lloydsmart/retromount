@@ -1,12 +1,15 @@
 use std::ffi::OsStr;
 use std::io;
+use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use fuser::{
-    Config, FileAttr, FileHandle, FileType, Filesystem, Generation, INodeNo, KernelConfig,
+    mount2, Config, FileAttr, FileHandle, FileType, Filesystem, Generation, INodeNo, KernelConfig,
     ReplyAttr, ReplyDirectory, ReplyEntry, Request,
 };
 
+use crate::error::RetromountError;
+use crate::mount::adapter::FilesystemAdapter;
 use crate::mount::session::{MountNode, MountNodeKind, MountSession};
 
 const TTL: Duration = Duration::from_secs(1);
@@ -61,6 +64,13 @@ impl RetromountFuseFs {
             blksize: 4096,
             flags: 0,
         }
+    }
+}
+
+impl FilesystemAdapter for RetromountFuseFs {
+    fn mount(self, mountpoint: &Path) -> Result<(), RetromountError> {
+        let config = Self::config();
+        mount2(self, mountpoint, &config).map_err(|err| RetromountError::LoadError(err.to_string()))
     }
 }
 
