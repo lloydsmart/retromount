@@ -1,13 +1,12 @@
 use log::{debug, info};
 use std::path::PathBuf;
 
-use retromount::core::content::{
-    ContentMeta, GamePart, NormalizedContent, Platform as ContentPlatform,
-};
+use retromount::core::content::{GamePart, NormalizedContent, Platform as ContentPlatform};
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
 use retromount::engine::components::default_pipeline_components;
 use retromount::engine::inspect::run_phase3_inspect;
+use retromount::engine::mount::run_mount_command;
 use retromount::engine::pipeline::run_pipeline_with_options;
 use retromount::engine::preview::{build_input_source, run_phase3_preview, write_vfs_tree};
 use retromount::{RetromountError, ViewConfig};
@@ -33,8 +32,13 @@ fn main() -> Result<(), RetromountError> {
             let path = PathBuf::from(path);
             run_phase3_inspect(&path, true)
         }
+        [command, input, mountpoint] if command.to_string_lossy() == "mount" => {
+            let input = PathBuf::from(input);
+            let mountpoint = PathBuf::from(mountpoint);
+            run_mount_command(&input, &mountpoint)
+        }
         _ => Err(RetromountError::LoadError(
-            "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path> [--json]"
+            "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path> [--json]\n  retromount mount <input> <mountpoint>"
                 .to_string(),
         )),
     }
