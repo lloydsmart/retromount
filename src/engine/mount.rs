@@ -1,14 +1,18 @@
 use std::path::Path;
 
-use fuser::mount2;
 use log::info;
 
 use crate::engine::components::default_pipeline_components;
 use crate::engine::pipeline::run_pipeline;
 use crate::engine::preview::build_input_source;
 use crate::error::RetromountError;
-use crate::mount::fuse_fs::RetromountFuseFs;
 use crate::mount::session::MountSession;
+
+#[cfg(target_os = "linux")]
+use crate::mount::fuse_fs::RetromountFuseFs;
+
+#[cfg(target_os = "linux")]
+use fuser::mount2;
 
 pub fn run_mount_command(input: &Path, mountpoint: &Path) -> Result<(), RetromountError> {
     let source = build_input_source(input)?;
@@ -33,8 +37,21 @@ pub fn run_mount_command(input: &Path, mountpoint: &Path) -> Result<(), Retromou
     info!("Root inode: {}", session.root_inode());
     info!("Root child entries: {}", root_children);
 
+    mount_session(session, mountpoint)
+}
+
+#[cfg(target_os = "linux")]
+fn mount_session(session: MountSession, mountpoint: &Path) -> Result<(), RetromountError> {
     let fs = RetromountFuseFs::new(session);
     let config = RetromountFuseFs::config();
 
     mount2(fs, mountpoint, &config).map_err(|err| RetromountError::LoadError(err.to_string()))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn mount_session(_session: MountSession, mountpoint: &Path) -> Result<(), RetromountError> {
+    Err(RetromountError::LoadError(format!(
+        "mount is only supported on Linux; cannot mount to {} on this platform",
+        mountpoint.display()
+    )))
 }

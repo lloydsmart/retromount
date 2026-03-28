@@ -2,7 +2,9 @@
 name = "retromount"
 version = "0.1.0"
 edition = "2021"
-authors = ["Lloyd Smart <lloydsmart@users.noreply.github.com>"]
+authors = [
+    "Lloyd Smart [lloydsmart@users.noreply.github.com](mailto:lloydsmart@users.noreply.github.com)",
+]
 description = "Modular FUSE-based filesystem for retro game archives"
 license = "GPL-3.0-only"
 repository = "https://github.com/lloydsmart/retromount"
@@ -18,6 +20,8 @@ log = "0.4"
 env_logger = "0.11.10"
 thiserror = "2.0"                                        # For custom error types
 zip = "8"
+
+[target.'cfg(target_os = "linux")'.dependencies]
 fuser = "0.17"
 libc = "0.2"
 
@@ -25,7 +29,7 @@ libc = "0.2"
 tempfile = "3.27"
 
 [package.metadata.deb]
-maintainer = "Lloyd Smart <lloydsmart@users.noreply.github.com>"
+maintainer = "Lloyd Smart [lloydsmart@users.noreply.github.com](mailto:lloydsmart@users.noreply.github.com)"
 copyright = "2026, Lloyd Smart"
 license-file = ["LICENSE", "4"]
 depends = "$auto, fuse"
@@ -51,6 +55,7 @@ assets = [
 
 [features]
 default = []
+
 # Placeholder for future translator dependencies
 # chd_to_iso = ["dep:some_crate"]
 
