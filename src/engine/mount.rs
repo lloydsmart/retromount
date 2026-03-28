@@ -47,7 +47,7 @@ fn mount_session(session: MountSession, mountpoint: &Path) -> Result<(), Retromo
 #[cfg(not(target_os = "linux"))]
 fn mount_session(_session: MountSession, mountpoint: &Path) -> Result<(), RetromountError> {
     Err(RetromountError::LoadError(format!(
-        "mount is only supported on Linux; cannot mount to {} on this platform",
+        "mount is only supported on Linux (FUSE); cannot mount to {} on this platform. Try `retromount phase3-preview <path>` instead.",
         mountpoint.display()
     )))
 }
