@@ -1,6 +1,6 @@
 # Architecture Boundaries
 
-This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation and D-002 through D-005.
+This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation, D-002 through D-005 and Phase4A FUSE implementation.
 
 ---
 
@@ -129,7 +129,7 @@ The Presenter must **not**:
 - generate file contents
 - perform representation-specific transformations
 
-In the default Phase 3 implementation, the presenter composes an encoder while constructing the VFS tree.
+In the default implementation, the presenter composes an encoder while constructing the VFS tree.
 
 Conceptually:
 

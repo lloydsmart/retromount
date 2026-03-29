@@ -69,6 +69,8 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 - [x] Review default encoder/presenter composition strategy
 - [ ] Remove dead code and unused helpers after refactors
 - [ ] Audit test coverage for new encoder boundary
+- [ ] Audit test coverage for FUSE adapter behaviour
+- [ ] Review FUSE error mapping and logging
 
 ---
 

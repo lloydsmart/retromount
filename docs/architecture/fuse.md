@@ -28,7 +28,36 @@ Implements the `fuser::Filesystem` trait:
 
 ### VFS Reader Integration
 
-File reads are delegated to:
+File reads are delegated through the existing VFS reader pipeline:
 
-```text
-open_vfs_file -> Reader -> read_at(offset, buffer)
+`open_vfs_file → Reader → read_at(offset, buffer)`
+
+This keeps filesystem adapter code thin and reuses the existing VFS-backed reader stack rather than introducing FUSE-specific file decoding logic.
+
+## Boundary Notes
+
+The FUSE adapter must not:
+
+- reimplement pipeline stages
+- reinterpret normalized content
+- make presentation or encoding decisions
+- bypass VFS reader abstractions
+
+The FUSE layer is an adapter over the already-materialized VFS, not an alternative execution path.
+
+## Current Scope
+
+Phase 4A provides:
+
+- Linux-only FUSE mounting
+- read-only filesystem access
+- inode-based directory traversal
+- file reads backed by the Retromount VFS reader layer
+
+## Future Enhancements
+
+Potential future improvements include:
+
+- caching and read-performance optimisations
+- improved mount diagnostics and logging
+- additional platform adapter implementations

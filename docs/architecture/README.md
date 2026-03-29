@@ -210,7 +210,7 @@ The architecture review work in this directory aims to:
 
 ## Next Focus Areas
 
-* review the next architectural boundary concern after D-005
 * improve module-level documentation
 * introduce diagrams for better visualization of the pipeline
 * refine filesystem adapter behaviour and performance (e.g. read caching)
+* add examples for alternate presenters, encoders, and adapter layers
