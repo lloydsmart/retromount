@@ -4,10 +4,12 @@ use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use fuser::{
-    mount2, Config, FileAttr, FileHandle, FileType, Filesystem, Generation, INodeNo, KernelConfig,
-    ReplyAttr, ReplyDirectory, ReplyEntry, Request,
+    mount2, Config, FileAttr, FileHandle, FileType, Filesystem, FopenFlags, Generation, INodeNo,
+    KernelConfig, LockOwner, OpenFlags, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry,
+    ReplyOpen, Request,
 };
 
+use crate::core::vfs_reader::open_vfs_file;
 use crate::error::RetromountError;
 use crate::mount::adapter::FilesystemAdapter;
 use crate::mount::session::{MountNode, MountNodeKind, MountSession};
@@ -30,7 +32,7 @@ impl RetromountFuseFs {
     fn file_attr_for_node(&self, node: &MountNode) -> FileAttr {
         let kind = match node.kind {
             MountNodeKind::Directory { .. } => FileType::Directory,
-            MountNodeKind::File => FileType::RegularFile,
+            MountNodeKind::File { .. } => FileType::RegularFile,
         };
 
         let perm = match kind {
@@ -39,15 +41,15 @@ impl RetromountFuseFs {
             _ => 0o444,
         };
 
-        let size = match node.kind {
+        let size = match &node.kind {
             MountNodeKind::Directory { .. } => 0,
-            MountNodeKind::File => 0,
+            MountNodeKind::File { file } => file.size,
         };
 
         FileAttr {
             ino: INodeNo(node.inode),
             size,
-            blocks: 0,
+            blocks: size.div_ceil(512),
             atime: SystemTime::UNIX_EPOCH,
             mtime: SystemTime::UNIX_EPOCH,
             ctime: SystemTime::UNIX_EPOCH,
@@ -64,6 +66,26 @@ impl RetromountFuseFs {
             blksize: 4096,
             flags: 0,
         }
+    }
+
+    fn read_file_range(&self, ino: u64, offset: u64, size: u32) -> Result<Vec<u8>, fuser::Errno> {
+        let Some(file) = self.session.file(ino) else {
+            return Err(fuser::Errno::EISDIR);
+        };
+
+        if offset >= file.size {
+            return Ok(Vec::new());
+        }
+
+        let mut reader = open_vfs_file(file).map_err(|_| fuser::Errno::EIO)?;
+        let mut buf = vec![0; size as usize];
+
+        let bytes_read = reader
+            .read_at(offset, &mut buf)
+            .map_err(|_| fuser::Errno::EIO)?;
+
+        buf.truncate(bytes_read);
+        Ok(buf)
     }
 }
 
@@ -104,6 +126,32 @@ impl Filesystem for RetromountFuseFs {
         reply.attr(&TTL, &attr);
     }
 
+    fn open(&self, _req: &Request, ino: INodeNo, _flags: OpenFlags, reply: ReplyOpen) {
+        if self.session.file(ino.0).is_none() {
+            reply.error(fuser::Errno::EISDIR);
+            return;
+        }
+
+        reply.opened(FileHandle(ino.0), FopenFlags::empty());
+    }
+
+    fn read(
+        &self,
+        _req: &Request,
+        ino: INodeNo,
+        _fh: FileHandle,
+        offset: u64,
+        size: u32,
+        _flags: OpenFlags,
+        _lock_owner: Option<LockOwner>,
+        reply: ReplyData,
+    ) {
+        match self.read_file_range(ino.0, offset, size) {
+            Ok(data) => reply.data(&data),
+            Err(err) => reply.error(err),
+        };
+    }
+
     fn readdir(
         &self,
         _req: &Request,
@@ -137,7 +185,7 @@ impl Filesystem for RetromountFuseFs {
         for child in children {
             let file_type = match child.kind {
                 MountNodeKind::Directory { .. } => FileType::Directory,
-                MountNodeKind::File => FileType::RegularFile,
+                MountNodeKind::File { .. } => FileType::RegularFile,
             };
 
             entries.push((INodeNo(child.inode), file_type, child.name.clone()));
