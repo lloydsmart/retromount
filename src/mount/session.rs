@@ -19,7 +19,7 @@ pub struct MountNode {
 #[derive(Debug, Clone)]
 pub enum MountNodeKind {
     Directory { children: BTreeMap<String, u64> },
-    File,
+    File { file: VfsFile },
 }
 
 impl MountSession {
@@ -53,7 +53,7 @@ impl MountSession {
                 let child_inode = children.get(name)?;
                 self.nodes.get(child_inode)
             }
-            MountNodeKind::File => None,
+            MountNodeKind::File { .. } => None,
         }
     }
 
@@ -69,7 +69,16 @@ impl MountSession {
 
                 Some(result)
             }
-            MountNodeKind::File => None,
+            MountNodeKind::File { .. } => None,
+        }
+    }
+
+    pub fn file(&self, inode: u64) -> Option<&VfsFile> {
+        let node = self.nodes.get(&inode)?;
+
+        match &node.kind {
+            MountNodeKind::File { file } => Some(file),
+            MountNodeKind::Directory { .. } => None,
         }
     }
 }
@@ -136,7 +145,7 @@ impl MountSessionBuilder {
                 inode,
                 parent_inode: Some(parent_inode),
                 name: file.name.clone(),
-                kind: MountNodeKind::File,
+                kind: MountNodeKind::File { file: file.clone() },
             },
         );
 
@@ -178,11 +187,11 @@ mod tests {
                 VfsNode::Directory(VfsDirectory::with_children(
                     "Example Game",
                     vec![
-                        VfsNode::File(VfsFile::new("disc1.chd")),
-                        VfsNode::File(VfsFile::new("game.m3u")),
+                        VfsNode::File(VfsFile::inline("disc1.chd", vec![1, 2, 3, 4])),
+                        VfsNode::File(VfsFile::inline("game.m3u", b"disc1.chd\n".to_vec())),
                     ],
                 )),
-                VfsNode::File(VfsFile::new("readme.txt")),
+                VfsNode::File(VfsFile::inline("readme.txt", b"hello".to_vec())),
             ],
         )
     }
@@ -205,7 +214,7 @@ mod tests {
             .expect("expected child node");
 
         assert_eq!(child.name, "game.rom");
-        assert!(matches!(child.kind, MountNodeKind::File));
+        assert!(matches!(child.kind, MountNodeKind::File { .. }));
     }
 
     #[test]
@@ -229,7 +238,7 @@ mod tests {
             .expect("expected disc file");
 
         assert_eq!(disc.parent_inode, Some(game_dir.inode));
-        assert!(matches!(disc.kind, MountNodeKind::File));
+        assert!(matches!(disc.kind, MountNodeKind::File { .. }));
     }
 
     #[test]
@@ -291,5 +300,19 @@ mod tests {
 
         assert_eq!(game_dir.parent_inode, Some(session.root_inode()));
         assert_eq!(playlist.parent_inode, Some(game_dir.inode));
+    }
+
+    #[test]
+    fn file_accessor_returns_backing_file() {
+        let root = sample_root();
+        let session = MountSession::from_root(&root);
+
+        let file = session
+            .lookup_child(session.root_inode(), "readme.txt")
+            .expect("expected root file");
+
+        let backing = session.file(file.inode).expect("expected backing file");
+        assert_eq!(backing.name, "readme.txt");
+        assert_eq!(backing.size, 5);
     }
 }

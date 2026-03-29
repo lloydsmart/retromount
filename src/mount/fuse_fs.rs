@@ -203,3 +203,85 @@ impl Filesystem for RetromountFuseFs {
         reply.ok();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
+
+    fn inline_session() -> (MountSession, u64) {
+        let root = VfsDirectory::with_children(
+            "",
+            vec![VfsNode::File(VfsFile::inline(
+                "playlist.m3u",
+                b"disc1.cue\ndisc2.cue\n".to_vec(),
+            ))],
+        );
+
+        let session = MountSession::from_root(&root);
+        let inode = session
+            .lookup_child(session.root_inode(), "playlist.m3u")
+            .expect("expected inline file")
+            .inode;
+
+        (session, inode)
+    }
+
+    #[test]
+    fn read_file_range_reads_full_inline_file() {
+        let (session, ino) = inline_session();
+        let fs = RetromountFuseFs::new(session);
+
+        let data = fs
+            .read_file_range(ino, 0, 1024)
+            .expect("expected read to succeed");
+
+        assert_eq!(data, b"disc1.cue\ndisc2.cue\n");
+    }
+
+    #[test]
+    fn read_file_range_reads_partial_inline_file() {
+        let (session, ino) = inline_session();
+        let fs = RetromountFuseFs::new(session);
+
+        let data = fs
+            .read_file_range(ino, 5, 8)
+            .expect("expected partial read to succeed");
+
+        assert_eq!(data, b".cue\ndis");
+    }
+
+    #[test]
+    fn read_file_range_returns_empty_at_eof() {
+        let (session, ino) = inline_session();
+        let fs = RetromountFuseFs::new(session);
+
+        let data = fs
+            .read_file_range(ino, 20, 16)
+            .expect("expected eof read to succeed");
+
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn read_file_range_returns_error_for_directory_inode() {
+        let (session, _) = inline_session();
+        let fs = RetromountFuseFs::new(session);
+
+        let result = fs.read_file_range(fs.session.root_inode(), 0, 16);
+
+        assert!(result.is_err(), "expected directory read to fail");
+    }
+
+    #[test]
+    fn file_attr_uses_backing_file_size() {
+        let (session, ino) = inline_session();
+        let fs = RetromountFuseFs::new(session);
+
+        let node = fs.session.get(ino).expect("expected mounted node");
+        let attr = fs.file_attr_for_node(node);
+
+        assert_eq!(attr.size, b"disc1.cue\ndisc2.cue\n".len() as u64);
+        assert_eq!(attr.kind, FileType::RegularFile);
+    }
+}
