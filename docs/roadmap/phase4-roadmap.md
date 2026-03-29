@@ -25,6 +25,8 @@ It does **not**:
 
 > Retromount projects collections. It does not curate them.
 
+Phase 4 introduces real filesystem exposure of these projections.
+
 ---
 
 ## Phase 4A — Mountable Filesystem
@@ -32,6 +34,8 @@ It does **not**:
 ### Phase 4A Goal
 
 Expose the Virtual File System (VFS) as a real, read-only filesystem via FUSE.
+
+#### Status: Complete
 
 ---
 
@@ -43,13 +47,13 @@ feature/phase4a-fuse-mount
 
 ### Phase 4A Success Criteria
 
-* `retromount mount <input> <mountpoint>` works
-* Directories can be browsed (`ls`)
-* Files can be read (`cat`, emulator, etc.)
-* Output matches `preview` / `inspect`
-* Multi-disc handling and playlists behave correctly
-* Read-only filesystem
-* No FUSE-specific logic leaks into core abstractions
+* [x] `retromount mount <input> <mountpoint>` works
+* [x] directories can be browsed (`ls`, `tree`, `find`)
+* [x] files can be read (`cat`, `head`, emulator, etc.)
+* [x] output matches `preview` / `inspect`
+* [x] multi-disc handling and playlists behave correctly
+* [x] filesystem is read-only
+* [x] no FUSE-specific logic leaks into core abstractions
 
 ---
 
@@ -87,15 +91,28 @@ feature/phase4a-fuse-mount
 
 ### Phase 4A Progress Checklist
 
-* [ ] mount command added
-* [ ] FUSE adapter created
-* [ ] mount session/index implemented
-* [ ] directory traversal works
-* [ ] file reads work
-* [ ] tested with shell tools
+* [x] mount command added
+* [x] FUSE adapter created
+* [x] mount session/index implemented
+* [x] directory traversal works
+* [x] file reads work
+* [x] tested with shell tools
 * [ ] tested with a real consumer
-* [ ] core refactors kept separate from adapter glue
-* [ ] documentation updated
+* [x] core refactors kept separate from adapter glue
+* [x] documentation updated
+
+---
+
+### Phase 4A Validation
+
+Validated on a real Linux host:
+
+* mounted filesystem is browsable (`tree`, `find`)
+* file metadata reports correct sizes
+* generated inline files (e.g. `.m3u`) are readable
+* source-backed files (e.g. ROMs, disc images) are readable
+* repeated reads succeed consistently
+* directory reads fail as expected
 
 ---
 
@@ -104,6 +121,8 @@ feature/phase4a-fuse-mount
 * This phase is both implementation and validation
 * If architectural gaps are discovered, fix them in core rather than working around them in the adapter
 * Keep scope tightly limited to read-only filesystem support
+* current implementation reopens files on each `read()` call
+* performance optimisations (reader caching) are planned as follow-up work
 
 ---
 
