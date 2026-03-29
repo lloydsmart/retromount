@@ -115,46 +115,54 @@ Implementation was performed on branch: `feature/pipeline-orchestration-consolid
 
 ---
 
-## F-003: Presenter and encoder responsibilities are not yet sharply defined
+## F-003: Presenter and encoder responsibilities were not sharply defined
 
-**Status:** Open  
-**Issue:** [#43](https://github.com/lloydsmart/retromount/issues/43)
+**Status:** Resolved  
+**Issue:** [#43](https://github.com/lloydsmart/retromount/issues/43)  
+**Resolved by:** D-003
 
 ### F-003 Context
 
-The current output side of the architecture includes both presenter and encoder concepts, but the boundary between them is not yet fully clear.
+The output side of the architecture included both presenter and encoder concepts, but the boundary between them was not initially explicit.
 
-In particular, naming, output structure, and representation logic may currently be split across these layers in ways that are harder to reason about than necessary.
+In particular, naming, output structure, and representation logic were split across these layers in ways that were harder to reason about than necessary.
 
 ### F-003 Evidence
 
 - the project contains a presenter abstraction and a concrete `GenericPresenter`
 - the project contains an encoder abstraction and a concrete `BasicEncoder`
-- output concerns such as file naming, output layout, and content representation appear to involve both layers
-- future Phase 4 work is expected to expand output/view behavior, increasing the importance of a clean separation here
+- output concerns such as file naming, output layout, and content representation were previously distributed across both layers
+- future output/view work increased the need for a clean and enforceable separation
 
 ### F-003 Why it matters
 
-If presenter and encoder responsibilities are unclear, future view work will be harder to implement cleanly.
+If presenter and encoder responsibilities are unclear, output behaviour becomes harder to extend and reason about.
 
 This affects:
 
-- where output structure should be decided
-- where file naming should be decided
-- where content representation/translation should be decided
-- whether future output customizations can be added without modifying core logic
+- where output structure is decided
+- where file naming is decided
+- where content representation and transformation are decided
+- whether alternate output customizations can be introduced without modifying core logic
 
-A weak boundary also makes plugin-style extensibility more difficult, because it becomes unclear which interface a new output behavior should target.
+A weak boundary also makes plugin-style extensibility more difficult, because it becomes unclear which interface new output behaviour should target.
 
 ### F-003 Options
 
-- Define presenters as responsible for structure and encoders as responsible for representation/naming details
-- Define presenters as pure view builders and move most filename/output translation logic into encoders
-- Collapse the distinction if both abstractions are not providing enough independent value
+- define presenters as responsible for structure and encoders as responsible for representation and naming details
+- define presenters as pure view builders and move most filename/output translation logic into encoders
+- collapse the distinction if both abstractions do not provide enough independent value
 
 ### F-003 Decision
 
-TBD
+Resolved by D-003.
+
+Retromount retains both Presenter and Encoder abstractions with a strict responsibility boundary:
+
+- Presenter owns structure, grouping, and layout
+- Encoder owns naming, representation, file backing, and generated file content
+
+This boundary is now enforced in code, with no remaining responsibility overlap.
 
 ---
 

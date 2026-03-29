@@ -115,4 +115,50 @@ mod tests {
         assert_eq!(bytes, 9);
         assert_eq!(&buf, b"zip hello");
     }
+
+    #[test]
+    fn reads_inline_backed_vfs_file_from_offset() {
+        let file = VfsFile::inline("game.m3u", b"disc1.cue\ndisc2.cue\n".to_vec());
+
+        let mut reader = open_vfs_file(&file).unwrap();
+        let mut buf = vec![0; 8];
+        let bytes = reader.read_at(5, &mut buf).unwrap();
+
+        assert_eq!(bytes, 8);
+        assert_eq!(&buf, b".cue\ndis");
+    }
+
+    #[test]
+    fn reads_zip_backed_vfs_file_from_offset() {
+        use std::fs::File;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let zip_path = temp_dir.path().join("library.zip");
+
+        {
+            let file = File::create(&zip_path).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
+
+            zip.start_file("docs/readme.txt", options).unwrap();
+            zip.write_all(b"zip hello").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let file = VfsFile::source_backed(
+            "docs/readme.txt",
+            9,
+            SourceRef::new(format!(
+                "zip:{}#docs/readme.txt",
+                zip_path.to_string_lossy()
+            )),
+        );
+
+        let mut reader = open_vfs_file(&file).unwrap();
+        let mut buf = vec![0; 4];
+        let bytes = reader.read_at(4, &mut buf).unwrap();
+
+        assert_eq!(bytes, 4);
+        assert_eq!(&buf, b"hell");
+    }
 }

@@ -243,6 +243,7 @@ The Presenter/Encoder boundary is now enforced in code, with no remaining respon
 **Date:** 2026-03-26  
 **Status:** Implemented  
 **Related:** F-004
+**Issue:** [#44](https://github.com/lloydsmart/retromount/issues/44)
 
 ### D-004 Context
 
