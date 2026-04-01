@@ -35,7 +35,7 @@ Phase 4 introduces real filesystem exposure of these projections.
 
 Expose the Virtual File System (VFS) as a real, read-only filesystem via FUSE.
 
-#### Status: Complete
+#### Status: Implemented — Validation in Progress
 
 ---
 
@@ -54,6 +54,7 @@ feature/phase4a-fuse-mount
 * [x] multi-disc handling and playlists behave correctly
 * [x] filesystem is read-only
 * [x] no FUSE-specific logic leaks into core abstractions
+* [ ] validated with at least one real consumer (e.g. emulator)
 
 ---
 
@@ -97,7 +98,7 @@ feature/phase4a-fuse-mount
 * [x] directory traversal works
 * [x] file reads work
 * [x] tested with shell tools
-* [ ] tested with a real consumer
+* [ ] validated with a real consumer (e.g. emulator or tooling)
 * [x] core refactors kept separate from adapter glue
 * [x] documentation updated
 
@@ -114,6 +115,11 @@ Validated on a real Linux host:
 * repeated reads succeed consistently
 * directory reads fail as expected
 
+Outstanding validation:
+
+* real consumer interaction (e.g. emulator loading content)
+* verification of behaviour under sustained or repeated access patterns
+
 ---
 
 ### Phase 4A Notes
@@ -122,7 +128,7 @@ Validated on a real Linux host:
 * If architectural gaps are discovered, fix them in core rather than working around them in the adapter
 * Keep scope tightly limited to read-only filesystem support
 * current implementation reopens files on each `read()` call
-* performance optimisations (reader caching) are planned as follow-up work
+* performance optimisations (reader caching, handle reuse) are explicitly deferred to a later phase
 
 ---
 
@@ -150,7 +156,7 @@ feature/phase4b-consumer-views
 
 ### Phase 4B Work Items
 
-* View abstraction layer
+* additional presenter implementations for alternative layouts
 * At least two layouts (e.g. grouped vs flat)
 * CLI or config selection of view
 
@@ -209,7 +215,7 @@ feature/plugin-system
 
 ## Guiding Principle
 
-Phase 3 proved the model.
+Phase 3 proved the model.  
 Phase 4 proves the model works in reality.
 
 ---
