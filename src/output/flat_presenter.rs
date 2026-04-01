@@ -276,4 +276,39 @@ mod tests {
             other => panic!("expected inline backing, got {other:?}"),
         }
     }
+
+    #[test]
+    fn preserves_encoder_derived_relative_paths_for_non_game_content() {
+        let presenter = FlatPresenter::new();
+
+        let content = vec![
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("mixed/nested.zip"),
+                source: SourceRef::new("file:/roms/mixed/nested.zip"),
+                size: 197,
+            }),
+            NormalizedContent::Text(TextContent {
+                id: ContentId::new("mixed/notes"),
+                source: SourceRef::new("file:/roms/mixed/notes.txt"),
+                size: 12,
+            }),
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("roms/snes/cover.jpg"),
+                source: SourceRef::new("file:/roms/roms/snes/cover.jpg"),
+                size: 12,
+            }),
+        ];
+
+        let root = presenter.present(&content);
+
+        let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
+        assert_eq!(
+            names,
+            vec![
+                "mixed/nested.zip.bin",
+                "mixed/notes.txt",
+                "roms/snes/cover.jpg.bin",
+            ]
+        );
+    }
 }
