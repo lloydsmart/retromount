@@ -238,6 +238,57 @@ mod tests {
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
+    use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy, PolicySet};
+
+    struct AlternateNamingPolicy;
+
+    impl NamingPolicy for AlternateNamingPolicy {
+        fn game_name(&self, game: &GameContent) -> String {
+            format!("{} [ALT]", game.title)
+        }
+
+        fn part_name(&self, game: &GameContent, part: &GamePart) -> String {
+            match part {
+                GamePart::Rom(rom) => format!("ALT-{}", rom.source.file_name()),
+                GamePart::Disc(disc) => format!("{} - CD{}.cue", game.title, disc.disc_number),
+            }
+        }
+
+        fn playlist_name(&self, game: &GameContent) -> String {
+            format!("{} - Playlist.m3u", game.title)
+        }
+
+        fn platform_name(&self, platform: &Platform) -> String {
+            match platform {
+                Platform::Ps1 => "PlayStation".to_string(),
+                _ => platform.to_string(),
+            }
+        }
+    }
+
+    struct PassthroughFormattingPolicy;
+
+    impl FormattingPolicy for PassthroughFormattingPolicy {
+        fn format_name(&self, raw: &str) -> String {
+            raw.to_string()
+        }
+    }
+
+    struct PreserveConflictPolicy;
+
+    impl ConflictPolicy for PreserveConflictPolicy {
+        fn resolve_name_conflict(&self, proposed: &str, _existing: &[String]) -> String {
+            proposed.to_string()
+        }
+    }
+
+    fn alternate_policy() -> PolicySet {
+        PolicySet::new(
+            Box::new(AlternateNamingPolicy),
+            Box::new(PassthroughFormattingPolicy),
+            Box::new(PreserveConflictPolicy),
+        )
+    }
 
     #[test]
     fn presents_mixed_content_in_library_view() {
@@ -487,5 +538,73 @@ mod tests {
 
         let names: Vec<&str> = zips.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["gameboy_collection.zip.bin"]);
+    }
+
+    #[test]
+    fn naming_policy_can_change_grouped_output_names_without_changing_structure() {
+        let presenter = GroupedPresenter::new();
+        let default_policy = PolicySet::default();
+        let alt_policy = alternate_policy();
+
+        let content = vec![NormalizedContent::Game(GameContent {
+            id: ContentId::new("ff7"),
+            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+            title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![
+                GamePart::Disc(DiscPart {
+                    source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
+                    disc_number: 2,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
+                }),
+                GamePart::Disc(DiscPart {
+                    source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+                    disc_number: 1,
+                    consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
+                }),
+            ],
+            consumed_sources: vec![
+                SourceRef::new("cue:/roms/ff7-disc2.bin"),
+                SourceRef::new("cue:/roms/ff7-disc1.bin"),
+            ],
+        })];
+
+        let default_root = presenter.present(&content, &default_policy);
+        let alt_root = presenter.present(&content, &alt_policy);
+
+        let default_platform = default_root.find_directory("ps1").unwrap();
+        let default_game = default_platform
+            .find_directory("Final Fantasy VII")
+            .unwrap();
+        let default_names: Vec<&str> = default_game
+            .children()
+            .iter()
+            .map(|node| node.name())
+            .collect();
+        assert_eq!(
+            default_names,
+            vec![
+                "Final Fantasy VII (Disc 1).cue",
+                "Final Fantasy VII (Disc 2).cue",
+                "Final Fantasy VII.m3u",
+            ]
+        );
+
+        let alt_platform = alt_root.find_directory("PlayStation").unwrap();
+        let alt_game = alt_platform
+            .find_directory("Final Fantasy VII [ALT]")
+            .unwrap();
+        let alt_names: Vec<&str> = alt_game.children().iter().map(|node| node.name()).collect();
+        assert_eq!(
+            alt_names,
+            vec![
+                "Final Fantasy VII - CD1.cue",
+                "Final Fantasy VII - CD2.cue",
+                "Final Fantasy VII - Playlist.m3u",
+            ]
+        );
+
+        assert_eq!(default_root.children().len(), 1);
+        assert_eq!(alt_root.children().len(), 1);
     }
 }
