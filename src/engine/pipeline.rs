@@ -121,8 +121,7 @@ mod tests {
     use crate::input::basic_decoder::BasicInputDecoder;
     use crate::input::basic_identifier::BasicInputIdentifier;
     use crate::input::directory_source::DirectoryInputSource;
-    use crate::output::basic_encoder::BasicEncoder;
-    use crate::output::generic_presenter::GenericPresenter;
+    use crate::output::grouped_presenter::GroupedPresenter;
 
     #[test]
     fn runs_end_to_end_directory_pipeline() {
@@ -134,7 +133,7 @@ mod tests {
         let source = DirectoryInputSource::new(temp_dir.path());
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
 
@@ -170,7 +169,7 @@ mod tests {
         let source = ZipInputSource::new(&zip_path);
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
 
@@ -188,7 +187,7 @@ mod tests {
         let source = DirectoryInputSource::new(temp_dir.path());
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let trace = run_pipeline_with_trace(&source, &identifier, &decoder, &presenter).unwrap();
 

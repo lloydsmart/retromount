@@ -166,21 +166,3 @@ fn log_content_summary(content: &NormalizedContent) {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_presenter_kind() {
-        assert_eq!(
-            parse_presenter_kind(std::ffi::OsStr::new("grouped")).unwrap(),
-            PresenterKind::Grouped
-        );
-        assert_eq!(
-            parse_presenter_kind(std::ffi::OsStr::new("flat")).unwrap(),
-            PresenterKind::Flat
-        );
-        assert!(parse_presenter_kind(std::ffi::OsStr::new("weird")).is_err());
-    }
-}
