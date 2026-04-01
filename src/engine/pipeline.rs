@@ -252,6 +252,8 @@ mod tests {
         let grouped_root = run_pipeline(&source, &identifier, &decoder, &grouped).unwrap();
         let flat_root = run_pipeline(&source, &identifier, &decoder, &flat).unwrap();
 
+        assert!(grouped_root.find_directory("snes").is_some());
+        assert!(grouped_root.find_directory("ps1").is_none());
         assert!(grouped_root
             .find_directory("snes/Super Mario World")
             .is_some());
@@ -260,6 +262,7 @@ mod tests {
             .is_some());
 
         assert!(flat_root.find_directory("snes").is_none());
+        assert!(flat_root.find_directory("ps1").is_none());
         assert!(flat_root.find_file("Super Mario World.sfc").is_some());
     }
 }

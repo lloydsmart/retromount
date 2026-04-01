@@ -43,7 +43,14 @@ impl FlatPresenter {
                     self.insert_game_node(&mut root, game, &entry.encoded);
                 }
                 NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
-                    root.add_child(VfsNode::File(entry.encoded.to_vfs_file()));
+                    let mut file = entry.encoded.to_vfs_file();
+
+                    // strip any path components → keep only leaf name
+                    if let Some(name) = file.name.rsplit('/').next() {
+                        file.name = name.to_string();
+                    }
+
+                    root.add_child(VfsNode::File(file));
                 }
             }
         }
@@ -278,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn preserves_encoder_derived_relative_paths_for_non_game_content() {
+    fn flattens_non_game_content_to_leaf_file_names() {
         let presenter = FlatPresenter::new();
 
         let content = vec![
@@ -302,13 +309,6 @@ mod tests {
         let root = presenter.present(&content);
 
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
-        assert_eq!(
-            names,
-            vec![
-                "mixed/nested.zip.bin",
-                "mixed/notes.txt",
-                "roms/snes/cover.jpg.bin",
-            ]
-        );
+        assert_eq!(names, vec!["cover.jpg.bin", "nested.zip.bin", "notes.txt",]);
     }
 }
