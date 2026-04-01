@@ -11,6 +11,7 @@ use retromount::engine::inspect::run_phase3_inspect;
 use retromount::engine::mount::run_mount_command;
 use retromount::engine::pipeline::run_pipeline_with_options;
 use retromount::engine::preview::{build_input_source, run_phase3_preview, write_vfs_tree};
+use retromount::output::present::PresenterKind;
 use retromount::{RetromountError, ViewConfig};
 
 fn main() -> Result<(), RetromountError> {
@@ -26,24 +27,57 @@ fn main() -> Result<(), RetromountError> {
         }
         [command, path] if command.to_string_lossy() == "inspect" => {
             let path = PathBuf::from(path);
-            run_phase3_inspect(&path, false)
+            run_phase3_inspect(&path, false, PresenterKind::Grouped)
         }
         [command, path, flag]
             if command.to_string_lossy() == "inspect" && flag.to_string_lossy() == "--json" =>
         {
             let path = PathBuf::from(path);
-            run_phase3_inspect(&path, true)
+            run_phase3_inspect(&path, true, PresenterKind::Grouped)
+        }
+        [command, path, view_flag, view]
+            if command.to_string_lossy() == "inspect" && view_flag.to_string_lossy() == "--view" =>
+        {
+            let path = PathBuf::from(path);
+            let presenter_kind = parse_presenter_kind(view)?;
+            run_phase3_inspect(&path, false, presenter_kind)
+        }
+        [command, path, flag, view_flag, view]
+            if command.to_string_lossy() == "inspect"
+                && flag.to_string_lossy() == "--json"
+                && view_flag.to_string_lossy() == "--view" =>
+        {
+            let path = PathBuf::from(path);
+            let presenter_kind = parse_presenter_kind(view)?;
+            run_phase3_inspect(&path, true, presenter_kind)
         }
         [command, input, mountpoint] if command.to_string_lossy() == "mount" => {
             let input = PathBuf::from(input);
             let mountpoint = PathBuf::from(mountpoint);
-            run_mount_command(&input, &mountpoint)
+            run_mount_command(&input, &mountpoint, PresenterKind::Grouped)
+        }
+        [command, input, mountpoint, view_flag, view]
+            if command.to_string_lossy() == "mount" && view_flag.to_string_lossy() == "--view" =>
+        {
+            let input = PathBuf::from(input);
+            let mountpoint = PathBuf::from(mountpoint);
+            let presenter_kind = parse_presenter_kind(view)?;
+            run_mount_command(&input, &mountpoint, presenter_kind)
         }
         _ => Err(RetromountError::LoadError(
-            "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path> [--json]\n  retromount mount <input> <mountpoint>"
+            "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path> [--json] [--view <grouped|flat>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat>]"
                 .to_string(),
         )),
     }
+}
+
+fn parse_presenter_kind(value: &std::ffi::OsStr) -> Result<PresenterKind, RetromountError> {
+    let value = value.to_string_lossy();
+    PresenterKind::parse(&value).ok_or_else(|| {
+        RetromountError::LoadError(format!(
+            "unsupported view '{value}'; expected one of: grouped, flat"
+        ))
+    })
 }
 
 fn run_configured_views() -> Result<(), RetromountError> {
@@ -130,5 +164,23 @@ fn log_content_summary(content: &NormalizedContent) {
             info!("    ID: {}", other.id());
             info!("    Source: {}", other.source());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_presenter_kind() {
+        assert_eq!(
+            parse_presenter_kind(std::ffi::OsStr::new("grouped")).unwrap(),
+            PresenterKind::Grouped
+        );
+        assert_eq!(
+            parse_presenter_kind(std::ffi::OsStr::new("flat")).unwrap(),
+            PresenterKind::Flat
+        );
+        assert!(parse_presenter_kind(std::ffi::OsStr::new("weird")).is_err());
     }
 }

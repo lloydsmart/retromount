@@ -4,7 +4,7 @@ use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentifier;
 use crate::output::basic_encoder::BasicEncoder;
 use crate::output::generic_presenter::GenericPresenter;
-use crate::output::present::OutputPresenter;
+use crate::output::present::{OutputPresenter, PresenterKind};
 
 /// The concrete pipeline components used to run Retromount.
 ///
@@ -24,9 +24,23 @@ pub struct PipelineComponents {
 /// Future plugin-style composition can replace or extend this boundary
 /// without requiring changes in application entrypoints.
 pub fn default_pipeline_components() -> PipelineComponents {
+    pipeline_components_for_presenter(PresenterKind::Grouped)
+}
+
+/// Builds the built-in pipeline component stack for a selected presenter.
+///
+/// At this stage, both grouped and flat views resolve to the current
+/// built-in presenter implementation. Phase 4B will introduce distinct
+/// presenter implementations behind this composition boundary.
+pub fn pipeline_components_for_presenter(kind: PresenterKind) -> PipelineComponents {
+    let presenter: Box<dyn OutputPresenter> = match kind {
+        PresenterKind::Grouped => Box::new(GenericPresenter::new(BasicEncoder::new())),
+        PresenterKind::Flat => Box::new(GenericPresenter::new(BasicEncoder::new())),
+    };
+
     PipelineComponents {
         identifier: Box::new(BasicInputIdentifier::new()),
         decoder: Box::new(BasicInputDecoder::new()),
-        presenter: Box::new(GenericPresenter::new(BasicEncoder::new())),
+        presenter,
     }
 }
