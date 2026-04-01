@@ -1,13 +1,11 @@
 use crate::core::content::{DiscPart, GameContent, GamePart, NormalizedContent};
 use crate::core::vfs::{VfsDirectory, VfsNode};
+use crate::output::basic_encoder::BasicEncoder;
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
 
-pub struct GenericPresenter<E>
-where
-    E: OutputEncoder,
-{
-    encoder: E,
+pub struct GroupedPresenter {
+    encoder: BasicEncoder,
 }
 
 #[derive(Debug, Clone)]
@@ -16,12 +14,11 @@ struct EncodedEntry {
     encoded: EncodedFile,
 }
 
-impl<E> GenericPresenter<E>
-where
-    E: OutputEncoder,
-{
-    pub fn new(encoder: E) -> Self {
-        Self { encoder }
+impl GroupedPresenter {
+    pub fn new() -> Self {
+        Self {
+            encoder: BasicEncoder::new(),
+        }
     }
 
     fn encode_entries(&self, content: &[NormalizedContent]) -> Vec<EncodedEntry> {
@@ -139,10 +136,13 @@ where
     }
 }
 
-impl<E> OutputPresenter for GenericPresenter<E>
-where
-    E: OutputEncoder + Send + Sync,
-{
+impl Default for GroupedPresenter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OutputPresenter for GroupedPresenter {
     fn present(&self, content: &[NormalizedContent]) -> VfsDirectory {
         let encoded_entries = self.encode_entries(content);
         let root_children = self.build_root_children(&encoded_entries);
@@ -207,16 +207,14 @@ fn ensure_directory<'a>(root: &'a mut VfsDirectory, parents: &[String]) -> &'a m
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, ContentId, DiscPart, GameContent, GamePart, NormalizedContent, Platform,
-        RomPart, TextContent,
+        BytesContent, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart, TextContent,
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
-    use crate::output::basic_encoder::BasicEncoder;
 
     #[test]
     fn presents_mixed_content_in_library_view() {
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let content = vec![
             NormalizedContent::Bytes(BytesContent {
@@ -262,7 +260,7 @@ mod tests {
 
     #[test]
     fn presents_single_rom_game_as_file_in_platform_title_directory() {
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("smw"),
@@ -297,7 +295,7 @@ mod tests {
 
     #[test]
     fn presents_multi_disc_game_as_directory_with_playlist_in_library_view() {
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("ff7"),
@@ -364,7 +362,7 @@ mod tests {
 
     #[test]
     fn presents_multiple_games_under_platform_directories() {
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let content = vec![
             NormalizedContent::Game(GameContent {
@@ -418,7 +416,7 @@ mod tests {
 
     #[test]
     fn presents_text_content_with_relative_path_using_leaf_file_name() {
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let content = vec![NormalizedContent::Text(TextContent {
             id: ContentId::new("mixed/notes"),
@@ -439,7 +437,7 @@ mod tests {
 
     #[test]
     fn presents_bytes_content_with_relative_path_using_leaf_file_name() {
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let content = vec![NormalizedContent::Bytes(BytesContent {
             id: ContentId::new("zips/gameboy_collection.zip"),

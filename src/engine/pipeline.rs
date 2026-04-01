@@ -121,8 +121,8 @@ mod tests {
     use crate::input::basic_decoder::BasicInputDecoder;
     use crate::input::basic_identifier::BasicInputIdentifier;
     use crate::input::directory_source::DirectoryInputSource;
-    use crate::output::basic_encoder::BasicEncoder;
-    use crate::output::generic_presenter::GenericPresenter;
+    use crate::output::flat_presenter::FlatPresenter;
+    use crate::output::grouped_presenter::GroupedPresenter;
 
     #[test]
     fn runs_end_to_end_directory_pipeline() {
@@ -134,7 +134,7 @@ mod tests {
         let source = DirectoryInputSource::new(temp_dir.path());
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
 
@@ -170,7 +170,7 @@ mod tests {
         let source = ZipInputSource::new(&zip_path);
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
 
@@ -188,7 +188,7 @@ mod tests {
         let source = DirectoryInputSource::new(temp_dir.path());
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GenericPresenter::new(BasicEncoder::new());
+        let presenter = GroupedPresenter::new();
 
         let trace = run_pipeline_with_trace(&source, &identifier, &decoder, &presenter).unwrap();
 
@@ -229,5 +229,40 @@ mod tests {
         assert_eq!(trace.normalized[0].kind(), NormalizedContentKind::Bytes);
         assert_eq!(trace.normalized[1].kind(), NormalizedContentKind::Game);
         assert_eq!(trace.normalized[2].kind(), NormalizedContentKind::Text);
+    }
+
+    #[test]
+    fn renders_different_vfs_layouts_for_grouped_and_flat_presenters() {
+        let temp = tempfile::tempdir().unwrap();
+
+        std::fs::create_dir_all(temp.path().join("roms/snes")).unwrap();
+        std::fs::write(
+            temp.path().join("roms/snes/Super Mario World.sfc"),
+            b"smw-data",
+        )
+        .unwrap();
+
+        let source = crate::input::directory_source::DirectoryInputSource::new(temp.path());
+        let identifier = crate::input::basic_identifier::BasicInputIdentifier::new();
+        let decoder = crate::input::basic_decoder::BasicInputDecoder::new();
+
+        let grouped = GroupedPresenter::new();
+        let flat = FlatPresenter::new();
+
+        let grouped_root = run_pipeline(&source, &identifier, &decoder, &grouped).unwrap();
+        let flat_root = run_pipeline(&source, &identifier, &decoder, &flat).unwrap();
+
+        assert!(grouped_root.find_directory("snes").is_some());
+        assert!(grouped_root.find_directory("ps1").is_none());
+        assert!(grouped_root
+            .find_directory("snes/Super Mario World")
+            .is_some());
+        assert!(grouped_root
+            .find_file("snes/Super Mario World/Super Mario World.sfc")
+            .is_some());
+
+        assert!(flat_root.find_directory("snes").is_none());
+        assert!(flat_root.find_directory("ps1").is_none());
+        assert!(flat_root.find_file("Super Mario World.sfc").is_some());
     }
 }

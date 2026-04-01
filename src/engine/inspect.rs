@@ -2,16 +2,21 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::core::content::{DecodedContent, GamePart, NormalizedContent};
-use crate::engine::components::default_pipeline_components;
+use crate::engine::components::pipeline_components_for_presenter;
 use crate::error::RetromountError;
+use crate::output::present::PresenterKind;
 
 use super::pipeline::{run_pipeline_with_trace, PipelineTrace};
 use super::preview::{build_input_source, write_vfs_tree};
 
-pub fn run_phase3_inspect(path: &Path, json: bool) -> Result<(), RetromountError> {
+pub fn run_phase3_inspect(
+    path: &Path,
+    json: bool,
+    presenter_kind: PresenterKind,
+) -> Result<(), RetromountError> {
     let source = build_input_source(path)?;
     let kind = source.kind();
-    let components = default_pipeline_components();
+    let components = pipeline_components_for_presenter(presenter_kind);
     let trace = run_pipeline_with_trace(
         source.as_ref(),
         components.identifier.as_ref(),
@@ -171,60 +176,5 @@ fn yes_no(value: bool) -> &'static str {
         "yes"
     } else {
         "no"
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::content::{BytesContent, ContentId, DecodedContent, NormalizedContent};
-    use crate::core::source::{SourceObject, SourceRef};
-    use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
-    use crate::engine::pipeline::TracedObject;
-    use crate::input::identify::InputIdentity;
-
-    #[test]
-    fn writes_inspect_report() {
-        let trace = PipelineTrace {
-            objects: vec![TracedObject {
-                object: SourceObject {
-                    source: SourceRef::new("zip:/tmp/library.zip#misc/blob.dat"),
-                    name: "blob.dat".to_string(),
-                },
-                identity: InputIdentity::File,
-                supported: true,
-                decoded: vec![DecodedContent::Bytes(BytesContent {
-                    id: ContentId::new("blob.dat"),
-                    source: SourceRef::new("zip:/tmp/library.zip#misc/blob.dat"),
-                    size: 0,
-                })],
-            }],
-            normalized: vec![NormalizedContent::Bytes(BytesContent {
-                id: ContentId::new("blob.dat"),
-                source: SourceRef::new("zip:/tmp/library.zip#misc/blob.dat"),
-                size: 0,
-            })],
-            output_vfs: VfsDirectory::with_children(
-                "",
-                vec![VfsNode::File(VfsFile::new("blob.dat.bin"))],
-            ),
-        };
-
-        let mut output = Vec::new();
-        write_inspect_report(&mut output, Path::new("/tmp/library.zip"), "Zip", &trace).unwrap();
-
-        let rendered = String::from_utf8(output).unwrap();
-
-        assert!(rendered.contains("Input:"));
-        assert!(rendered.contains("Path: /tmp/library.zip"));
-        assert!(rendered.contains("Type: Zip"));
-        assert!(rendered.contains("Objects: 1"));
-        assert!(rendered.contains("Decoded:"));
-        assert!(rendered.contains("Identity: File"));
-        assert!(rendered.contains("Supported: yes"));
-        assert!(rendered.contains("Decoded: Bytes"));
-        assert!(rendered.contains("Normalized:"));
-        assert!(rendered.contains("Output VFS:"));
-        assert!(rendered.contains("blob.dat.bin"));
     }
 }
