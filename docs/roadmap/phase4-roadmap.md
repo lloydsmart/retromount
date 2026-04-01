@@ -138,6 +138,8 @@ Outstanding validation:
 
 Support multiple filesystem layouts for different consumers without changing core normalization.
 
+#### Status: Implemented
+
 ---
 
 ### Phase 4B Branch
@@ -148,17 +150,49 @@ feature/phase4b-consumer-views
 
 ### Phase 4B Success Criteria
 
-* Multiple presentation strategies supported
-* Same input can produce different layouts
-* Core pipeline remains unchanged
+* [x] Multiple presentation strategies supported
+* [x] Same input can produce different layouts
+* [x] Core pipeline remains unchanged
+* [x] CLI selection of presenter via `--view`
+* [x] `inspect` and `mount` both support presenter selection
+* [x] At least two layouts implemented (`grouped`, `flat`)
+* [x] Behaviour validated via tests and real mount
 
 ---
 
 ### Phase 4B Work Items
 
-* additional presenter implementations for alternative layouts
-* At least two layouts (e.g. grouped vs flat)
-* CLI or config selection of view
+* [x] introduce presenter selection in runtime/CLI
+* [x] formalize existing layout as `GroupedPresenter`
+* [x] implement `FlatPresenter`
+* [x] ensure multi-disc handling works across presenters
+* [x] ensure encoder reuse across presenters
+* [x] validate behaviour via `inspect` and FUSE mount
+* [x] document consumer views (`docs/consumer-views.md`)
+
+---
+
+### Phase 4B Notes
+
+* Presenter controls structure; encoder controls naming
+* Flat view flattens directory structure but preserves encoder-derived filenames
+* Non-game content is reduced to leaf filenames to ensure valid filesystem entries
+* Filename collision handling is deferred to Phase 4C
+* No changes were made to normalization or core pipeline stages
+
+---
+
+### Phase 4B Outcome
+
+Retromount can now project the same normalized content into multiple filesystem layouts.
+
+This establishes a clean separation between:
+
+* data model (normalization)
+* structure (presentation)
+* naming (encoding)
+
+and enables future extensibility (Phase 4D).
 
 ---
 

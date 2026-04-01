@@ -263,6 +263,12 @@ Output-specific filtering will be implemented in the **view/output layer** in a 
 
 ---
 
+## Documentation
+
+* [Consumer Views (Phase 4B)](docs/consumer-views.md)
+
+---
+
 ## Roadmap
 
 ### Phase 4 (current)
