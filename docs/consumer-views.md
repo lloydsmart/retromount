@@ -36,7 +36,7 @@ Characteristics:
 
 Example:
 
-```
+```text
 ps1/
   Final Fantasy VII/
     Final Fantasy VII (Disc 1).cue
@@ -59,7 +59,7 @@ Characteristics:
 
 Example:
 
-```
+```text
 Final Fantasy VII (Disc 1).cue
 Final Fantasy VII (Disc 2).cue
 Final Fantasy VII.m3u
@@ -72,7 +72,7 @@ Super Mario World.sfc
 
 Presenter selection is exposed via the `--view` flag:
 
-```
+```bash
 retromount inspect <input> --view grouped
 retromount inspect <input> --view flat
 
@@ -82,7 +82,7 @@ retromount mount <input> <mountpoint> --view flat
 
 Default:
 
-```
+```bash
 --view grouped
 ```
 
@@ -108,7 +108,7 @@ For non-game content (e.g. text files, images, archives):
 
 Example:
 
-```
+```text
 mixed/notes.txt → notes.txt
 roms/snes/cover.jpg → cover.jpg.bin
 ```
@@ -124,7 +124,7 @@ Multi-disc games are handled consistently across views:
 
 Grouped:
 
-```
+```text
 Final Fantasy VII/
   Disc 1
   Disc 2
@@ -133,7 +133,7 @@ Final Fantasy VII/
 
 Flat:
 
-```
+```text
 Final Fantasy VII (Disc 1).cue
 Final Fantasy VII (Disc 2).cue
 Final Fantasy VII.m3u
