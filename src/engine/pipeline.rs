@@ -9,6 +9,7 @@ use crate::input::decode::InputDecoder;
 use crate::input::identify::{InputIdentifier, InputIdentity};
 use crate::input::source::InputSource;
 use crate::output::present::OutputPresenter;
+use crate::policy::PolicySet;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
@@ -31,12 +32,14 @@ pub fn run_pipeline(
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
     presenter: &dyn OutputPresenter,
+    policy: &PolicySet,
 ) -> Result<VfsDirectory, io::Error> {
     Ok(run_pipeline_with_options(
         source,
         identifier,
         decoder,
         presenter,
+        policy,
         &NormalizationOptions::default(),
     )?
     .output_vfs)
@@ -47,12 +50,14 @@ pub fn run_pipeline_with_trace(
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
     presenter: &dyn OutputPresenter,
+    policy: &PolicySet,
 ) -> Result<PipelineTrace, io::Error> {
     run_pipeline_with_options(
         source,
         identifier,
         decoder,
         presenter,
+        policy,
         &NormalizationOptions::default(),
     )
 }
@@ -62,6 +67,7 @@ pub fn run_pipeline_with_options(
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
     presenter: &dyn OutputPresenter,
+    policy: &PolicySet,
     normalization_options: &NormalizationOptions,
 ) -> Result<PipelineTrace, io::Error> {
     let objects = source.enumerate()?;
@@ -90,7 +96,7 @@ pub fn run_pipeline_with_options(
 
     let normalized = normalize_decoded_content(all_decoded_content, normalization_options);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
-    let output_vfs = presenter.present(&normalized_presentable_content);
+    let output_vfs = presenter.present(&normalized_presentable_content, policy);
 
     Ok(PipelineTrace {
         objects: traced_objects,
@@ -136,7 +142,8 @@ mod tests {
         let decoder = BasicInputDecoder::new();
         let presenter = GroupedPresenter::new();
 
-        let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
+        let policy = PolicySet::default();
+        let root = run_pipeline(&source, &identifier, &decoder, &presenter, &policy).unwrap();
 
         let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["snes", "blob.dat.bin", "readme.txt"]);
@@ -171,8 +178,8 @@ mod tests {
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
         let presenter = GroupedPresenter::new();
-
-        let root = run_pipeline(&source, &identifier, &decoder, &presenter).unwrap();
+        let policy = PolicySet::default();
+        let root = run_pipeline(&source, &identifier, &decoder, &presenter, &policy).unwrap();
 
         let names: Vec<&str> = root.children.iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["unknown", "blob.dat.bin", "readme.txt"]);
@@ -190,7 +197,9 @@ mod tests {
         let decoder = BasicInputDecoder::new();
         let presenter = GroupedPresenter::new();
 
-        let trace = run_pipeline_with_trace(&source, &identifier, &decoder, &presenter).unwrap();
+        let policy = PolicySet::default();
+        let trace =
+            run_pipeline_with_trace(&source, &identifier, &decoder, &presenter, &policy).unwrap();
 
         assert_eq!(trace.objects.len(), 3);
         assert_eq!(trace.normalized.len(), 3);
@@ -249,8 +258,9 @@ mod tests {
         let grouped = GroupedPresenter::new();
         let flat = FlatPresenter::new();
 
-        let grouped_root = run_pipeline(&source, &identifier, &decoder, &grouped).unwrap();
-        let flat_root = run_pipeline(&source, &identifier, &decoder, &flat).unwrap();
+        let policy = PolicySet::default();
+        let grouped_root = run_pipeline(&source, &identifier, &decoder, &grouped, &policy).unwrap();
+        let flat_root = run_pipeline(&source, &identifier, &decoder, &flat, &policy).unwrap();
 
         assert!(grouped_root.find_directory("snes").is_some());
         assert!(grouped_root.find_directory("ps1").is_none());

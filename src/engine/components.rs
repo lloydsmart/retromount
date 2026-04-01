@@ -5,6 +5,7 @@ use crate::input::identify::InputIdentifier;
 use crate::output::flat_presenter::FlatPresenter;
 use crate::output::grouped_presenter::GroupedPresenter;
 use crate::output::present::{OutputPresenter, PresenterKind};
+use crate::policy::PolicySet;
 
 /// The concrete pipeline components used to run Retromount.
 ///
@@ -15,6 +16,7 @@ pub struct PipelineComponents {
     pub identifier: Box<dyn InputIdentifier>,
     pub decoder: Box<dyn InputDecoder>,
     pub presenter: Box<dyn OutputPresenter>,
+    pub policy: PolicySet,
 }
 
 pub fn default_pipeline_components() -> PipelineComponents {
@@ -31,5 +33,6 @@ pub fn pipeline_components_for_presenter(kind: PresenterKind) -> PipelineCompone
         identifier: Box::new(BasicInputIdentifier::new()),
         decoder: Box::new(BasicInputDecoder::new()),
         presenter,
+        policy: PolicySet::default(),
     }
 }

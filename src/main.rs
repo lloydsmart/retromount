@@ -103,6 +103,7 @@ fn run_configured_views() -> Result<(), RetromountError> {
             components.identifier.as_ref(),
             components.decoder.as_ref(),
             components.presenter.as_ref(),
+            &components.policy,
             &NormalizationOptions {
                 platform_hint: Some(map_view_platform(&view.platform)),
             },

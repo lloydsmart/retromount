@@ -3,6 +3,7 @@ use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
+use crate::policy::PolicySet;
 
 pub struct GroupedPresenter {
     encoder: BasicEncoder,
@@ -21,26 +22,33 @@ impl GroupedPresenter {
         }
     }
 
-    fn encode_entries(&self, content: &[NormalizedContent]) -> Vec<EncodedEntry> {
+    fn encode_entries(
+        &self,
+        content: &[NormalizedContent],
+        policy: &PolicySet,
+    ) -> Vec<EncodedEntry> {
         content
             .iter()
             .filter(|item| self.encoder.can_encode(item))
             .filter_map(|item| {
-                self.encoder.encode(item).ok().map(|encoded| EncodedEntry {
-                    content: item.clone(),
-                    encoded,
-                })
+                self.encoder
+                    .encode(item, policy)
+                    .ok()
+                    .map(|encoded| EncodedEntry {
+                        content: item.clone(),
+                        encoded,
+                    })
             })
             .collect()
     }
 
-    fn build_root_children(&self, entries: &[EncodedEntry]) -> Vec<VfsNode> {
+    fn build_root_children(&self, entries: &[EncodedEntry], policy: &PolicySet) -> Vec<VfsNode> {
         let mut root = VfsDirectory::new("");
 
         for entry in entries {
             match &entry.content {
                 NormalizedContent::Game(game) => {
-                    self.insert_game_node(&mut root, game, &entry.encoded);
+                    self.insert_game_node(&mut root, game, &entry.encoded, policy);
                 }
                 NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
                     self.insert_file_path(
@@ -55,18 +63,37 @@ impl GroupedPresenter {
         root.children().to_vec()
     }
 
-    fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, encoded: &EncodedFile) {
-        let base_path = format!("{}/{}", game.platform, game.title);
+    fn insert_game_node(
+        &self,
+        root: &mut VfsDirectory,
+        game: &GameContent,
+        encoded: &EncodedFile,
+        policy: &PolicySet,
+    ) {
+        let platform_name = policy.naming().platform_name(&game.platform);
+        let game_name = policy.naming().game_name(game);
+
+        let base_path = format!(
+            "{}/{}",
+            policy.format_name(&platform_name),
+            policy.format_name(&game_name)
+        );
 
         if self.is_multi_disc_game(game) {
-            self.insert_multi_disc_game(root, game, &base_path);
+            self.insert_multi_disc_game(root, game, &base_path, policy);
         } else {
             let file_path = format!("{}/{}", base_path, encoded.name);
             self.insert_file_path(root, &file_path, encoded.to_vfs_file());
         }
     }
 
-    fn insert_multi_disc_game(&self, root: &mut VfsDirectory, game: &GameContent, base_path: &str) {
+    fn insert_multi_disc_game(
+        &self,
+        root: &mut VfsDirectory,
+        game: &GameContent,
+        base_path: &str,
+        policy: &PolicySet,
+    ) {
         let mut disc_parts: Vec<&DiscPart> = game
             .parts
             .iter()
@@ -83,7 +110,7 @@ impl GroupedPresenter {
         for disc in &disc_parts {
             let encoded = self
                 .encoder
-                .encode_game_part(game, &GamePart::Disc((*disc).clone()))
+                .encode_game_part(game, &GamePart::Disc((*disc).clone()), policy)
                 .unwrap_or_else(|err| {
                     panic!(
                         "multi-disc game part should encode for '{}' disc {}: {err}",
@@ -99,7 +126,7 @@ impl GroupedPresenter {
 
         let playlist_encoded = self
             .encoder
-            .encode_playlist(game, &disc_names)
+            .encode_playlist(game, &disc_names, policy)
             .unwrap_or_else(|err| {
                 panic!(
                     "multi-disc playlist should encode for '{}': {err}",
@@ -143,9 +170,9 @@ impl Default for GroupedPresenter {
 }
 
 impl OutputPresenter for GroupedPresenter {
-    fn present(&self, content: &[NormalizedContent]) -> VfsDirectory {
-        let encoded_entries = self.encode_entries(content);
-        let root_children = self.build_root_children(&encoded_entries);
+    fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory {
+        let encoded_entries = self.encode_entries(content, policy);
+        let root_children = self.build_root_children(&encoded_entries, policy);
 
         VfsDirectory::with_children("", root_children)
     }
@@ -215,6 +242,7 @@ mod tests {
     #[test]
     fn presents_mixed_content_in_library_view() {
         let presenter = GroupedPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![
             NormalizedContent::Bytes(BytesContent {
@@ -252,7 +280,7 @@ mod tests {
             }),
         ];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["megadrive", "ps1", "bios.bin", "manifest.txt"]);
@@ -261,6 +289,7 @@ mod tests {
     #[test]
     fn presents_single_rom_game_as_file_in_platform_title_directory() {
         let presenter = GroupedPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("smw"),
@@ -274,7 +303,7 @@ mod tests {
             consumed_sources: vec![],
         })];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         assert_eq!(root.children().len(), 1);
         assert_eq!(root.children()[0].name(), "snes");
@@ -296,6 +325,7 @@ mod tests {
     #[test]
     fn presents_multi_disc_game_as_directory_with_playlist_in_library_view() {
         let presenter = GroupedPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("ff7"),
@@ -320,7 +350,7 @@ mod tests {
             ],
         })];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         assert_eq!(root.children()[0].name(), "ps1");
 
@@ -363,6 +393,7 @@ mod tests {
     #[test]
     fn presents_multiple_games_under_platform_directories() {
         let presenter = GroupedPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![
             NormalizedContent::Game(GameContent {
@@ -400,7 +431,7 @@ mod tests {
             }),
         ];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         assert_eq!(root.children().len(), 1);
         assert_eq!(root.children()[0].name(), "ps1");
@@ -417,6 +448,7 @@ mod tests {
     #[test]
     fn presents_text_content_with_relative_path_using_leaf_file_name() {
         let presenter = GroupedPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Text(TextContent {
             id: ContentId::new("mixed/notes"),
@@ -424,7 +456,7 @@ mod tests {
             size: 12,
         })];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         let mixed = match root.find_directory("mixed") {
             Some(dir) => dir,
@@ -438,6 +470,7 @@ mod tests {
     #[test]
     fn presents_bytes_content_with_relative_path_using_leaf_file_name() {
         let presenter = GroupedPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Bytes(BytesContent {
             id: ContentId::new("zips/gameboy_collection.zip"),
@@ -445,7 +478,7 @@ mod tests {
             size: 481,
         })];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         let zips = match root.find_directory("zips") {
             Some(dir) => dir,

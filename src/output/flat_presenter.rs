@@ -3,6 +3,7 @@ use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
+use crate::policy::PolicySet;
 
 pub struct FlatPresenter {
     encoder: BasicEncoder,
@@ -21,26 +22,33 @@ impl FlatPresenter {
         }
     }
 
-    fn encode_entries(&self, content: &[NormalizedContent]) -> Vec<EncodedEntry> {
+    fn encode_entries(
+        &self,
+        content: &[NormalizedContent],
+        policy: &PolicySet,
+    ) -> Vec<EncodedEntry> {
         content
             .iter()
             .filter(|item| self.encoder.can_encode(item))
             .filter_map(|item| {
-                self.encoder.encode(item).ok().map(|encoded| EncodedEntry {
-                    content: item.clone(),
-                    encoded,
-                })
+                self.encoder
+                    .encode(item, policy)
+                    .ok()
+                    .map(|encoded| EncodedEntry {
+                        content: item.clone(),
+                        encoded,
+                    })
             })
             .collect()
     }
 
-    fn build_root_children(&self, entries: &[EncodedEntry]) -> Vec<VfsNode> {
+    fn build_root_children(&self, entries: &[EncodedEntry], policy: &PolicySet) -> Vec<VfsNode> {
         let mut root = VfsDirectory::new("");
 
         for entry in entries {
             match &entry.content {
                 NormalizedContent::Game(game) => {
-                    self.insert_game_node(&mut root, game, &entry.encoded);
+                    self.insert_game_node(&mut root, game, &entry.encoded, policy);
                 }
                 NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
                     let mut file = entry.encoded.to_vfs_file();
@@ -58,15 +66,26 @@ impl FlatPresenter {
         root.children().to_vec()
     }
 
-    fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, encoded: &EncodedFile) {
+    fn insert_game_node(
+        &self,
+        root: &mut VfsDirectory,
+        game: &GameContent,
+        encoded: &EncodedFile,
+        policy: &PolicySet,
+    ) {
         if self.is_multi_disc_game(game) {
-            self.insert_multi_disc_game(root, game);
+            self.insert_multi_disc_game(root, game, policy);
         } else {
             root.add_child(VfsNode::File(encoded.to_vfs_file()));
         }
     }
 
-    fn insert_multi_disc_game(&self, root: &mut VfsDirectory, game: &GameContent) {
+    fn insert_multi_disc_game(
+        &self,
+        root: &mut VfsDirectory,
+        game: &GameContent,
+        policy: &PolicySet,
+    ) {
         let mut disc_parts: Vec<&DiscPart> = game
             .parts
             .iter()
@@ -83,7 +102,7 @@ impl FlatPresenter {
         for disc in &disc_parts {
             let encoded = self
                 .encoder
-                .encode_game_part(game, &GamePart::Disc((*disc).clone()))
+                .encode_game_part(game, &GamePart::Disc((*disc).clone()), policy)
                 .unwrap_or_else(|err| {
                     panic!(
                         "multi-disc game part should encode for '{}' disc {}: {err}",
@@ -97,7 +116,7 @@ impl FlatPresenter {
 
         let playlist_encoded = self
             .encoder
-            .encode_playlist(game, &disc_names)
+            .encode_playlist(game, &disc_names, policy)
             .unwrap_or_else(|err| {
                 panic!(
                     "multi-disc playlist should encode for '{}': {err}",
@@ -124,9 +143,9 @@ impl Default for FlatPresenter {
 }
 
 impl OutputPresenter for FlatPresenter {
-    fn present(&self, content: &[NormalizedContent]) -> VfsDirectory {
-        let encoded_entries = self.encode_entries(content);
-        let root_children = self.build_root_children(&encoded_entries);
+    fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory {
+        let encoded_entries = self.encode_entries(content, policy);
+        let root_children = self.build_root_children(&encoded_entries, policy);
 
         VfsDirectory::with_children("", root_children)
     }
@@ -144,6 +163,7 @@ mod tests {
     #[test]
     fn presents_mixed_content_at_root() {
         let presenter = FlatPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![
             NormalizedContent::Bytes(BytesContent {
@@ -191,7 +211,7 @@ mod tests {
             }),
         ];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(
@@ -210,6 +230,7 @@ mod tests {
     #[test]
     fn presents_single_rom_game_as_root_file() {
         let presenter = FlatPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("smw"),
@@ -223,7 +244,7 @@ mod tests {
             consumed_sources: vec![],
         })];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["Super Mario World.sfc"]);
@@ -232,6 +253,7 @@ mod tests {
     #[test]
     fn presents_multi_disc_game_as_root_files_with_playlist() {
         let presenter = FlatPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("ff7"),
@@ -256,7 +278,7 @@ mod tests {
             ],
         })];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         let child_names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(
@@ -287,6 +309,7 @@ mod tests {
     #[test]
     fn flattens_non_game_content_to_leaf_file_names() {
         let presenter = FlatPresenter::new();
+        let policy = PolicySet::default();
 
         let content = vec![
             NormalizedContent::Bytes(BytesContent {
@@ -306,9 +329,9 @@ mod tests {
             }),
         ];
 
-        let root = presenter.present(&content);
+        let root = presenter.present(&content, &policy);
 
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["cover.jpg.bin", "nested.zip.bin", "notes.txt",]);
+        assert_eq!(names, vec!["cover.jpg.bin", "nested.zip.bin", "notes.txt"]);
     }
 }

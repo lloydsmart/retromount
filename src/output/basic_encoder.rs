@@ -1,5 +1,6 @@
 use crate::core::content::{GameContent, GamePart, NormalizedContent};
 use crate::output::encode::{EncodedBacking, EncodedFile, OutputEncoder};
+use crate::policy::PolicySet;
 
 pub struct BasicEncoder;
 
@@ -8,15 +9,17 @@ impl BasicEncoder {
         Self
     }
 
-    fn file_name_for(&self, content: &NormalizedContent) -> String {
-        match content {
+    fn file_name_for(&self, content: &NormalizedContent, policy: &PolicySet) -> String {
+        let raw = match content {
             NormalizedContent::Bytes(bytes) => format!("{}.bin", bytes.id),
             NormalizedContent::Game(game) => match game.parts.as_slice() {
-                [part] => self.file_name_for_game_part(game, part),
-                _ => game.title.clone(),
+                [part] => policy.naming().part_name(game, part),
+                _ => policy.naming().game_name(game),
             },
             NormalizedContent::Text(text) => normalize_text_name(text.id.0.as_ref()),
-        }
+        };
+
+        policy.format_name(&raw)
     }
 
     fn backing_for(&self, content: &NormalizedContent) -> EncodedBacking {
@@ -39,11 +42,14 @@ impl BasicEncoder {
         }
     }
 
-    fn file_name_for_game_part(&self, game: &GameContent, part: &GamePart) -> String {
-        match part {
-            GamePart::Rom(rom) => rom.source.file_name(),
-            GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
-        }
+    fn file_name_for_game_part(
+        &self,
+        game: &GameContent,
+        part: &GamePart,
+        policy: &PolicySet,
+    ) -> String {
+        let raw = policy.naming().part_name(game, part);
+        policy.format_name(&raw)
     }
 
     fn backing_for_game_part(&self, part: &GamePart) -> EncodedBacking {
@@ -59,8 +65,9 @@ impl BasicEncoder {
         }
     }
 
-    fn playlist_name_for(&self, game: &GameContent) -> String {
-        format!("{}.m3u", game.title)
+    fn playlist_name_for(&self, game: &GameContent, policy: &PolicySet) -> String {
+        let raw = policy.naming().playlist_name(game);
+        policy.format_name(&raw)
     }
 
     fn playlist_backing(&self, entries: &[String]) -> EncodedBacking {
@@ -88,9 +95,13 @@ impl OutputEncoder for BasicEncoder {
         true
     }
 
-    fn encode(&self, content: &NormalizedContent) -> Result<EncodedFile, std::io::Error> {
+    fn encode(
+        &self,
+        content: &NormalizedContent,
+        policy: &PolicySet,
+    ) -> Result<EncodedFile, std::io::Error> {
         Ok(EncodedFile {
-            name: self.file_name_for(content),
+            name: self.file_name_for(content, policy),
             backing: self.backing_for(content),
         })
     }
@@ -99,9 +110,10 @@ impl OutputEncoder for BasicEncoder {
         &self,
         game: &GameContent,
         part: &GamePart,
+        policy: &PolicySet,
     ) -> Result<EncodedFile, std::io::Error> {
         Ok(EncodedFile {
-            name: self.file_name_for_game_part(game, part),
+            name: self.file_name_for_game_part(game, part, policy),
             backing: self.backing_for_game_part(part),
         })
     }
@@ -110,9 +122,10 @@ impl OutputEncoder for BasicEncoder {
         &self,
         game: &GameContent,
         entries: &[String],
+        policy: &PolicySet,
     ) -> Result<EncodedFile, std::io::Error> {
         Ok(EncodedFile {
-            name: self.playlist_name_for(game),
+            name: self.playlist_name_for(game, policy),
             backing: self.playlist_backing(entries),
         })
     }
@@ -130,13 +143,14 @@ mod tests {
     #[test]
     fn encodes_bytes_content() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
         let content = NormalizedContent::Bytes(BytesContent {
             id: ContentId::new("bios"),
             source: SourceRef::new("file:/roms/bios"),
             size: 512,
         });
 
-        let encoded = encoder.encode(&content).unwrap();
+        let encoded = encoder.encode(&content, &policy).unwrap();
         assert_eq!(encoded.name, "bios.bin");
         assert_eq!(
             encoded.backing,
@@ -150,6 +164,7 @@ mod tests {
     #[test]
     fn encodes_single_rom_game_content() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
         let content = NormalizedContent::Game(GameContent {
             id: ContentId::new("smw"),
             source: SourceRef::new("file:/roms/Super Mario World.sfc"),
@@ -162,7 +177,7 @@ mod tests {
             consumed_sources: vec![],
         });
 
-        let encoded = encoder.encode(&content).unwrap();
+        let encoded = encoder.encode(&content, &policy).unwrap();
         assert_eq!(encoded.name, "Super Mario World.sfc");
         assert_eq!(
             encoded.backing,
@@ -176,6 +191,7 @@ mod tests {
     #[test]
     fn encodes_single_disc_game_content() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
         let content = NormalizedContent::Game(GameContent {
             id: ContentId::new("mgs"),
             source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
@@ -189,7 +205,7 @@ mod tests {
             consumed_sources: vec![SourceRef::new("cue:/roms/mgs-disc1.bin")],
         });
 
-        let encoded = encoder.encode(&content).unwrap();
+        let encoded = encoder.encode(&content, &policy).unwrap();
         assert_eq!(encoded.name, "Metal Gear Solid (Disc 1).cue");
         assert_eq!(
             encoded.backing,
@@ -203,6 +219,7 @@ mod tests {
     #[test]
     fn encodes_disc_part() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
         let game = GameContent {
             id: ContentId::new("ff7"),
             source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
@@ -218,7 +235,7 @@ mod tests {
             consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
         });
 
-        let encoded = encoder.encode_game_part(&game, &part).unwrap();
+        let encoded = encoder.encode_game_part(&game, &part, &policy).unwrap();
         assert_eq!(encoded.name, "Final Fantasy VII (Disc 2).cue");
         assert_eq!(
             encoded.backing,
@@ -232,6 +249,7 @@ mod tests {
     #[test]
     fn encodes_playlist() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
         let game = GameContent {
             id: ContentId::new("ff7"),
             source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
@@ -248,6 +266,7 @@ mod tests {
                     "Final Fantasy VII (Disc 1).cue".to_string(),
                     "Final Fantasy VII (Disc 2).cue".to_string(),
                 ],
+                &policy,
             )
             .unwrap();
 
@@ -263,13 +282,14 @@ mod tests {
     #[test]
     fn encodes_text_content() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
         let content = NormalizedContent::Text(TextContent {
             id: ContentId::new("readme"),
             source: SourceRef::new("file:/roms/readme"),
             size: 128,
         });
 
-        let encoded = encoder.encode(&content).unwrap();
+        let encoded = encoder.encode(&content, &policy).unwrap();
         assert_eq!(encoded.name, "readme.txt");
         assert_eq!(
             encoded.backing,
@@ -283,13 +303,14 @@ mod tests {
     #[test]
     fn preserves_relative_path_for_text_content() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
         let content = NormalizedContent::Text(TextContent {
             id: ContentId::new("mixed/notes"),
             source: SourceRef::new("mixed/notes.txt"),
             size: 10,
         });
 
-        let encoded = encoder.encode(&content).unwrap();
+        let encoded = encoder.encode(&content, &policy).unwrap();
         assert_eq!(encoded.name, "mixed/notes.txt");
         assert_eq!(
             encoded.backing,
@@ -303,13 +324,14 @@ mod tests {
     #[test]
     fn normalizes_text_extension_from_id_path() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
         let content = NormalizedContent::Text(TextContent {
             id: ContentId::new("roms/snes/game"),
             source: SourceRef::new("roms/snes/game.nfo"),
             size: 19,
         });
 
-        let encoded = encoder.encode(&content).unwrap();
+        let encoded = encoder.encode(&content, &policy).unwrap();
         assert_eq!(encoded.name, "roms/snes/game.txt");
         assert_eq!(
             encoded.backing,
@@ -323,6 +345,7 @@ mod tests {
     #[test]
     fn derives_rom_file_name_from_zip_member_source() {
         let encoder = BasicEncoder::new();
+        let policy = PolicySet::default();
 
         let game = GameContent {
             id: ContentId::new("sonic"),
@@ -338,8 +361,9 @@ mod tests {
                 &game,
                 &GamePart::Rom(RomPart {
                     source: SourceRef::new("zip:/roms/megadrive.zip#Sonic the Hedgehog.bin"),
-                    size: 1024,
+                    size: 2048,
                 }),
+                &policy,
             )
             .unwrap();
 

@@ -1,5 +1,6 @@
 use crate::core::content::NormalizedContent;
 use crate::core::vfs::VfsDirectory;
+use crate::policy::PolicySet;
 
 /// Defines how normalized content is exposed in the output VFS.
 ///
@@ -7,7 +8,7 @@ use crate::core::vfs::VfsDirectory;
 /// Representation-specific decisions such as filenames and file backing
 /// remain encoder responsibilities.
 pub trait OutputPresenter: Send + Sync {
-    fn present(&self, content: &[NormalizedContent]) -> VfsDirectory;
+    fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
