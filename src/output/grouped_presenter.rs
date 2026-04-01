@@ -136,6 +136,12 @@ impl GroupedPresenter {
     }
 }
 
+impl Default for GroupedPresenter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OutputPresenter for GroupedPresenter {
     fn present(&self, content: &[NormalizedContent]) -> VfsDirectory {
         let encoded_entries = self.encode_entries(content);
