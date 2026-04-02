@@ -10,9 +10,14 @@ pub struct GroupedPresenter {
 }
 
 #[derive(Debug, Clone)]
-struct EncodedEntry {
-    content: NormalizedContent,
-    encoded: EncodedFile,
+enum PresentedEntry {
+    Game(PresentedGame),
+    File(EncodedFile),
+}
+
+#[derive(Debug, Clone)]
+struct PresentedGame {
+    game: GameContent,
 }
 
 impl GroupedPresenter {
@@ -22,41 +27,41 @@ impl GroupedPresenter {
         }
     }
 
-    fn encode_entries(
+    fn build_presented_entries(
         &self,
         content: &[NormalizedContent],
         policy: &PolicySet,
-    ) -> Vec<EncodedEntry> {
+    ) -> Vec<PresentedEntry> {
         content
             .iter()
-            .filter(|item| self.encoder.can_encode(item))
-            .filter_map(|item| {
-                self.encoder
-                    .encode(item, policy)
-                    .ok()
-                    .map(|encoded| EncodedEntry {
-                        content: item.clone(),
-                        encoded,
-                    })
+            .filter_map(|item| match item {
+                NormalizedContent::Game(game) => {
+                    Some(PresentedEntry::Game(PresentedGame { game: game.clone() }))
+                }
+                NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
+                    if !self.encoder.can_encode(item) {
+                        return None;
+                    }
+
+                    self.encoder
+                        .encode(item, policy)
+                        .ok()
+                        .map(PresentedEntry::File)
+                }
             })
             .collect()
     }
 
-    fn build_root_children(&self, entries: &[EncodedEntry], policy: &PolicySet) -> Vec<VfsNode> {
+    fn build_root_children(&self, entries: &[PresentedEntry], policy: &PolicySet) -> Vec<VfsNode> {
         let mut root = VfsDirectory::new("");
 
         for entry in entries {
-            match &entry.content {
-                NormalizedContent::Game(game) => {
-                    self.insert_game_node(&mut root, game, &entry.encoded, policy);
+            match entry {
+                PresentedEntry::Game(presented) => {
+                    self.insert_game_node(&mut root, &presented.game, policy);
                 }
-                NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
-                    self.insert_file_path(
-                        &mut root,
-                        &entry.encoded.name,
-                        entry.encoded.to_vfs_file(),
-                        policy,
-                    );
+                PresentedEntry::File(encoded) => {
+                    self.insert_file_path(&mut root, &encoded.name, encoded.to_vfs_file(), policy);
                 }
             }
         }
@@ -64,13 +69,7 @@ impl GroupedPresenter {
         root.children().to_vec()
     }
 
-    fn insert_game_node(
-        &self,
-        root: &mut VfsDirectory,
-        game: &GameContent,
-        encoded: &EncodedFile,
-        policy: &PolicySet,
-    ) {
+    fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, policy: &PolicySet) {
         let platform_name = policy.naming().platform_name(&game.platform);
         let game_name = policy.naming().game_name(game);
 
@@ -83,6 +82,13 @@ impl GroupedPresenter {
         if self.is_multi_disc_game(game) {
             self.insert_multi_disc_game(root, game, &base_path, policy);
         } else {
+            let encoded = self
+                .encoder
+                .encode(&NormalizedContent::Game(game.clone()), policy)
+                .unwrap_or_else(|err| {
+                    panic!("single game should encode for '{}': {err}", game.title)
+                });
+
             let file_path = format!("{}/{}", base_path, encoded.name);
             self.insert_file_path(root, &file_path, encoded.to_vfs_file(), policy);
         }
@@ -183,8 +189,8 @@ impl Default for GroupedPresenter {
 
 impl OutputPresenter for GroupedPresenter {
     fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory {
-        let encoded_entries = self.encode_entries(content, policy);
-        let root_children = self.build_root_children(&encoded_entries, policy);
+        let presented_entries = self.build_presented_entries(content, policy);
+        let root_children = self.build_root_children(&presented_entries, policy);
 
         VfsDirectory::with_children("", root_children)
     }
