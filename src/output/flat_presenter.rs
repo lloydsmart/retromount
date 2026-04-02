@@ -1,11 +1,9 @@
-use crate::core::content::{GameContent, NormalizedContent};
+use crate::core::content::NormalizedContent;
 use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
 use crate::output::present::OutputPresenter;
-use crate::output::presented::{build_presented_entries, PresentedEntry};
-use crate::output::presenter_utils::{
-    encode_disc, encode_game, encode_playlist, is_multi_disc_game, resolve_name, sorted_disc_parts,
-};
+use crate::output::presented::{build_presented_entries, PresentedEntry, PresentedGame};
+use crate::output::presenter_utils::resolve_name;
 use crate::policy::PolicySet;
 
 pub struct FlatPresenter {
@@ -25,7 +23,7 @@ impl FlatPresenter {
         for entry in entries {
             match entry {
                 PresentedEntry::Game(presented) => {
-                    self.insert_game_node(&mut root, &presented.game, policy);
+                    self.insert_game_files(&mut root, presented, policy);
                 }
                 PresentedEntry::File(encoded) => {
                     let mut file = encoded.to_vfs_file();
@@ -49,11 +47,14 @@ impl FlatPresenter {
         root.children().to_vec()
     }
 
-    fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, policy: &PolicySet) {
-        if is_multi_disc_game(game) {
-            self.insert_multi_disc_game(root, game, policy);
-        } else {
-            let mut encoded = encode_game(&self.encoder, game, policy);
+    fn insert_game_files(
+        &self,
+        root: &mut VfsDirectory,
+        presented: &PresentedGame,
+        policy: &PolicySet,
+    ) {
+        for encoded in &presented.files {
+            let mut encoded = encoded.clone();
 
             let existing: Vec<String> = root
                 .children()
@@ -64,43 +65,6 @@ impl FlatPresenter {
             encoded.name = resolve_name(&encoded.name, &existing, policy);
             root.add_child(VfsNode::File(encoded.to_vfs_file()));
         }
-    }
-
-    fn insert_multi_disc_game(
-        &self,
-        root: &mut VfsDirectory,
-        game: &GameContent,
-        policy: &PolicySet,
-    ) {
-        let disc_parts = sorted_disc_parts(game);
-        let mut disc_names = Vec::new();
-
-        for disc in disc_parts {
-            let mut encoded = encode_disc(&self.encoder, game, disc, policy);
-
-            let existing: Vec<String> = root
-                .children()
-                .iter()
-                .map(|node| node.name().to_string())
-                .collect();
-
-            let resolved_name = resolve_name(&encoded.name, &existing, policy);
-            encoded.name = resolved_name.clone();
-            disc_names.push(resolved_name);
-
-            root.add_child(VfsNode::File(encoded.to_vfs_file()));
-        }
-
-        let mut playlist_encoded = encode_playlist(&self.encoder, game, &disc_names, policy);
-
-        let existing: Vec<String> = root
-            .children()
-            .iter()
-            .map(|node| node.name().to_string())
-            .collect();
-
-        playlist_encoded.name = resolve_name(&playlist_encoded.name, &existing, policy);
-        root.add_child(VfsNode::File(playlist_encoded.to_vfs_file()));
     }
 }
 
@@ -323,7 +287,7 @@ mod tests {
         };
 
         match &playlist.backing {
-            FileBacking::Inline(contents) => {
+            crate::core::vfs::FileBacking::Inline(contents) => {
                 assert_eq!(
                     contents,
                     b"Final Fantasy VII (Disc 1).cue\nFinal Fantasy VII (Disc 2).cue\n"

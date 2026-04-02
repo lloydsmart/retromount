@@ -1,11 +1,9 @@
-use crate::core::content::{GameContent, NormalizedContent};
+use crate::core::content::NormalizedContent;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
 use crate::output::present::OutputPresenter;
-use crate::output::presented::{build_presented_entries, PresentedEntry};
-use crate::output::presenter_utils::{
-    encode_disc, encode_game, encode_playlist, is_multi_disc_game, resolve_name, sorted_disc_parts,
-};
+use crate::output::presented::{build_presented_entries, PresentedEntry, PresentedGame};
+use crate::output::presenter_utils::resolve_name;
 use crate::policy::PolicySet;
 
 pub struct GroupedPresenter {
@@ -25,7 +23,7 @@ impl GroupedPresenter {
         for entry in entries {
             match entry {
                 PresentedEntry::Game(presented) => {
-                    self.insert_game_node(&mut root, &presented.game, policy);
+                    self.insert_game_node(&mut root, presented, policy);
                 }
                 PresentedEntry::File(encoded) => {
                     self.insert_file_path(&mut root, &encoded.name, encoded.to_vfs_file(), policy);
@@ -36,7 +34,13 @@ impl GroupedPresenter {
         root.children().to_vec()
     }
 
-    fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, policy: &PolicySet) {
+    fn insert_game_node(
+        &self,
+        root: &mut VfsDirectory,
+        presented: &PresentedGame,
+        policy: &PolicySet,
+    ) {
+        let game = &presented.game;
         let platform_name = policy.naming().platform_name(&game.platform);
         let game_name = policy.naming().game_name(game);
 
@@ -46,36 +50,10 @@ impl GroupedPresenter {
             policy.format_name(&game_name)
         );
 
-        if is_multi_disc_game(game) {
-            self.insert_multi_disc_game(root, game, &base_path, policy);
-        } else {
-            let encoded = encode_game(&self.encoder, game, policy);
+        for encoded in &presented.files {
             let file_path = format!("{}/{}", base_path, encoded.name);
             self.insert_file_path(root, &file_path, encoded.to_vfs_file(), policy);
         }
-    }
-
-    fn insert_multi_disc_game(
-        &self,
-        root: &mut VfsDirectory,
-        game: &GameContent,
-        base_path: &str,
-        policy: &PolicySet,
-    ) {
-        let disc_parts = sorted_disc_parts(game);
-        let mut disc_names = Vec::new();
-
-        for disc in disc_parts {
-            let encoded = encode_disc(&self.encoder, game, disc, policy);
-            disc_names.push(encoded.name.clone());
-
-            let disc_path = format!("{}/{}", base_path, encoded.name);
-            self.insert_file_path(root, &disc_path, encoded.to_vfs_file(), policy);
-        }
-
-        let playlist_encoded = encode_playlist(&self.encoder, game, &disc_names, policy);
-        let playlist_path = format!("{}/{}", base_path, playlist_encoded.name);
-        self.insert_file_path(root, &playlist_path, playlist_encoded.to_vfs_file(), policy);
     }
 
     fn insert_file_path(
