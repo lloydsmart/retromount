@@ -416,5 +416,9 @@ mod tests {
 
         assert_eq!(default_root.children().len(), 1);
         assert_eq!(alt_root.children().len(), 1);
+        assert_eq!(default_game.children().len(), 3);
+        assert_eq!(alt_game.children().len(), 3);
+        assert_eq!(default_game.children().len(), 3);
+        assert_eq!(alt_game.children().len(), 3);
     }
 }
