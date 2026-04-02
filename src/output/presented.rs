@@ -1,23 +1,34 @@
 use crate::core::content::{GameContent, NormalizedContent};
 use crate::output::basic_encoder::BasicEncoder;
 use crate::output::encode::{EncodedFile, OutputEncoder};
-use crate::output::presenter_utils::{
+use crate::output::presentation_expansion::{
     encode_disc, encode_game, encode_playlist, is_multi_disc_game, sorted_disc_parts,
 };
 use crate::policy::PolicySet;
 
+/// Expanded output intent consumed by presenters.
+///
+/// Presented entries represent the output artifacts that should exist
+/// before layout-specific presentation is applied.
 #[derive(Debug, Clone)]
 pub enum PresentedEntry {
     Game(PresentedGame),
     File(EncodedFile),
 }
 
+/// A logical game plus the output files it expands into.
+///
+/// Presenters use the game for layout decisions and the files for placement.
 #[derive(Debug, Clone)]
 pub struct PresentedGame {
     pub game: GameContent,
     pub files: Vec<EncodedFile>,
 }
 
+/// Builds expanded presentation entries from normalized content.
+///
+/// This is the boundary where logical content is expanded into the output
+/// artifacts that presenters will place into the VFS.
 pub fn build_presented_entries(
     content: &[NormalizedContent],
     encoder: &BasicEncoder,

@@ -2,6 +2,7 @@ use crate::core::content::{DiscPart, GameContent, GamePart, NormalizedContent};
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::policy::PolicySet;
 
+/// Returns true when a game consists entirely of multiple disc parts.
 pub fn is_multi_disc_game(game: &GameContent) -> bool {
     game.parts.len() > 1
         && game
@@ -10,6 +11,7 @@ pub fn is_multi_disc_game(game: &GameContent) -> bool {
             .all(|part| matches!(part, GamePart::Disc(_)))
 }
 
+/// Returns disc parts sorted by disc number.
 pub fn sorted_disc_parts(game: &GameContent) -> Vec<&DiscPart> {
     let mut parts: Vec<&DiscPart> = game
         .parts
@@ -24,6 +26,7 @@ pub fn sorted_disc_parts(game: &GameContent) -> Vec<&DiscPart> {
     parts
 }
 
+/// Encodes a game that expands to a single output file.
 pub fn encode_game(
     encoder: &impl OutputEncoder,
     game: &GameContent,
@@ -34,6 +37,7 @@ pub fn encode_game(
         .unwrap_or_else(|err| panic!("game should encode for '{}': {err}", game.title))
 }
 
+/// Encodes a disc file for a multi-disc game.
 pub fn encode_disc(
     encoder: &impl OutputEncoder,
     game: &GameContent,
@@ -50,6 +54,7 @@ pub fn encode_disc(
         })
 }
 
+/// Encodes a playlist file for a multi-disc game.
 pub fn encode_playlist(
     encoder: &impl OutputEncoder,
     game: &GameContent,
