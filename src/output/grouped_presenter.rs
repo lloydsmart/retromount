@@ -1,23 +1,13 @@
 use crate::core::content::{DiscPart, GameContent, GamePart, NormalizedContent};
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
-use crate::output::encode::{EncodedFile, OutputEncoder};
+use crate::output::encode::OutputEncoder;
 use crate::output::present::OutputPresenter;
+use crate::output::presented::{build_presented_entries, PresentedEntry};
 use crate::policy::PolicySet;
 
 pub struct GroupedPresenter {
     encoder: BasicEncoder,
-}
-
-#[derive(Debug, Clone)]
-enum PresentedEntry {
-    Game(PresentedGame),
-    File(EncodedFile),
-}
-
-#[derive(Debug, Clone)]
-struct PresentedGame {
-    game: GameContent,
 }
 
 impl GroupedPresenter {
@@ -25,31 +15,6 @@ impl GroupedPresenter {
         Self {
             encoder: BasicEncoder::new(),
         }
-    }
-
-    fn build_presented_entries(
-        &self,
-        content: &[NormalizedContent],
-        policy: &PolicySet,
-    ) -> Vec<PresentedEntry> {
-        content
-            .iter()
-            .filter_map(|item| match item {
-                NormalizedContent::Game(game) => {
-                    Some(PresentedEntry::Game(PresentedGame { game: game.clone() }))
-                }
-                NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
-                    if !self.encoder.can_encode(item) {
-                        return None;
-                    }
-
-                    self.encoder
-                        .encode(item, policy)
-                        .ok()
-                        .map(PresentedEntry::File)
-                }
-            })
-            .collect()
     }
 
     fn build_root_children(&self, entries: &[PresentedEntry], policy: &PolicySet) -> Vec<VfsNode> {
@@ -189,7 +154,7 @@ impl Default for GroupedPresenter {
 
 impl OutputPresenter for GroupedPresenter {
     fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory {
-        let presented_entries = self.build_presented_entries(content, policy);
+        let presented_entries = build_presented_entries(content, &self.encoder, policy);
         let root_children = self.build_root_children(&presented_entries, policy);
 
         VfsDirectory::with_children("", root_children)
