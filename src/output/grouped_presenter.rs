@@ -1,9 +1,9 @@
 use crate::core::content::NormalizedContent;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
+use crate::output::name_allocator::{allocate_directory_name, allocate_file_name};
 use crate::output::present::OutputPresenter;
 use crate::output::presented::{build_presented_entries, PresentedEntry, PresentedGame};
-use crate::output::presenter_utils::resolve_name;
 use crate::policy::PolicySet;
 
 pub struct GroupedPresenter {
@@ -66,16 +66,8 @@ impl GroupedPresenter {
         let normalized = normalize_path(path);
         let (parents, file_name) = split_parent_dirs(&normalized);
         let directory = ensure_directory(root, &parents, policy);
-
-        let existing: Vec<String> = directory
-            .children()
-            .iter()
-            .map(|node| node.name().to_string())
-            .collect();
-
         let mut file = file;
-        file.name = resolve_name(&file_name, &existing, policy);
-
+        file.name = allocate_file_name(directory, &file_name, policy);
         directory.add_child(VfsNode::File(file));
     }
 }
@@ -123,23 +115,7 @@ fn ensure_directory<'a>(
     let mut current = root;
 
     for segment in parents {
-        let resolved_segment = {
-            let existing: Vec<String> = current
-                .children()
-                .iter()
-                .filter_map(|node| match node {
-                    VfsNode::Directory(dir) => Some(dir.name.clone()),
-                    _ => None,
-                })
-                .collect();
-
-            if existing.iter().any(|name| name == segment) {
-                segment.clone()
-            } else {
-                resolve_name(segment, &existing, policy)
-            }
-        };
-
+        let resolved_segment = allocate_directory_name(current, segment, policy);
         let index = match current.children.iter().position(
             |node| matches!(node, VfsNode::Directory(dir) if dir.name == resolved_segment),
         ) {

@@ -1,9 +1,9 @@
 use crate::core::content::NormalizedContent;
 use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
+use crate::output::name_allocator::allocate_file_name;
 use crate::output::present::OutputPresenter;
 use crate::output::presented::{build_presented_entries, PresentedEntry, PresentedGame};
-use crate::output::presenter_utils::resolve_name;
 use crate::policy::PolicySet;
 
 pub struct FlatPresenter {
@@ -32,13 +32,7 @@ impl FlatPresenter {
                         file.name = name.to_string();
                     }
 
-                    let existing: Vec<String> = root
-                        .children()
-                        .iter()
-                        .map(|node| node.name().to_string())
-                        .collect();
-
-                    file.name = resolve_name(&file.name, &existing, policy);
+                    file.name = allocate_file_name(&root, &file.name, policy);
                     root.add_child(VfsNode::File(file));
                 }
             }
@@ -55,14 +49,7 @@ impl FlatPresenter {
     ) {
         for encoded in &presented.files {
             let mut encoded = encoded.clone();
-
-            let existing: Vec<String> = root
-                .children()
-                .iter()
-                .map(|node| node.name().to_string())
-                .collect();
-
-            encoded.name = resolve_name(&encoded.name, &existing, policy);
+            encoded.name = allocate_file_name(&root, &encoded.name, policy);
             root.add_child(VfsNode::File(encoded.to_vfs_file()));
         }
     }
@@ -90,7 +77,6 @@ mod tests {
         BytesContent, ContentId, DiscPart, GameContent, GamePart, Platform, RomPart, TextContent,
     };
     use crate::core::source::SourceRef;
-    use crate::core::vfs::FileBacking;
     use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy, PolicySet};
 
     struct DefaultLikeNamingPolicy;

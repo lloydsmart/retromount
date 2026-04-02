@@ -65,7 +65,3 @@ pub fn encode_playlist(
             )
         })
 }
-
-pub fn resolve_name(proposed: &str, existing: &[String], policy: &PolicySet) -> String {
-    policy.conflict().resolve_name_conflict(proposed, existing)
-}
