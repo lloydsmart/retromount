@@ -41,18 +41,16 @@ impl GroupedPresenter {
         policy: &PolicySet,
     ) {
         let game = &presented.game;
-        let platform_name = policy.naming().platform_name(&game.platform);
-        let game_name = policy.naming().game_name(game);
+        let platform_name = policy.format_name(&policy.naming().platform_name(&game.platform));
+        let game_name = policy.format_name(&policy.naming().game_name(game));
 
-        let base_path = format!(
-            "{}/{}",
-            policy.format_name(&platform_name),
-            policy.format_name(&game_name)
-        );
+        let platform_dir = ensure_directory(root, &[platform_name], policy);
+        let game_dir = ensure_distinct_child_directory(platform_dir, &game_name, policy);
 
         for encoded in &presented.files {
-            let file_path = format!("{}/{}", base_path, encoded.name);
-            self.insert_file_path(root, &file_path, encoded.to_vfs_file(), policy);
+            let mut file = encoded.to_vfs_file();
+            file.name = allocate_file_name(game_dir, &file.name, policy);
+            game_dir.add_child(VfsNode::File(file));
         }
     }
 
@@ -66,6 +64,7 @@ impl GroupedPresenter {
         let normalized = normalize_path(path);
         let (parents, file_name) = split_parent_dirs(&normalized);
         let directory = ensure_directory(root, &parents, policy);
+
         let mut file = file;
         file.name = allocate_file_name(directory, &file_name, policy);
         directory.add_child(VfsNode::File(file));
@@ -140,6 +139,27 @@ fn ensure_directory<'a>(
     }
 
     current
+}
+
+fn ensure_distinct_child_directory<'a>(
+    parent: &'a mut VfsDirectory,
+    proposed: &str,
+    policy: &PolicySet,
+) -> &'a mut VfsDirectory {
+    let resolved_name = allocate_file_name(parent, proposed, policy);
+
+    parent.add_child(VfsNode::Directory(VfsDirectory::new(&resolved_name)));
+
+    let index = parent
+        .children
+        .iter()
+        .position(|node| matches!(node, VfsNode::Directory(dir) if dir.name == resolved_name))
+        .expect("inserted child directory should be present");
+
+    match parent.children.get_mut(index) {
+        Some(VfsNode::Directory(dir)) => dir,
+        _ => unreachable!("child directory entry should be a directory"),
+    }
 }
 
 #[cfg(test)]
@@ -593,5 +613,70 @@ mod tests {
 
         let names: Vec<&str> = docs.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["readme.bin", "readme.bin (1)"]);
+    }
+
+    #[test]
+    fn conflict_policy_can_disambiguate_game_directory_names_under_same_platform() {
+        let presenter = GroupedPresenter::new();
+        let policy = suffix_conflict_policy();
+
+        let content = vec![
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("game-1"),
+                source: SourceRef::new("file:/roms/game-1.bin"),
+                title: "Duplicate Game".to_string(),
+                platform: Platform::Ps1,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("file:/roms/game-1.bin"),
+                    size: 100,
+                })],
+                consumed_sources: vec![],
+            }),
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("game-2"),
+                source: SourceRef::new("file:/roms/game-2.bin"),
+                title: "Duplicate Game".to_string(),
+                platform: Platform::Ps1,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("file:/roms/game-2.bin"),
+                    size: 200,
+                })],
+                consumed_sources: vec![],
+            }),
+        ];
+
+        let root = presenter.present(&content, &policy);
+        let ps1 = root.find_directory("ps1").unwrap();
+
+        let names: Vec<&str> = ps1.children().iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["Duplicate Game", "Duplicate Game (1)"]);
+    }
+
+    #[test]
+    fn reuses_existing_directory_name_before_applying_conflict_suffixes() {
+        let presenter = GroupedPresenter::new();
+        let policy = suffix_conflict_policy();
+
+        let content = vec![
+            NormalizedContent::Text(TextContent {
+                id: ContentId::new("docs/notes"),
+                source: SourceRef::new("file:/roms/docs/notes.txt"),
+                size: 12,
+            }),
+            NormalizedContent::Text(TextContent {
+                id: ContentId::new("docs/todo"),
+                source: SourceRef::new("file:/roms/docs/todo.txt"),
+                size: 8,
+            }),
+        ];
+
+        let root = presenter.present(&content, &policy);
+
+        let root_names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
+        assert_eq!(root_names, vec!["docs"]);
+
+        let docs = root.find_directory("docs").unwrap();
+        let child_names: Vec<&str> = docs.children().iter().map(|node| node.name()).collect();
+        assert_eq!(child_names, vec!["notes.txt", "todo.txt"]);
     }
 }

@@ -335,4 +335,102 @@ mod tests {
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["readme.bin", "readme.bin (1)"]);
     }
+
+    #[test]
+    fn conflict_policy_can_disambiguate_game_file_and_non_game_file_at_root() {
+        let presenter = FlatPresenter::new();
+        let policy = suffix_conflict_policy();
+
+        let content = vec![
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("other/readme"),
+                source: SourceRef::new("file:/roms/other/readme"),
+                size: 10,
+            }),
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("readme-game"),
+                source: SourceRef::new("file:/roms/readme.bin"),
+                title: "readme".to_string(),
+                platform: Platform::Megadrive,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("file:/roms/readme.bin"),
+                    size: 1024,
+                })],
+                consumed_sources: vec![],
+            }),
+        ];
+
+        let root = presenter.present(&content, &policy);
+
+        let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["readme.bin", "readme.bin (1)"]);
+    }
+
+    #[test]
+    fn conflict_policy_can_disambiguate_playlist_between_duplicate_multi_disc_games() {
+        let presenter = FlatPresenter::new();
+        let policy = suffix_conflict_policy();
+
+        let content = vec![
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("ff7-a"),
+                source: SourceRef::new("cue:/roms/ff7-a-disc1.cue"),
+                title: "Final Fantasy VII".to_string(),
+                platform: Platform::Ps1,
+                parts: vec![
+                    GamePart::Disc(DiscPart {
+                        source: SourceRef::new("cue:/roms/ff7-a-disc2.cue"),
+                        disc_number: 2,
+                        consumed_sources: vec![SourceRef::new("cue:/roms/ff7-a-disc2.bin")],
+                    }),
+                    GamePart::Disc(DiscPart {
+                        source: SourceRef::new("cue:/roms/ff7-a-disc1.cue"),
+                        disc_number: 1,
+                        consumed_sources: vec![SourceRef::new("cue:/roms/ff7-a-disc1.bin")],
+                    }),
+                ],
+                consumed_sources: vec![
+                    SourceRef::new("cue:/roms/ff7-a-disc2.bin"),
+                    SourceRef::new("cue:/roms/ff7-a-disc1.bin"),
+                ],
+            }),
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("ff7-b"),
+                source: SourceRef::new("cue:/roms/ff7-b-disc1.cue"),
+                title: "Final Fantasy VII".to_string(),
+                platform: Platform::Ps1,
+                parts: vec![
+                    GamePart::Disc(DiscPart {
+                        source: SourceRef::new("cue:/roms/ff7-b-disc2.cue"),
+                        disc_number: 2,
+                        consumed_sources: vec![SourceRef::new("cue:/roms/ff7-b-disc2.bin")],
+                    }),
+                    GamePart::Disc(DiscPart {
+                        source: SourceRef::new("cue:/roms/ff7-b-disc1.cue"),
+                        disc_number: 1,
+                        consumed_sources: vec![SourceRef::new("cue:/roms/ff7-b-disc1.bin")],
+                    }),
+                ],
+                consumed_sources: vec![
+                    SourceRef::new("cue:/roms/ff7-b-disc2.bin"),
+                    SourceRef::new("cue:/roms/ff7-b-disc1.bin"),
+                ],
+            }),
+        ];
+
+        let root = presenter.present(&content, &policy);
+
+        let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
+        assert_eq!(
+            names,
+            vec![
+                "Final Fantasy VII (Disc 1).cue",
+                "Final Fantasy VII (Disc 1).cue (1)",
+                "Final Fantasy VII (Disc 2).cue",
+                "Final Fantasy VII (Disc 2).cue (1)",
+                "Final Fantasy VII.m3u",
+                "Final Fantasy VII.m3u (1)",
+            ]
+        );
+    }
 }
