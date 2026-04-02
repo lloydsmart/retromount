@@ -139,6 +139,106 @@ mod tests {
         RomPart, TextContent,
     };
     use crate::core::source::SourceRef;
+    use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy};
+
+    struct DefaultLikeNamingPolicy;
+
+    impl NamingPolicy for DefaultLikeNamingPolicy {
+        fn game_name(&self, game: &GameContent) -> String {
+            game.title.clone()
+        }
+
+        fn part_name(&self, game: &GameContent, part: &GamePart) -> String {
+            match part {
+                GamePart::Rom(rom) => rom.source.file_name(),
+                GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
+            }
+        }
+
+        fn playlist_name(&self, game: &GameContent) -> String {
+            format!("{}.m3u", game.title)
+        }
+
+        fn platform_name(&self, platform: &Platform) -> String {
+            platform.to_string()
+        }
+    }
+
+    struct LowercaseFormattingPolicy;
+
+    impl FormattingPolicy for LowercaseFormattingPolicy {
+        fn format_name(&self, raw: &str) -> String {
+            raw.to_lowercase()
+        }
+    }
+
+    struct PreserveConflictPolicy;
+
+    impl ConflictPolicy for PreserveConflictPolicy {
+        fn resolve_name_conflict(&self, proposed: &str, _existing: &[String]) -> String {
+            proposed.to_string()
+        }
+    }
+
+    fn lowercase_policy() -> PolicySet {
+        PolicySet::new(
+            Box::new(DefaultLikeNamingPolicy),
+            Box::new(LowercaseFormattingPolicy),
+            Box::new(PreserveConflictPolicy),
+        )
+    }
+
+    #[test]
+    fn applies_formatting_policy_to_encoded_disc_names() {
+        let encoder = BasicEncoder::new();
+        let policy = lowercase_policy();
+
+        let game = GameContent {
+            id: ContentId::new("ff7"),
+            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+            title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![],
+            consumed_sources: vec![],
+        };
+
+        let part = GamePart::Disc(DiscPart {
+            source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
+            disc_number: 2,
+            consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
+        });
+
+        let encoded = encoder.encode_game_part(&game, &part, &policy).unwrap();
+        assert_eq!(encoded.name, "final fantasy vii (disc 2).cue");
+    }
+
+    #[test]
+    fn applies_formatting_policy_to_encoded_playlist_names() {
+        let encoder = BasicEncoder::new();
+        let policy = lowercase_policy();
+
+        let game = GameContent {
+            id: ContentId::new("ff7"),
+            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
+            title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![],
+            consumed_sources: vec![],
+        };
+
+        let encoded = encoder
+            .encode_playlist(
+                &game,
+                &[
+                    "final fantasy vii (disc 1).cue".to_string(),
+                    "final fantasy vii (disc 2).cue".to_string(),
+                ],
+                &policy,
+            )
+            .unwrap();
+
+        assert_eq!(encoded.name, "final fantasy vii.m3u");
+    }
 
     #[test]
     fn encodes_bytes_content() {
