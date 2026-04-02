@@ -129,6 +129,65 @@ mod tests {
     use crate::input::directory_source::DirectoryInputSource;
     use crate::output::flat_presenter::FlatPresenter;
     use crate::output::grouped_presenter::GroupedPresenter;
+    use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy, PolicySet};
+
+    struct AlternateNamingPolicy;
+
+    impl NamingPolicy for AlternateNamingPolicy {
+        fn game_name(&self, game: &crate::core::content::GameContent) -> String {
+            format!("{} [ALT]", game.title)
+        }
+
+        fn part_name(
+            &self,
+            game: &crate::core::content::GameContent,
+            part: &crate::core::content::GamePart,
+        ) -> String {
+            match part {
+                crate::core::content::GamePart::Rom(rom) => {
+                    format!("ALT-{}", rom.source.file_name())
+                }
+                crate::core::content::GamePart::Disc(disc) => {
+                    format!("{} - CD{}.cue", game.title, disc.disc_number)
+                }
+            }
+        }
+
+        fn playlist_name(&self, game: &crate::core::content::GameContent) -> String {
+            format!("{} - Playlist.m3u", game.title)
+        }
+
+        fn platform_name(&self, platform: &crate::core::content::Platform) -> String {
+            match platform {
+                crate::core::content::Platform::Ps1 => "PlayStation".to_string(),
+                _ => platform.to_string(),
+            }
+        }
+    }
+
+    struct PassthroughFormattingPolicy;
+
+    impl FormattingPolicy for PassthroughFormattingPolicy {
+        fn format_name(&self, raw: &str) -> String {
+            raw.to_string()
+        }
+    }
+
+    struct PreserveConflictPolicy;
+
+    impl ConflictPolicy for PreserveConflictPolicy {
+        fn resolve_name_conflict(&self, proposed: &str, _existing: &[String]) -> String {
+            proposed.to_string()
+        }
+    }
+
+    fn alternate_policy() -> PolicySet {
+        PolicySet::new(
+            Box::new(AlternateNamingPolicy),
+            Box::new(PassthroughFormattingPolicy),
+            Box::new(PreserveConflictPolicy),
+        )
+    }
 
     #[test]
     fn runs_end_to_end_directory_pipeline() {
@@ -274,5 +333,88 @@ mod tests {
         assert!(flat_root.find_directory("snes").is_none());
         assert!(flat_root.find_directory("ps1").is_none());
         assert!(flat_root.find_file("Super Mario World.sfc").is_some());
+    }
+
+    #[test]
+    fn pipeline_can_apply_alternate_policy_without_changing_structure() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        fs::write(
+            temp_dir.path().join("Final Fantasy VII (Disc 1).cue"),
+            br#"FILE "Final Fantasy VII (Disc 1).bin" BINARY
+  TRACK 01 MODE2/2352
+    INDEX 01 00:00:00
+"#,
+        )
+        .unwrap();
+        fs::write(
+            temp_dir.path().join("Final Fantasy VII (Disc 1).bin"),
+            b"disc1",
+        )
+        .unwrap();
+
+        fs::write(
+            temp_dir.path().join("Final Fantasy VII (Disc 2).cue"),
+            br#"FILE "Final Fantasy VII (Disc 2).bin" BINARY
+  TRACK 01 MODE2/2352
+    INDEX 01 00:00:00
+"#,
+        )
+        .unwrap();
+        fs::write(
+            temp_dir.path().join("Final Fantasy VII (Disc 2).bin"),
+            b"disc2",
+        )
+        .unwrap();
+
+        let source = DirectoryInputSource::new(temp_dir.path());
+        let identifier = BasicInputIdentifier::new();
+        let decoder = BasicInputDecoder::new();
+        let presenter = GroupedPresenter::new();
+
+        let default_policy = PolicySet::default();
+        let alt_policy = alternate_policy();
+
+        let default_root =
+            run_pipeline(&source, &identifier, &decoder, &presenter, &default_policy).unwrap();
+        let alt_root =
+            run_pipeline(&source, &identifier, &decoder, &presenter, &alt_policy).unwrap();
+
+        let default_platform = default_root.find_directory("unknown").unwrap();
+        let default_game = default_platform
+            .find_directory("Final Fantasy VII")
+            .unwrap();
+
+        let alt_platform = alt_root.find_directory("unknown").unwrap();
+        let alt_game = alt_platform
+            .find_directory("Final Fantasy VII [ALT]")
+            .unwrap();
+
+        let default_names: Vec<&str> = default_game
+            .children()
+            .iter()
+            .map(|node| node.name())
+            .collect();
+        let alt_names: Vec<&str> = alt_game.children().iter().map(|node| node.name()).collect();
+
+        assert_eq!(
+            default_names,
+            vec![
+                "Final Fantasy VII (Disc 1).cue",
+                "Final Fantasy VII (Disc 2).cue",
+                "Final Fantasy VII.m3u",
+            ]
+        );
+        assert_eq!(
+            alt_names,
+            vec![
+                "Final Fantasy VII - CD1.cue",
+                "Final Fantasy VII - CD2.cue",
+                "Final Fantasy VII - Playlist.m3u",
+            ]
+        );
+
+        assert_eq!(default_root.children().len(), 1);
+        assert_eq!(alt_root.children().len(), 1);
     }
 }
