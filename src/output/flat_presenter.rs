@@ -53,10 +53,21 @@ impl FlatPresenter {
                 NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
                     let mut file = entry.encoded.to_vfs_file();
 
-                    // strip any path components → keep only leaf name
                     if let Some(name) = file.name.rsplit('/').next() {
                         file.name = name.to_string();
                     }
+
+                    let existing: Vec<String> = root
+                        .children()
+                        .iter()
+                        .map(|node| node.name().to_string())
+                        .collect();
+
+                    let resolved_name = policy
+                        .conflict()
+                        .resolve_name_conflict(&file.name, &existing);
+
+                    file.name = resolved_name;
 
                     root.add_child(VfsNode::File(file));
                 }
@@ -76,7 +87,21 @@ impl FlatPresenter {
         if self.is_multi_disc_game(game) {
             self.insert_multi_disc_game(root, game, policy);
         } else {
-            root.add_child(VfsNode::File(encoded.to_vfs_file()));
+            let mut file = encoded.to_vfs_file();
+
+            let existing: Vec<String> = root
+                .children()
+                .iter()
+                .map(|node| node.name().to_string())
+                .collect();
+
+            let resolved_name = policy
+                .conflict()
+                .resolve_name_conflict(&file.name, &existing);
+
+            file.name = resolved_name;
+
+            root.add_child(VfsNode::File(file));
         }
     }
 
@@ -100,7 +125,7 @@ impl FlatPresenter {
         let mut disc_names = Vec::new();
 
         for disc in &disc_parts {
-            let encoded = self
+            let mut encoded = self
                 .encoder
                 .encode_game_part(game, &GamePart::Disc((*disc).clone()), policy)
                 .unwrap_or_else(|err| {
@@ -110,11 +135,23 @@ impl FlatPresenter {
                     )
                 });
 
-            disc_names.push(encoded.name.clone());
+            let existing: Vec<String> = root
+                .children()
+                .iter()
+                .map(|node| node.name().to_string())
+                .collect();
+
+            let resolved_name = policy
+                .conflict()
+                .resolve_name_conflict(&encoded.name, &existing);
+
+            encoded.name = resolved_name.clone();
+            disc_names.push(resolved_name);
+
             root.add_child(VfsNode::File(encoded.to_vfs_file()));
         }
 
-        let playlist_encoded = self
+        let mut playlist_encoded = self
             .encoder
             .encode_playlist(game, &disc_names, policy)
             .unwrap_or_else(|err| {
@@ -123,6 +160,18 @@ impl FlatPresenter {
                     game.title
                 )
             });
+
+        let existing: Vec<String> = root
+            .children()
+            .iter()
+            .map(|node| node.name().to_string())
+            .collect();
+
+        let resolved_name = policy
+            .conflict()
+            .resolve_name_conflict(&playlist_encoded.name, &existing);
+
+        playlist_encoded.name = resolved_name;
 
         root.add_child(VfsNode::File(playlist_encoded.to_vfs_file()));
     }
@@ -159,6 +208,65 @@ mod tests {
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
+    use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy, PolicySet};
+
+    struct DefaultLikeNamingPolicy;
+
+    impl NamingPolicy for DefaultLikeNamingPolicy {
+        fn game_name(&self, game: &GameContent) -> String {
+            game.title.clone()
+        }
+
+        fn part_name(&self, game: &GameContent, part: &GamePart) -> String {
+            match part {
+                GamePart::Rom(rom) => rom.source.file_name(),
+                GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
+            }
+        }
+
+        fn playlist_name(&self, game: &GameContent) -> String {
+            format!("{}.m3u", game.title)
+        }
+
+        fn platform_name(&self, platform: &Platform) -> String {
+            platform.to_string()
+        }
+    }
+
+    struct PassthroughFormattingPolicy;
+
+    impl FormattingPolicy for PassthroughFormattingPolicy {
+        fn format_name(&self, raw: &str) -> String {
+            raw.to_string()
+        }
+    }
+
+    struct SuffixConflictPolicy;
+
+    impl ConflictPolicy for SuffixConflictPolicy {
+        fn resolve_name_conflict(&self, proposed: &str, existing: &[String]) -> String {
+            if !existing.iter().any(|name| name == proposed) {
+                return proposed.to_string();
+            }
+
+            let mut i = 1;
+            loop {
+                let candidate = format!("{proposed} ({i})");
+                if !existing.iter().any(|name| name == &candidate) {
+                    return candidate;
+                }
+                i += 1;
+            }
+        }
+    }
+
+    fn suffix_conflict_policy() -> PolicySet {
+        PolicySet::new(
+            Box::new(DefaultLikeNamingPolicy),
+            Box::new(PassthroughFormattingPolicy),
+            Box::new(SuffixConflictPolicy),
+        )
+    }
 
     #[test]
     fn presents_mixed_content_at_root() {
@@ -333,5 +441,29 @@ mod tests {
 
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["cover.jpg.bin", "nested.zip.bin", "notes.txt"]);
+    }
+
+    #[test]
+    fn conflict_policy_can_disambiguate_flat_sibling_file_names() {
+        let presenter = FlatPresenter::new();
+        let policy = suffix_conflict_policy();
+
+        let content = vec![
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("docs/readme"),
+                source: SourceRef::new("file:/roms/docs/readme"),
+                size: 10,
+            }),
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("other/readme"),
+                source: SourceRef::new("file:/roms/other/readme"),
+                size: 11,
+            }),
+        ];
+
+        let root = presenter.present(&content, &policy);
+
+        let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["readme.bin", "readme.bin (1)"]);
     }
 }

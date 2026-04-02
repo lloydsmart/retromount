@@ -1,5 +1,5 @@
 use crate::core::content::{DiscPart, GameContent, GamePart, NormalizedContent};
-use crate::core::vfs::{VfsDirectory, VfsNode};
+use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::present::OutputPresenter;
@@ -55,6 +55,7 @@ impl GroupedPresenter {
                         &mut root,
                         &entry.encoded.name,
                         entry.encoded.to_vfs_file(),
+                        policy,
                     );
                 }
             }
@@ -83,7 +84,7 @@ impl GroupedPresenter {
             self.insert_multi_disc_game(root, game, &base_path, policy);
         } else {
             let file_path = format!("{}/{}", base_path, encoded.name);
-            self.insert_file_path(root, &file_path, encoded.to_vfs_file());
+            self.insert_file_path(root, &file_path, encoded.to_vfs_file(), policy);
         }
     }
 
@@ -121,7 +122,7 @@ impl GroupedPresenter {
             disc_names.push(encoded.name.clone());
 
             let disc_path = format!("{}/{}", base_path, encoded.name);
-            self.insert_file_path(root, &disc_path, encoded.to_vfs_file());
+            self.insert_file_path(root, &disc_path, encoded.to_vfs_file(), policy);
         }
 
         let playlist_encoded = self
@@ -135,21 +136,32 @@ impl GroupedPresenter {
             });
 
         let playlist_path = format!("{}/{}", base_path, playlist_encoded.name);
-        self.insert_file_path(root, &playlist_path, playlist_encoded.to_vfs_file());
+        self.insert_file_path(root, &playlist_path, playlist_encoded.to_vfs_file(), policy);
     }
 
     fn insert_file_path(
         &self,
         root: &mut VfsDirectory,
         path: &str,
-        file: crate::core::vfs::VfsFile,
+        file: VfsFile,
+        policy: &PolicySet,
     ) {
         let normalized = normalize_path(path);
         let (parents, file_name) = split_parent_dirs(&normalized);
-        let directory = ensure_directory(root, &parents);
+        let directory = ensure_directory(root, &parents, policy);
+
+        let existing: Vec<String> = directory
+            .children()
+            .iter()
+            .map(|node| node.name().to_string())
+            .collect();
+
+        let resolved_name = policy
+            .conflict()
+            .resolve_name_conflict(&file_name, &existing);
 
         let mut file = file;
-        file.name = file_name;
+        file.name = resolved_name;
 
         directory.add_child(VfsNode::File(file));
     }
@@ -198,25 +210,44 @@ fn split_parent_dirs(path: &str) -> (Vec<String>, String) {
     }
 }
 
-fn ensure_directory<'a>(root: &'a mut VfsDirectory, parents: &[String]) -> &'a mut VfsDirectory {
+fn ensure_directory<'a>(
+    root: &'a mut VfsDirectory,
+    parents: &[String],
+    policy: &PolicySet,
+) -> &'a mut VfsDirectory {
     let mut current = root;
 
     for segment in parents {
-        let index = match current
-            .children
-            .iter()
-            .position(|node| matches!(node, VfsNode::Directory(dir) if dir.name == *segment))
-        {
+        let resolved_segment = {
+            let existing: Vec<String> = current
+                .children()
+                .iter()
+                .filter_map(|node| match node {
+                    VfsNode::Directory(dir) => Some(dir.name.clone()),
+                    _ => None,
+                })
+                .collect();
+
+            if existing.iter().any(|name| name == segment) {
+                segment.clone()
+            } else {
+                policy.conflict().resolve_name_conflict(segment, &existing)
+            }
+        };
+
+        let index = match current.children.iter().position(
+            |node| matches!(node, VfsNode::Directory(dir) if dir.name == resolved_segment),
+        ) {
             Some(index) => index,
             None => {
-                current.add_child(VfsNode::Directory(VfsDirectory::new(segment)));
+                current.add_child(VfsNode::Directory(VfsDirectory::new(&resolved_segment)));
 
                 current
                     .children
                     .iter()
-                    .position(
-                        |node| matches!(node, VfsNode::Directory(dir) if dir.name == *segment),
-                    )
+                    .position(|node| {
+                        matches!(node, VfsNode::Directory(dir) if dir.name == resolved_segment)
+                    })
                     .expect("inserted directory should be present")
             }
         };
@@ -282,11 +313,61 @@ mod tests {
         }
     }
 
+    struct SuffixConflictPolicy;
+
+    impl ConflictPolicy for SuffixConflictPolicy {
+        fn resolve_name_conflict(&self, proposed: &str, existing: &[String]) -> String {
+            if !existing.iter().any(|name| name == proposed) {
+                return proposed.to_string();
+            }
+
+            let mut i = 1;
+            loop {
+                let candidate = format!("{proposed} ({i})");
+                if !existing.iter().any(|name| name == &candidate) {
+                    return candidate;
+                }
+                i += 1;
+            }
+        }
+    }
+
+    struct DefaultLikeNamingPolicy;
+
+    impl NamingPolicy for DefaultLikeNamingPolicy {
+        fn game_name(&self, game: &GameContent) -> String {
+            game.title.clone()
+        }
+
+        fn part_name(&self, game: &GameContent, part: &GamePart) -> String {
+            match part {
+                GamePart::Rom(rom) => rom.source.file_name(),
+                GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
+            }
+        }
+
+        fn playlist_name(&self, game: &GameContent) -> String {
+            format!("{}.m3u", game.title)
+        }
+
+        fn platform_name(&self, platform: &Platform) -> String {
+            platform.to_string()
+        }
+    }
+
     fn alternate_policy() -> PolicySet {
         PolicySet::new(
             Box::new(AlternateNamingPolicy),
             Box::new(PassthroughFormattingPolicy),
             Box::new(PreserveConflictPolicy),
+        )
+    }
+
+    fn suffix_conflict_policy() -> PolicySet {
+        PolicySet::new(
+            Box::new(DefaultLikeNamingPolicy),
+            Box::new(PassthroughFormattingPolicy),
+            Box::new(SuffixConflictPolicy),
         )
     }
 
@@ -606,5 +687,30 @@ mod tests {
 
         assert_eq!(default_root.children().len(), 1);
         assert_eq!(alt_root.children().len(), 1);
+    }
+
+    #[test]
+    fn conflict_policy_can_disambiguate_sibling_file_names() {
+        let presenter = GroupedPresenter::new();
+        let policy = suffix_conflict_policy();
+
+        let content = vec![
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("docs/readme"),
+                source: SourceRef::new("file:/roms/docs/readme"),
+                size: 10,
+            }),
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("docs/readme"),
+                source: SourceRef::new("file:/roms/docs/readme-copy"),
+                size: 11,
+            }),
+        ];
+
+        let root = presenter.present(&content, &policy);
+        let docs = root.find_directory("docs").unwrap();
+
+        let names: Vec<&str> = docs.children().iter().map(|node| node.name()).collect();
+        assert_eq!(names, vec!["readme.bin", "readme.bin (1)"]);
     }
 }
