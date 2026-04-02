@@ -1,9 +1,11 @@
-use crate::core::content::{DiscPart, GameContent, GamePart, NormalizedContent};
+use crate::core::content::{GameContent, NormalizedContent};
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
-use crate::output::encode::OutputEncoder;
 use crate::output::present::OutputPresenter;
 use crate::output::presented::{build_presented_entries, PresentedEntry};
+use crate::output::presenter_utils::{
+    encode_disc, encode_game, encode_playlist, is_multi_disc_game, resolve_name, sorted_disc_parts,
+};
 use crate::policy::PolicySet;
 
 pub struct GroupedPresenter {
@@ -44,16 +46,10 @@ impl GroupedPresenter {
             policy.format_name(&game_name)
         );
 
-        if self.is_multi_disc_game(game) {
+        if is_multi_disc_game(game) {
             self.insert_multi_disc_game(root, game, &base_path, policy);
         } else {
-            let encoded = self
-                .encoder
-                .encode(&NormalizedContent::Game(game.clone()), policy)
-                .unwrap_or_else(|err| {
-                    panic!("single game should encode for '{}': {err}", game.title)
-                });
-
+            let encoded = encode_game(&self.encoder, game, policy);
             let file_path = format!("{}/{}", base_path, encoded.name);
             self.insert_file_path(root, &file_path, encoded.to_vfs_file(), policy);
         }
@@ -66,46 +62,18 @@ impl GroupedPresenter {
         base_path: &str,
         policy: &PolicySet,
     ) {
-        let mut disc_parts: Vec<&DiscPart> = game
-            .parts
-            .iter()
-            .filter_map(|part| match part {
-                GamePart::Disc(disc) => Some(disc),
-                _ => None,
-            })
-            .collect();
-
-        disc_parts.sort_by(|left, right| left.disc_number.cmp(&right.disc_number));
-
+        let disc_parts = sorted_disc_parts(game);
         let mut disc_names = Vec::new();
 
-        for disc in &disc_parts {
-            let encoded = self
-                .encoder
-                .encode_game_part(game, &GamePart::Disc((*disc).clone()), policy)
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "multi-disc game part should encode for '{}' disc {}: {err}",
-                        game.title, disc.disc_number
-                    )
-                });
-
+        for disc in disc_parts {
+            let encoded = encode_disc(&self.encoder, game, disc, policy);
             disc_names.push(encoded.name.clone());
 
             let disc_path = format!("{}/{}", base_path, encoded.name);
             self.insert_file_path(root, &disc_path, encoded.to_vfs_file(), policy);
         }
 
-        let playlist_encoded = self
-            .encoder
-            .encode_playlist(game, &disc_names, policy)
-            .unwrap_or_else(|err| {
-                panic!(
-                    "multi-disc playlist should encode for '{}': {err}",
-                    game.title
-                )
-            });
-
+        let playlist_encoded = encode_playlist(&self.encoder, game, &disc_names, policy);
         let playlist_path = format!("{}/{}", base_path, playlist_encoded.name);
         self.insert_file_path(root, &playlist_path, playlist_encoded.to_vfs_file(), policy);
     }
@@ -127,22 +95,10 @@ impl GroupedPresenter {
             .map(|node| node.name().to_string())
             .collect();
 
-        let resolved_name = policy
-            .conflict()
-            .resolve_name_conflict(&file_name, &existing);
-
         let mut file = file;
-        file.name = resolved_name;
+        file.name = resolve_name(&file_name, &existing, policy);
 
         directory.add_child(VfsNode::File(file));
-    }
-
-    fn is_multi_disc_game(&self, game: &GameContent) -> bool {
-        game.parts.len() > 1
-            && game
-                .parts
-                .iter()
-                .all(|part| matches!(part, GamePart::Disc(_)))
     }
 }
 
@@ -202,7 +158,7 @@ fn ensure_directory<'a>(
             if existing.iter().any(|name| name == segment) {
                 segment.clone()
             } else {
-                policy.conflict().resolve_name_conflict(segment, &existing)
+                resolve_name(segment, &existing, policy)
             }
         };
 

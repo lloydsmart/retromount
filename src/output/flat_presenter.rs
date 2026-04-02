@@ -1,9 +1,11 @@
-use crate::core::content::{DiscPart, GameContent, GamePart, NormalizedContent};
+use crate::core::content::{GameContent, NormalizedContent};
 use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
-use crate::output::encode::OutputEncoder;
 use crate::output::present::OutputPresenter;
 use crate::output::presented::{build_presented_entries, PresentedEntry};
+use crate::output::presenter_utils::{
+    encode_disc, encode_game, encode_playlist, is_multi_disc_game, resolve_name, sorted_disc_parts,
+};
 use crate::policy::PolicySet;
 
 pub struct FlatPresenter {
@@ -38,11 +40,7 @@ impl FlatPresenter {
                         .map(|node| node.name().to_string())
                         .collect();
 
-                    let resolved_name = policy
-                        .conflict()
-                        .resolve_name_conflict(&file.name, &existing);
-
-                    file.name = resolved_name;
+                    file.name = resolve_name(&file.name, &existing, policy);
                     root.add_child(VfsNode::File(file));
                 }
             }
@@ -52,15 +50,10 @@ impl FlatPresenter {
     }
 
     fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, policy: &PolicySet) {
-        if self.is_multi_disc_game(game) {
+        if is_multi_disc_game(game) {
             self.insert_multi_disc_game(root, game, policy);
         } else {
-            let mut encoded = self
-                .encoder
-                .encode(&NormalizedContent::Game(game.clone()), policy)
-                .unwrap_or_else(|err| {
-                    panic!("single game should encode for '{}': {err}", game.title)
-                });
+            let mut encoded = encode_game(&self.encoder, game, policy);
 
             let existing: Vec<String> = root
                 .children()
@@ -68,11 +61,7 @@ impl FlatPresenter {
                 .map(|node| node.name().to_string())
                 .collect();
 
-            let resolved_name = policy
-                .conflict()
-                .resolve_name_conflict(&encoded.name, &existing);
-
-            encoded.name = resolved_name;
+            encoded.name = resolve_name(&encoded.name, &existing, policy);
             root.add_child(VfsNode::File(encoded.to_vfs_file()));
         }
     }
@@ -83,29 +72,11 @@ impl FlatPresenter {
         game: &GameContent,
         policy: &PolicySet,
     ) {
-        let mut disc_parts: Vec<&DiscPart> = game
-            .parts
-            .iter()
-            .filter_map(|part| match part {
-                GamePart::Disc(disc) => Some(disc),
-                _ => None,
-            })
-            .collect();
-
-        disc_parts.sort_by(|left, right| left.disc_number.cmp(&right.disc_number));
-
+        let disc_parts = sorted_disc_parts(game);
         let mut disc_names = Vec::new();
 
-        for disc in &disc_parts {
-            let mut encoded = self
-                .encoder
-                .encode_game_part(game, &GamePart::Disc((*disc).clone()), policy)
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "multi-disc game part should encode for '{}' disc {}: {err}",
-                        game.title, disc.disc_number
-                    )
-                });
+        for disc in disc_parts {
+            let mut encoded = encode_disc(&self.encoder, game, disc, policy);
 
             let existing: Vec<String> = root
                 .children()
@@ -113,25 +84,14 @@ impl FlatPresenter {
                 .map(|node| node.name().to_string())
                 .collect();
 
-            let resolved_name = policy
-                .conflict()
-                .resolve_name_conflict(&encoded.name, &existing);
-
+            let resolved_name = resolve_name(&encoded.name, &existing, policy);
             encoded.name = resolved_name.clone();
             disc_names.push(resolved_name);
 
             root.add_child(VfsNode::File(encoded.to_vfs_file()));
         }
 
-        let mut playlist_encoded = self
-            .encoder
-            .encode_playlist(game, &disc_names, policy)
-            .unwrap_or_else(|err| {
-                panic!(
-                    "multi-disc playlist should encode for '{}': {err}",
-                    game.title
-                )
-            });
+        let mut playlist_encoded = encode_playlist(&self.encoder, game, &disc_names, policy);
 
         let existing: Vec<String> = root
             .children()
@@ -139,20 +99,8 @@ impl FlatPresenter {
             .map(|node| node.name().to_string())
             .collect();
 
-        let resolved_name = policy
-            .conflict()
-            .resolve_name_conflict(&playlist_encoded.name, &existing);
-
-        playlist_encoded.name = resolved_name;
+        playlist_encoded.name = resolve_name(&playlist_encoded.name, &existing, policy);
         root.add_child(VfsNode::File(playlist_encoded.to_vfs_file()));
-    }
-
-    fn is_multi_disc_game(&self, game: &GameContent) -> bool {
-        game.parts.len() > 1
-            && game
-                .parts
-                .iter()
-                .all(|part| matches!(part, GamePart::Disc(_)))
     }
 }
 
