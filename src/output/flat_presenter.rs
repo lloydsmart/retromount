@@ -10,9 +10,14 @@ pub struct FlatPresenter {
 }
 
 #[derive(Debug, Clone)]
-struct EncodedEntry {
-    content: NormalizedContent,
-    encoded: EncodedFile,
+enum PresentedEntry {
+    Game(PresentedGame),
+    File(EncodedFile),
+}
+
+#[derive(Debug, Clone)]
+struct PresentedGame {
+    game: GameContent,
 }
 
 impl FlatPresenter {
@@ -22,36 +27,41 @@ impl FlatPresenter {
         }
     }
 
-    fn encode_entries(
+    fn build_presented_entries(
         &self,
         content: &[NormalizedContent],
         policy: &PolicySet,
-    ) -> Vec<EncodedEntry> {
+    ) -> Vec<PresentedEntry> {
         content
             .iter()
-            .filter(|item| self.encoder.can_encode(item))
-            .filter_map(|item| {
-                self.encoder
-                    .encode(item, policy)
-                    .ok()
-                    .map(|encoded| EncodedEntry {
-                        content: item.clone(),
-                        encoded,
-                    })
+            .filter_map(|item| match item {
+                NormalizedContent::Game(game) => {
+                    Some(PresentedEntry::Game(PresentedGame { game: game.clone() }))
+                }
+                NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
+                    if !self.encoder.can_encode(item) {
+                        return None;
+                    }
+
+                    self.encoder
+                        .encode(item, policy)
+                        .ok()
+                        .map(PresentedEntry::File)
+                }
             })
             .collect()
     }
 
-    fn build_root_children(&self, entries: &[EncodedEntry], policy: &PolicySet) -> Vec<VfsNode> {
+    fn build_root_children(&self, entries: &[PresentedEntry], policy: &PolicySet) -> Vec<VfsNode> {
         let mut root = VfsDirectory::new("");
 
         for entry in entries {
-            match &entry.content {
-                NormalizedContent::Game(game) => {
-                    self.insert_game_node(&mut root, game, &entry.encoded, policy);
+            match entry {
+                PresentedEntry::Game(presented) => {
+                    self.insert_game_node(&mut root, &presented.game, policy);
                 }
-                NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
-                    let mut file = entry.encoded.to_vfs_file();
+                PresentedEntry::File(encoded) => {
+                    let mut file = encoded.to_vfs_file();
 
                     if let Some(name) = file.name.rsplit('/').next() {
                         file.name = name.to_string();
@@ -68,7 +78,6 @@ impl FlatPresenter {
                         .resolve_name_conflict(&file.name, &existing);
 
                     file.name = resolved_name;
-
                     root.add_child(VfsNode::File(file));
                 }
             }
@@ -77,17 +86,16 @@ impl FlatPresenter {
         root.children().to_vec()
     }
 
-    fn insert_game_node(
-        &self,
-        root: &mut VfsDirectory,
-        game: &GameContent,
-        encoded: &EncodedFile,
-        policy: &PolicySet,
-    ) {
+    fn insert_game_node(&self, root: &mut VfsDirectory, game: &GameContent, policy: &PolicySet) {
         if self.is_multi_disc_game(game) {
             self.insert_multi_disc_game(root, game, policy);
         } else {
-            let mut file = encoded.to_vfs_file();
+            let mut encoded = self
+                .encoder
+                .encode(&NormalizedContent::Game(game.clone()), policy)
+                .unwrap_or_else(|err| {
+                    panic!("single game should encode for '{}': {err}", game.title)
+                });
 
             let existing: Vec<String> = root
                 .children()
@@ -97,11 +105,10 @@ impl FlatPresenter {
 
             let resolved_name = policy
                 .conflict()
-                .resolve_name_conflict(&file.name, &existing);
+                .resolve_name_conflict(&encoded.name, &existing);
 
-            file.name = resolved_name;
-
-            root.add_child(VfsNode::File(file));
+            encoded.name = resolved_name;
+            root.add_child(VfsNode::File(encoded.to_vfs_file()));
         }
     }
 
@@ -172,7 +179,6 @@ impl FlatPresenter {
             .resolve_name_conflict(&playlist_encoded.name, &existing);
 
         playlist_encoded.name = resolved_name;
-
         root.add_child(VfsNode::File(playlist_encoded.to_vfs_file()));
     }
 
@@ -193,8 +199,8 @@ impl Default for FlatPresenter {
 
 impl OutputPresenter for FlatPresenter {
     fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory {
-        let encoded_entries = self.encode_entries(content, policy);
-        let root_children = self.build_root_children(&encoded_entries, policy);
+        let presented_entries = self.build_presented_entries(content, policy);
+        let root_children = self.build_root_children(&presented_entries, policy);
 
         VfsDirectory::with_children("", root_children)
     }
