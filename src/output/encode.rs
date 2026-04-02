@@ -1,6 +1,7 @@
 use crate::core::content::{GameContent, GamePart, NormalizedContent};
 use crate::core::source::SourceRef;
 use crate::core::vfs::VfsFile;
+use crate::policy::PolicySet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EncodedBacking {
@@ -28,17 +29,23 @@ impl EncodedFile {
 pub trait OutputEncoder: Send + Sync {
     fn can_encode(&self, content: &NormalizedContent) -> bool;
 
-    fn encode(&self, content: &NormalizedContent) -> Result<EncodedFile, std::io::Error>;
+    fn encode(
+        &self,
+        content: &NormalizedContent,
+        policy: &PolicySet,
+    ) -> Result<EncodedFile, std::io::Error>;
 
     fn encode_game_part(
         &self,
         game: &GameContent,
         part: &GamePart,
+        policy: &PolicySet,
     ) -> Result<EncodedFile, std::io::Error>;
 
     fn encode_playlist(
         &self,
         game: &GameContent,
         entries: &[String],
+        policy: &PolicySet,
     ) -> Result<EncodedFile, std::io::Error>;
 }

@@ -22,6 +22,7 @@ pub fn run_phase3_inspect(
         components.identifier.as_ref(),
         components.decoder.as_ref(),
         components.presenter.as_ref(),
+        &components.policy,
     )?;
 
     if json {

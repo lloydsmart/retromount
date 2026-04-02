@@ -27,6 +27,7 @@ pub fn run_mount_command(
         components.identifier.as_ref(),
         components.decoder.as_ref(),
         components.presenter.as_ref(),
+        &components.policy,
     )?;
 
     let session = MountSession::from_root(&root);

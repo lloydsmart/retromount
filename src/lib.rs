@@ -9,6 +9,7 @@ pub mod error;
 pub mod input;
 pub mod mount;
 pub mod output;
+pub mod policy;
 pub mod readers;
 
 pub use error::RetromountError;

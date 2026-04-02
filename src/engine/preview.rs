@@ -19,6 +19,7 @@ pub fn run_phase3_preview(path: &Path) -> Result<(), RetromountError> {
         components.identifier.as_ref(),
         components.decoder.as_ref(),
         components.presenter.as_ref(),
+        &components.policy,
     )?;
 
     let stdout = io::stdout();
