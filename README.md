@@ -77,54 +77,25 @@ All backed by **one underlying file**.
 
 ## Project Status
 
-RetroMount is under active development.
+Retromount is under active development and progressing through a structured roadmap.
 
-Current development is focused on exposing the pipeline through a real filesystem interface and refining presentation behaviour.
+### Completed
 
-### Completed (Phase 4A)
+* Phase 1 — Foundations
+* Phase 2 — Core abstractions and initial pipeline
+* Phase 3 — Pipeline consolidation and normalized content model
+* Phase 4A — Mountable filesystem (FUSE integration)
+* Phase 4B — Consumer views (multiple presenters)
+* Phase 4C — Naming and conflict resolution policies
 
-* Linux FUSE mount support
-* Read-only virtual filesystem backed by the VFS
-* Directory traversal (`ls`, `tree`, `find`)
-* File access (`cat`, `head`, etc.)
-* Support for both inline-generated and source-backed files
-* Multi-disc grouping with automatic playlist (`.m3u`) generation
+### In Progress
 
-### Completed (Phase 2)
+* Phase 4D — Extensibility and configuration layer
 
-The project now supports:
+### Planned
 
-#### Input discovery
-
-* Directory sources
-* ZIP archives
-* Individual files
-* CUE/BIN disc images
-
-#### Core models
-
-* `VirtualFile` abstraction for discovered files
-* `Track`, `Disc`, and `GameImage` models for disc-based systems
-
-#### Loader pipeline
-
-* Input handler registry
-* Reader abstraction for accessing underlying data
-* Loader for discovering payload files or loading disc images
-
-#### CUE support
-
-* Parsing CUE sheets
-* Resolving referenced files
-* Track ordering and deduplication
-* Track size hydration from actual file metadata
-* Generation of `GameImage` objects for disc-based systems
-
-#### Configuration
-
-* YAML configuration file
-* Platform-aware views
-* Flexible platform parsing (`ps1`, `playstation`, etc.)
+* Phase 5 — Advanced encoders and external integrations (e.g. torrent compatibility)
+* Phase 6 — Performance, caching, and optimisation
 
 ---
 
