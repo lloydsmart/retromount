@@ -49,7 +49,7 @@ impl FlatPresenter {
     ) {
         for encoded in &presented.files {
             let mut encoded = encoded.clone();
-            encoded.name = allocate_file_name(&root, &encoded.name, policy);
+            encoded.name = allocate_file_name(root, &encoded.name, policy);
             root.add_child(VfsNode::File(encoded.to_vfs_file()));
         }
     }
