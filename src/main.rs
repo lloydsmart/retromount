@@ -7,7 +7,7 @@ use retromount::core::content::{
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
 use retromount::engine::bootstrap::default_presenter_registry;
-use retromount::engine::components::default_pipeline_components;
+use retromount::engine::components::pipeline_components;
 use retromount::engine::inspect::run_phase3_inspect;
 use retromount::engine::mount::run_mount_command;
 use retromount::engine::pipeline::run_pipeline_with_options;
@@ -94,13 +94,17 @@ fn run_configured_views() -> Result<(), RetromountError> {
 
     info!("Loaded {} view(s) from config", config.len());
 
-    let components = default_pipeline_components()?;
-
     for view in &config {
+        let presenter_name = view.presenter.as_deref().unwrap_or("grouped");
+        let encoder_name = view.encoder.as_deref().unwrap_or("basic");
+
         info!("View: {}", view.name);
         info!("  Source: {}", view.source.display());
         info!("  Mount: {}", view.mount.display());
+        info!("  Presenter: {}", presenter_name);
+        info!("  Encoder: {}", encoder_name);
 
+        let components = pipeline_components(presenter_name, encoder_name)?;
         let source = build_input_source(&view.source)?;
 
         let trace = run_pipeline_with_options(
