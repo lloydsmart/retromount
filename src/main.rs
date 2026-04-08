@@ -11,7 +11,6 @@ use retromount::engine::inspect::run_phase3_inspect;
 use retromount::engine::mount::run_mount_command;
 use retromount::engine::pipeline::run_pipeline_with_options;
 use retromount::engine::preview::{build_input_source, run_phase3_preview, write_vfs_tree};
-use retromount::output::present::PresenterKind;
 use retromount::{RetromountError, ViewConfig};
 
 fn main() -> Result<(), RetromountError> {
@@ -27,20 +26,20 @@ fn main() -> Result<(), RetromountError> {
         }
         [command, path] if command.to_string_lossy() == "inspect" => {
             let path = PathBuf::from(path);
-            run_phase3_inspect(&path, false, PresenterKind::Grouped)
+            run_phase3_inspect(&path, false, "grouped")
         }
         [command, path, flag]
             if command.to_string_lossy() == "inspect" && flag.to_string_lossy() == "--json" =>
         {
             let path = PathBuf::from(path);
-            run_phase3_inspect(&path, true, PresenterKind::Grouped)
+            run_phase3_inspect(&path, true, "grouped")
         }
         [command, path, view_flag, view]
             if command.to_string_lossy() == "inspect" && view_flag.to_string_lossy() == "--view" =>
         {
             let path = PathBuf::from(path);
-            let presenter_kind = parse_presenter_kind(view)?;
-            run_phase3_inspect(&path, false, presenter_kind)
+            let presenter_name = parse_presenter_name(view)?;
+            run_phase3_inspect(&path, false, &presenter_name)
         }
         [command, path, flag, view_flag, view]
             if command.to_string_lossy() == "inspect"
@@ -48,21 +47,21 @@ fn main() -> Result<(), RetromountError> {
                 && view_flag.to_string_lossy() == "--view" =>
         {
             let path = PathBuf::from(path);
-            let presenter_kind = parse_presenter_kind(view)?;
-            run_phase3_inspect(&path, true, presenter_kind)
+            let presenter_name = parse_presenter_name(view)?;
+            run_phase3_inspect(&path, true, &presenter_name)
         }
         [command, input, mountpoint] if command.to_string_lossy() == "mount" => {
             let input = PathBuf::from(input);
             let mountpoint = PathBuf::from(mountpoint);
-            run_mount_command(&input, &mountpoint, PresenterKind::Grouped)
+            run_mount_command(&input, &mountpoint, "grouped")
         }
         [command, input, mountpoint, view_flag, view]
             if command.to_string_lossy() == "mount" && view_flag.to_string_lossy() == "--view" =>
         {
             let input = PathBuf::from(input);
             let mountpoint = PathBuf::from(mountpoint);
-            let presenter_kind = parse_presenter_kind(view)?;
-            run_mount_command(&input, &mountpoint, presenter_kind)
+            let presenter_name = parse_presenter_name(view)?;
+            run_mount_command(&input, &mountpoint, &presenter_name)
         }
         _ => Err(RetromountError::LoadError(
             "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path> [--json] [--view <grouped|flat>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat>]"
@@ -71,13 +70,15 @@ fn main() -> Result<(), RetromountError> {
     }
 }
 
-fn parse_presenter_kind(value: &std::ffi::OsStr) -> Result<PresenterKind, RetromountError> {
-    let value = value.to_string_lossy();
-    PresenterKind::parse(&value).ok_or_else(|| {
-        RetromountError::LoadError(format!(
+fn parse_presenter_name(value: &std::ffi::OsStr) -> Result<String, RetromountError> {
+    let value = value.to_string_lossy().to_string();
+
+    match value.as_str() {
+        "grouped" | "flat" => Ok(value),
+        _ => Err(RetromountError::LoadError(format!(
             "unsupported view '{value}'; expected one of: grouped, flat"
-        ))
-    })
+        ))),
+    }
 }
 
 fn run_configured_views() -> Result<(), RetromountError> {
@@ -89,7 +90,7 @@ fn run_configured_views() -> Result<(), RetromountError> {
 
     info!("Loaded {} view(s) from config", config.len());
 
-    let components = default_pipeline_components();
+    let components = default_pipeline_components()?;
 
     for view in &config {
         info!("View: {}", view.name);

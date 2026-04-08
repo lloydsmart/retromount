@@ -13,7 +13,7 @@ use super::pipeline::run_pipeline;
 
 pub fn run_phase3_preview(path: &Path) -> Result<(), RetromountError> {
     let source = build_input_source(path)?;
-    let components = default_pipeline_components();
+    let components = default_pipeline_components()?;
     let root = run_pipeline(
         source.as_ref(),
         components.identifier.as_ref(),

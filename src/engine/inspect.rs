@@ -4,7 +4,6 @@ use std::path::Path;
 use crate::core::content::{DecodedContent, GamePart, NormalizedContent};
 use crate::engine::components::pipeline_components_for_presenter;
 use crate::error::RetromountError;
-use crate::output::present::PresenterKind;
 
 use super::pipeline::{run_pipeline_with_trace, PipelineTrace};
 use super::preview::{build_input_source, write_vfs_tree};
@@ -12,11 +11,11 @@ use super::preview::{build_input_source, write_vfs_tree};
 pub fn run_phase3_inspect(
     path: &Path,
     json: bool,
-    presenter_kind: PresenterKind,
+    presenter_name: &str,
 ) -> Result<(), RetromountError> {
     let source = build_input_source(path)?;
     let kind = source.kind();
-    let components = pipeline_components_for_presenter(presenter_kind);
+    let components = pipeline_components_for_presenter(presenter_name)?;
     let trace = run_pipeline_with_trace(
         source.as_ref(),
         components.identifier.as_ref(),
