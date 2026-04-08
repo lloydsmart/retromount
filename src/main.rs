@@ -6,6 +6,7 @@ use retromount::core::content::{
 };
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
+use retromount::engine::bootstrap::default_presenter_registry;
 use retromount::engine::components::default_pipeline_components;
 use retromount::engine::inspect::run_phase3_inspect;
 use retromount::engine::mount::run_mount_command;
@@ -72,12 +73,15 @@ fn main() -> Result<(), RetromountError> {
 
 fn parse_presenter_name(value: &std::ffi::OsStr) -> Result<String, RetromountError> {
     let value = value.to_string_lossy().to_string();
+    let registry = default_presenter_registry();
 
-    match value.as_str() {
-        "grouped" | "flat" => Ok(value),
-        _ => Err(RetromountError::LoadError(format!(
-            "unsupported view '{value}'; expected one of: grouped, flat"
-        ))),
+    if registry.get(&value).is_some() {
+        Ok(value)
+    } else {
+        Err(RetromountError::LoadError(format!(
+            "unsupported view '{value}'; expected one of: {}",
+            registry.names().join(", ")
+        )))
     }
 }
 
