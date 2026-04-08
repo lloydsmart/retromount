@@ -63,6 +63,32 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 - [x] Update architecture docs and findings
 - [x] Update tests for new stage-aligned types
 
+---
+
+### F-104: Presenter selection hardcoded in runtime composition
+
+**Issue:** [#61](https://github.com/lloydsmart/retromount/issues/61)
+
+- [x] Introduce presenter registry
+- [x] Resolve built-in presenters through registry-backed lookup
+- [x] Remove hardcoded presenter branching from composition
+- [x] Remove legacy `PresenterKind` selection path
+- [x] Support presenter selection in configuration
+- [x] Update architecture docs and findings
+
+---
+
+### F-106: Presenter and encoder composition implicit in built-in wiring
+
+**Issue:** [#63](https://github.com/lloydsmart/retromount/issues/63)
+
+- [x] Introduce encoder registry
+- [x] Make presenters depend on `OutputEncoder`
+- [x] Remove concrete encoder ownership from presenter composition paths
+- [x] Compose presenters and encoders explicitly in the composition layer
+- [x] Support presenter/encoder selection per configured view
+- [x] Update architecture docs and findings
+
 ## Medium priority (post-boundary cleanup)
 
 - [x] Review naming consistency for presenter / encoder / output terminology
@@ -87,3 +113,5 @@ This document tracks architectural findings (F-XXX) and the concrete work requir
 - [x] D-003: enforce presenter/encoder separation
 - [x] D-004: ensure core model remains presentation-agnostic
 - [x] D-005: define decoded vs normalized content boundary
+- [x] D-006: resolve presenters via registry-backed composition
+- [x] D-007: make presenter and encoder composition explicit

@@ -20,4 +20,10 @@ pub struct ViewConfig {
     pub source: PathBuf,
     pub mount: PathBuf,
     pub platform: Platform,
+
+    #[serde(default)]
+    pub presenter: Option<String>,
+
+    #[serde(default)]
+    pub encoder: Option<String>,
 }

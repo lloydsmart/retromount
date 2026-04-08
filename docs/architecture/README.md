@@ -132,7 +132,9 @@ Within that stage:
 * the presenter determines structure, grouping, and layout
 * the encoder materializes individual output files
 
-In the default implementation, the presenter composes an encoder while constructing the VFS tree.
+Presenters and encoders are composed explicitly through the runtime composition layer.
+
+Built-in implementations are selected via registry-backed composition, and configured views can choose presenter and encoder combinations independently.
 
 Together, they produce the final VFS tree exposed to consumers.
 
@@ -204,7 +206,7 @@ The architecture review work in this directory aims to:
 * identify confusing or redundant structures
 * remove obsolete or transitional code
 * ensure the system is aligned with a pipeline-first design
-* prepare the codebase for future extensibility (including plugin-style architecture)
+* establish explicit composition and extension boundaries for future external plugin-style architecture
 
 ---
 

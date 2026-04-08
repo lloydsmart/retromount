@@ -412,3 +412,107 @@ The pipeline is now explicitly layered as:
 - presented/encoded output
 
 See `boundaries.md` for the detailed model shape and pipeline contracts.
+
+---
+
+## D-006: Resolve presenters via registry-backed composition
+
+**Date:** 2026-04-08  
+**Status:** Implemented  
+**Related:** F-104  
+**Issue:** [#61](https://github.com/lloydsmart/retromount/issues/61)
+
+### D-006 Context
+
+Retromount introduced multiple presenter implementations in Phase 4B, but presenter selection remained hardcoded in runtime composition.
+
+This meant presenter extensibility existed at the type level, but not yet at the composition level.
+
+### D-006 Decision
+
+Retromount will resolve presenters through a registry-backed composition model rather than enum-based or hardcoded branching.
+
+Presenter selection becomes a first-class composition concern.
+
+### D-006 Consequences
+
+- presenter selection now flows through `PresenterRegistry`
+- built-in presenter validation and lookup are registry-backed
+- `PresenterKind` has been removed
+- configured and runtime execution resolve presenters by name
+- configuration can select presenters per view
+
+### D-006 Rationale
+
+This change:
+
+- removes hardcoded presenter branching from runtime composition
+- makes presenter selection consistent with extensibility goals
+- provides a cleaner boundary for future plugin-oriented presenter integrations
+- aligns the runtime model with the architecture established in Phase 4B
+
+### D-006 Alternatives considered
+
+- **Keep presenter branching in composition code**  
+  Rejected — preserves unnecessary coupling and weakens extensibility
+
+- **Defer all presenter selection cleanup to a future plugin phase**  
+  Rejected — leaves the built-in composition model inconsistent and incomplete
+
+### D-006 Notes
+
+This decision has been fully implemented.
+
+Presenter selection is now registry-backed and configuration-driven.
+
+---
+
+## D-007: Make presenter and encoder composition explicit
+
+**Date:** 2026-04-08  
+**Status:** Implemented  
+**Related:** F-106  
+**Issue:** [#63](https://github.com/lloydsmart/retromount/issues/63)
+
+### D-007 Context
+
+Retromount already separated structure (Presenter) from representation (Encoder), but the actual pairing of presenters and encoders remained implicit.
+
+Encoders were effectively selected inside presenter construction, which prevented composition from being treated as an explicit runtime concern.
+
+### D-007 Decision
+
+Retromount will compose presenters and encoders explicitly through the composition layer.
+
+Presenter and encoder selection are both first-class runtime/configuration concerns.
+
+### D-007 Consequences
+
+- encoder selection now flows through `EncoderRegistry`
+- presenters depend on `OutputEncoder` rather than concrete encoder ownership
+- the composition layer explicitly selects both presenter and encoder
+- configured views can specify presenter and encoder independently
+- default built-in composition remains `grouped` + `basic` when omitted
+
+### D-007 Rationale
+
+This change:
+
+- completes the Presenter/Encoder separation established by D-003
+- removes hidden encoder coupling from presenter construction
+- makes composition easier to reason about and configure
+- provides the foundation for future extension/plugin work without contaminating core behaviour
+
+### D-007 Alternatives considered
+
+- **Keep encoder selection implicit inside presenter construction**  
+  Rejected — leaves composition hidden and weakens extensibility
+
+- **Expose only presenter selection and defer encoder composition**  
+  Rejected — produces an incomplete composition model
+
+### D-007 Notes
+
+This decision has been fully implemented.
+
+Retromount now supports explicit, registry-backed presenter and encoder composition, including per-view configuration.

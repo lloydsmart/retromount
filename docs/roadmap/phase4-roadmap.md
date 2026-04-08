@@ -226,24 +226,41 @@ feature/phase4c-presentation-policy
 
 ---
 
-## Phase 4D — Plugin System (Deferred)
+## Phase 4D — Composition & Extensibility Foundations
 
 ### Phase 4D Goal
 
-Enable external extensions to the pipeline (inputs, transforms, outputs).
+Make presenter and encoder composition explicit, configurable, and extensible.
+
+Status: Implemented
 
 ---
 
 ### Phase 4D Branch
 
-feature/plugin-system
+feature/phase4d-config-driven-composition
 
 ---
 
 ### Phase 4D Success Criteria
 
-* External components can integrate via stable interfaces
-* Interfaces validated by Phase 4A–4C work
+* [x] presenter selection is registry-backed
+* [x] encoder selection is registry-backed
+* [x] presenter/encoder composition is explicit
+* [x] configuration can select presenter and encoder per view
+* [x] defaults are applied when fields are omitted
+* [x] legacy hardcoded presenter selection removed
+
+---
+
+### Phase 4D Outcome
+
+Retromount now supports explicit, registry-backed composition of presenters and encoders.
+
+Views can be configured independently, allowing the same underlying content
+to be exposed in different layouts and representations without duplication.
+
+This establishes the foundation for future extension work in Phase 5.
 
 ---
 

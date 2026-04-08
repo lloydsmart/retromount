@@ -270,3 +270,104 @@ Retromount now uses an explicit type separation between decoded content and norm
 - encode consumes `NormalizedContent`
 
 This makes the decode → normalize → present pipeline contract explicit in the type model and removes impossible pre-normalized variants from post-normalization stage boundaries.
+
+---
+
+## F-104: Presenter selection was hardcoded rather than registry-backed
+
+**Status:** Resolved  
+**Issue:** [#61](https://github.com/lloydsmart/retromount/issues/61)  
+**Resolved by:** D-006
+
+### F-104 Context
+
+Retromount supported multiple presenters, but presenter selection was originally hardcoded in runtime composition.
+
+This meant that although the output architecture had presenter abstractions, the system still relied on fixed built-in branching when choosing which presenter to use.
+
+### F-104 Evidence
+
+- presenter construction was previously performed via direct branching in pipeline component composition
+- runtime flows selected presenters through hardcoded paths rather than registry-backed lookup
+- configured and CLI-driven view selection depended on built-in selection logic rather than a first-class composition boundary
+
+### F-104 Why it matters
+
+Hardcoded presenter selection weakens extensibility.
+
+If presenter selection is not registry-backed, then:
+
+- adding new presenters requires modifying composition code directly
+- runtime selection remains coupled to built-in implementations
+- configuration cannot act as a clean composition surface
+- future plugin-style presenter integrations become harder to support cleanly
+
+### F-104 Options
+
+- keep built-in presenter branching and document it as acceptable
+- introduce presenter registry-backed selection while keeping built-ins static
+- defer all presenter extensibility until a future plugin phase
+
+### F-104 Decision
+
+Resolved by D-006.
+
+Retromount now resolves presenters via a registry-backed composition model rather than hardcoded branching.
+
+This includes:
+
+- `PresenterRegistry`
+- registry-backed presenter validation and lookup
+- removal of the legacy `PresenterKind` selection path
+- configuration-driven presenter selection per view
+
+---
+
+## F-106: Presenter and encoder composition was implicit rather than explicit
+
+**Status:** Resolved  
+**Issue:** [#63](https://github.com/lloydsmart/retromount/issues/63)  
+**Resolved by:** D-007
+
+### F-106 Context
+
+Retromount had separate presenter and encoder abstractions, but their composition was originally implicit.
+
+In practice, encoder selection was hidden behind presenter construction, and presenter/encoder pairing was not exposed as an explicit runtime or configuration concern.
+
+### F-106 Evidence
+
+- presenters previously owned concrete encoder implementations directly
+- encoder choice was effectively fixed inside presenter construction paths
+- runtime composition selected presenters without exposing encoder selection explicitly
+- configured execution did not initially allow presenter/encoder pairing to vary per view
+
+### F-106 Why it matters
+
+Implicit composition weakens the architectural boundary between structure and representation.
+
+If presenter/encoder composition is not explicit, then:
+
+- encoder choice remains hidden and harder to reason about
+- composition cannot be configured cleanly per view
+- future alternate encoders are harder to introduce safely
+- extensibility work remains partial even when separate abstractions exist
+
+### F-106 Options
+
+- keep encoder selection implicit inside presenter construction
+- make presenter/encoder composition explicit in the composition layer
+- defer encoder composability until a later plugin phase
+
+### F-106 Decision
+
+Resolved by D-007.
+
+Retromount now composes presenters and encoders explicitly through the composition layer.
+
+This includes:
+
+- `EncoderRegistry`
+- explicit presenter/encoder construction in bootstrap and pipeline composition
+- configuration-driven presenter/encoder selection per view
+- removal of hidden built-in encoder coupling from presenter selection paths
