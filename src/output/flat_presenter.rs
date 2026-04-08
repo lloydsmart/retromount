@@ -1,20 +1,19 @@
 use crate::core::content::NormalizedContent;
 use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
+use crate::output::encode::OutputEncoder;
 use crate::output::name_allocator::allocate_file_name;
 use crate::output::present::OutputPresenter;
 use crate::output::presented::{build_presented_entries, PresentedEntry, PresentedGame};
 use crate::policy::PolicySet;
 
 pub struct FlatPresenter {
-    encoder: BasicEncoder,
+    encoder: Box<dyn OutputEncoder>,
 }
 
 impl FlatPresenter {
-    pub fn new() -> Self {
-        Self {
-            encoder: BasicEncoder::new(),
-        }
+    pub fn new(encoder: Box<dyn OutputEncoder>) -> Self {
+        Self { encoder }
     }
 
     fn build_root_children(&self, entries: &[PresentedEntry], policy: &PolicySet) -> Vec<VfsNode> {
@@ -57,13 +56,13 @@ impl FlatPresenter {
 
 impl Default for FlatPresenter {
     fn default() -> Self {
-        Self::new()
+        Self::new(Box::new(BasicEncoder::new()))
     }
 }
 
 impl OutputPresenter for FlatPresenter {
     fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory {
-        let presented_entries = build_presented_entries(content, &self.encoder, policy);
+        let presented_entries = build_presented_entries(content, self.encoder.as_ref(), policy);
         let root_children = self.build_root_children(&presented_entries, policy);
 
         VfsDirectory::with_children("", root_children)
@@ -139,7 +138,7 @@ mod tests {
 
     #[test]
     fn presents_mixed_content_at_root() {
-        let presenter = FlatPresenter::new();
+        let presenter = FlatPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![
@@ -206,7 +205,7 @@ mod tests {
 
     #[test]
     fn presents_single_rom_game_as_root_file() {
-        let presenter = FlatPresenter::new();
+        let presenter = FlatPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
@@ -229,7 +228,7 @@ mod tests {
 
     #[test]
     fn presents_multi_disc_game_as_root_files_with_playlist() {
-        let presenter = FlatPresenter::new();
+        let presenter = FlatPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
@@ -285,7 +284,7 @@ mod tests {
 
     #[test]
     fn flattens_non_game_content_to_leaf_file_names() {
-        let presenter = FlatPresenter::new();
+        let presenter = FlatPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![
@@ -314,7 +313,7 @@ mod tests {
 
     #[test]
     fn conflict_policy_can_disambiguate_flat_sibling_file_names() {
-        let presenter = FlatPresenter::new();
+        let presenter = FlatPresenter::new(Box::new(BasicEncoder::new()));
         let policy = suffix_conflict_policy();
 
         let content = vec![
@@ -338,7 +337,7 @@ mod tests {
 
     #[test]
     fn conflict_policy_can_disambiguate_game_file_and_non_game_file_at_root() {
-        let presenter = FlatPresenter::new();
+        let presenter = FlatPresenter::new(Box::new(BasicEncoder::new()));
         let policy = suffix_conflict_policy();
 
         let content = vec![
@@ -368,7 +367,7 @@ mod tests {
 
     #[test]
     fn conflict_policy_can_disambiguate_playlist_between_duplicate_multi_disc_games() {
-        let presenter = FlatPresenter::new();
+        let presenter = FlatPresenter::new(Box::new(BasicEncoder::new()));
         let policy = suffix_conflict_policy();
 
         let content = vec![

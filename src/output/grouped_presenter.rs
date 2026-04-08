@@ -1,20 +1,19 @@
 use crate::core::content::NormalizedContent;
 use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
 use crate::output::basic_encoder::BasicEncoder;
+use crate::output::encode::OutputEncoder;
 use crate::output::name_allocator::{allocate_directory_name, allocate_file_name};
 use crate::output::present::OutputPresenter;
 use crate::output::presented::{build_presented_entries, PresentedEntry, PresentedGame};
 use crate::policy::PolicySet;
 
 pub struct GroupedPresenter {
-    encoder: BasicEncoder,
+    encoder: Box<dyn OutputEncoder>,
 }
 
 impl GroupedPresenter {
-    pub fn new() -> Self {
-        Self {
-            encoder: BasicEncoder::new(),
-        }
+    pub fn new(encoder: Box<dyn OutputEncoder>) -> Self {
+        Self { encoder }
     }
 
     fn build_root_children(&self, entries: &[PresentedEntry], policy: &PolicySet) -> Vec<VfsNode> {
@@ -73,13 +72,13 @@ impl GroupedPresenter {
 
 impl Default for GroupedPresenter {
     fn default() -> Self {
-        Self::new()
+        Self::new(Box::new(BasicEncoder::new()))
     }
 }
 
 impl OutputPresenter for GroupedPresenter {
     fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory {
-        let presented_entries = build_presented_entries(content, &self.encoder, policy);
+        let presented_entries = build_presented_entries(content, self.encoder.as_ref(), policy);
         let root_children = self.build_root_children(&presented_entries, policy);
 
         VfsDirectory::with_children("", root_children)
@@ -274,7 +273,7 @@ mod tests {
 
     #[test]
     fn presents_mixed_content_in_library_view() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![
@@ -321,7 +320,7 @@ mod tests {
 
     #[test]
     fn presents_single_rom_game_as_file_in_platform_title_directory() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
@@ -357,7 +356,7 @@ mod tests {
 
     #[test]
     fn presents_multi_disc_game_as_directory_with_playlist_in_library_view() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
@@ -425,7 +424,7 @@ mod tests {
 
     #[test]
     fn presents_multiple_games_under_platform_directories() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![
@@ -480,7 +479,7 @@ mod tests {
 
     #[test]
     fn presents_text_content_with_relative_path_using_leaf_file_name() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Text(TextContent {
@@ -502,7 +501,7 @@ mod tests {
 
     #[test]
     fn presents_bytes_content_with_relative_path_using_leaf_file_name() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Bytes(BytesContent {
@@ -524,7 +523,7 @@ mod tests {
 
     #[test]
     fn naming_policy_can_change_grouped_output_names_without_changing_structure() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let default_policy = PolicySet::default();
         let alt_policy = alternate_policy();
 
@@ -592,7 +591,7 @@ mod tests {
 
     #[test]
     fn conflict_policy_can_disambiguate_sibling_file_names() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = suffix_conflict_policy();
 
         let content = vec![
@@ -617,7 +616,7 @@ mod tests {
 
     #[test]
     fn conflict_policy_can_disambiguate_game_directory_names_under_same_platform() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = suffix_conflict_policy();
 
         let content = vec![
@@ -654,7 +653,7 @@ mod tests {
 
     #[test]
     fn reuses_existing_directory_name_before_applying_conflict_suffixes() {
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = suffix_conflict_policy();
 
         let content = vec![
