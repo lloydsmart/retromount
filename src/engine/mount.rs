@@ -7,7 +7,6 @@ use crate::engine::pipeline::run_pipeline;
 use crate::engine::preview::build_input_source;
 use crate::error::RetromountError;
 use crate::mount::session::MountSession;
-use crate::output::present::PresenterKind;
 
 #[cfg(target_os = "linux")]
 use crate::mount::adapter::FilesystemAdapter;
@@ -17,10 +16,10 @@ use crate::mount::fuse_fs::RetromountFuseFs;
 pub fn run_mount_command(
     input: &Path,
     mountpoint: &Path,
-    presenter_kind: PresenterKind,
+    presenter_name: &str,
 ) -> Result<(), RetromountError> {
     let source = build_input_source(input)?;
-    let components = pipeline_components_for_presenter(presenter_kind);
+    let components = pipeline_components_for_presenter(presenter_name)?;
 
     let root = run_pipeline(
         source.as_ref(),
@@ -38,7 +37,7 @@ pub fn run_mount_command(
 
     info!("Prepared mount input: {}", input.display());
     info!("Prepared mountpoint: {}", mountpoint.display());
-    info!("Presenter view: {}", presenter_kind.as_str());
+    info!("Presenter view: {}", presenter_name);
     info!("Indexed VFS nodes: {}", session.node_count());
     info!("Root inode: {}", session.root_inode());
     info!("Root child entries: {}", root_children);
