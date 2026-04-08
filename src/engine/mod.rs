@@ -1,3 +1,4 @@
+pub mod bootstrap;
 pub mod components;
 pub mod inspect;
 pub mod mount;

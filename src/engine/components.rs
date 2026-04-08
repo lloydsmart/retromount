@@ -1,9 +1,8 @@
+use crate::engine::bootstrap::default_presenter_registry;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentifier;
-use crate::output::flat_presenter::FlatPresenter;
-use crate::output::grouped_presenter::GroupedPresenter;
 use crate::output::present::{OutputPresenter, PresenterKind};
 use crate::policy::PolicySet;
 
@@ -24,10 +23,11 @@ pub fn default_pipeline_components() -> PipelineComponents {
 }
 
 pub fn pipeline_components_for_presenter(kind: PresenterKind) -> PipelineComponents {
-    let presenter: Box<dyn OutputPresenter> = match kind {
-        PresenterKind::Grouped => Box::new(GroupedPresenter::new()),
-        PresenterKind::Flat => Box::new(FlatPresenter::new()),
-    };
+    let registry = default_presenter_registry();
+
+    let presenter = registry
+        .get(kind.as_str())
+        .unwrap_or_else(|| panic!("presenter '{}' is not registered", kind.as_str()));
 
     PipelineComponents {
         identifier: Box::new(BasicInputIdentifier::new()),

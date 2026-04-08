@@ -6,3 +6,4 @@ pub mod name_allocator;
 pub mod present;
 pub mod presentation_expansion;
 pub mod presented;
+pub mod presenter_registry;
