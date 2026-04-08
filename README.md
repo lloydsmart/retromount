@@ -87,10 +87,9 @@ Retromount is under active development and progressing through a structured road
 * Phase 4A — Mountable filesystem (FUSE integration)
 * Phase 4B — Consumer views (multiple presenters)
 * Phase 4C — Naming and conflict resolution policies
+* Phase 4D — Extensibility and configuration layer
 
 ### In Progress
-
-* Phase 4D — Extensibility and configuration layer
 
 ### Planned
 
@@ -140,6 +139,8 @@ Create a file called `retromount.yaml`:
   source: /roms/ps1/Ridge Racer.cue
   mount: /mnt/retromount/ps1
   platform: ps1
+  presenter: grouped
+  encoder: basic
 
 - name: snes
   source: /roms/snes
@@ -150,18 +151,37 @@ Create a file called `retromount.yaml`:
   source: /roms/megadrive
   mount: /mnt/retromount/megadrive
   platform: megadrive
+  presenter: flat
 ```
 
 Fields:
 
-| Field      | Description                                       |
-| ---------- | ------------------------------------------------- |
-| `name`     | Logical name for the mounted view                 |
-| `source`   | Source directory, archive, or disc image          |
-| `mount`    | Mount point for the virtual filesystem            |
-| `platform` | Target platform (e.g. `ps1`, `snes`, `megadrive`) |
+| Field       | Description                                                |
+| ----------- | ---------------------------------------------------------- |
+| `name`      | Logical name for the mounted view                          |
+| `source`    | Source directory, archive, or disc image                   |
+| `mount`     | Mount point for the virtual filesystem                     |
+| `platform`  | Target platform (e.g. `ps1`, `snes`, `megadrive`)          |
+| `presenter` | Filesystem layout (`grouped`, `flat`) (default: `grouped`) |
+| `encoder`   | File representation strategy (default: `basic`)            |
 
 Platform names are **case-insensitive** and accept friendly aliases.
+
+---
+
+### Composition
+
+Each configured view is composed of:
+
+* a **presenter** (defines filesystem structure)
+* an **encoder** (defines file representation)
+
+If not specified:
+
+* `presenter` defaults to `grouped`
+* `encoder` defaults to `basic`
+
+This allows different views to present the same underlying data in different layouts without duplicating files.
 
 ---
 
@@ -242,12 +262,12 @@ Output-specific filtering will be implemented in the **view/output layer** in a 
 
 ## Roadmap
 
-### Phase 4 (current)
+### Phase 4 (completed)
 
-* Consumer-specific filesystem views
-* Presentation policies (naming, filtering, grouping)
-* Performance improvements (e.g. read caching)
-* Output translators (e.g. CHD → ISO)
+* Mountable virtual filesystem (FUSE)
+* Multiple consumer views (presenters)
+* Presentation policies (naming, conflict resolution)
+* Explicit, configurable composition of presenters and encoders
 
 ---
 

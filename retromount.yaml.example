@@ -2,20 +2,27 @@
 #
 # Copy this file to `retromount.yaml` and adjust paths for your system.
 # platform accepts friendly names like ps1, snes, megadrive, playstation, etc.
+#
+# Each view can optionally specify:
+#   presenter → filesystem layout (default: grouped)
+#   encoder   → file representation (default: basic)
 
 - name: ps1
   source: /roms/ps1/Ridge Racer.cue
   mount: /mnt/retromount/ps1
   platform: ps1
+  presenter: grouped
+  encoder: basic
 
-# Directory source example
+# Directory source example (uses defaults: grouped + basic)
 - name: snes
   source: /roms/snes
   mount: /mnt/retromount/snes
   platform: snes
 
-# ZIP-based ROM collection example
+# ZIP-based ROM collection example with alternate presenter
 - name: megadrive
   source: /roms/megadrive
   mount: /mnt/retromount/megadrive
   platform: megadrive
+  presenter: flat
