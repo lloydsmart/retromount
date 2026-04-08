@@ -28,7 +28,7 @@ pub fn sorted_disc_parts(game: &GameContent) -> Vec<&DiscPart> {
 
 /// Encodes a game that expands to a single output file.
 pub fn encode_game(
-    encoder: &impl OutputEncoder,
+    encoder: &(impl OutputEncoder + ?Sized),
     game: &GameContent,
     policy: &PolicySet,
 ) -> EncodedFile {
@@ -39,7 +39,7 @@ pub fn encode_game(
 
 /// Encodes a disc file for a multi-disc game.
 pub fn encode_disc(
-    encoder: &impl OutputEncoder,
+    encoder: &(impl OutputEncoder + ?Sized),
     game: &GameContent,
     disc: &DiscPart,
     policy: &PolicySet,
@@ -56,7 +56,7 @@ pub fn encode_disc(
 
 /// Encodes a playlist file for a multi-disc game.
 pub fn encode_playlist(
-    encoder: &impl OutputEncoder,
+    encoder: &(impl OutputEncoder + ?Sized),
     game: &GameContent,
     disc_names: &[String],
     policy: &PolicySet,

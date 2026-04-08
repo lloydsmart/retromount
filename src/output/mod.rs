@@ -1,5 +1,6 @@
 pub mod basic_encoder;
 pub mod encode;
+pub mod encoder_registry;
 pub mod flat_presenter;
 pub mod grouped_presenter;
 pub mod name_allocator;

@@ -1,5 +1,4 @@
 use crate::core::content::{GameContent, NormalizedContent};
-use crate::output::basic_encoder::BasicEncoder;
 use crate::output::encode::{EncodedFile, OutputEncoder};
 use crate::output::presentation_expansion::{
     encode_disc, encode_game, encode_playlist, is_multi_disc_game, sorted_disc_parts,
@@ -31,7 +30,7 @@ pub struct PresentedGame {
 /// artifacts that presenters will place into the VFS.
 pub fn build_presented_entries(
     content: &[NormalizedContent],
-    encoder: &BasicEncoder,
+    encoder: &dyn OutputEncoder,
     policy: &PolicySet,
 ) -> Vec<PresentedEntry> {
     content
@@ -49,7 +48,7 @@ pub fn build_presented_entries(
 
 fn build_presented_game(
     game: &GameContent,
-    encoder: &BasicEncoder,
+    encoder: &dyn OutputEncoder,
     policy: &PolicySet,
 ) -> PresentedGame {
     let files = if is_multi_disc_game(game) {
@@ -66,7 +65,7 @@ fn build_presented_game(
 
 fn build_multi_disc_files(
     game: &GameContent,
-    encoder: &BasicEncoder,
+    encoder: &dyn OutputEncoder,
     policy: &PolicySet,
 ) -> Vec<EncodedFile> {
     let disc_parts = sorted_disc_parts(game);

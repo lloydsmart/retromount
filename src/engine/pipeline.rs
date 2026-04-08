@@ -127,6 +127,7 @@ mod tests {
     use crate::input::basic_decoder::BasicInputDecoder;
     use crate::input::basic_identifier::BasicInputIdentifier;
     use crate::input::directory_source::DirectoryInputSource;
+    use crate::output::basic_encoder::BasicEncoder;
     use crate::output::flat_presenter::FlatPresenter;
     use crate::output::grouped_presenter::GroupedPresenter;
     use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy, PolicySet};
@@ -199,7 +200,7 @@ mod tests {
         let source = DirectoryInputSource::new(temp_dir.path());
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
 
         let policy = PolicySet::default();
         let root = run_pipeline(&source, &identifier, &decoder, &presenter, &policy).unwrap();
@@ -236,7 +237,7 @@ mod tests {
         let source = ZipInputSource::new(&zip_path);
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
         let policy = PolicySet::default();
         let root = run_pipeline(&source, &identifier, &decoder, &presenter, &policy).unwrap();
 
@@ -254,7 +255,7 @@ mod tests {
         let source = DirectoryInputSource::new(temp_dir.path());
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
 
         let policy = PolicySet::default();
         let trace =
@@ -314,8 +315,8 @@ mod tests {
         let identifier = crate::input::basic_identifier::BasicInputIdentifier::new();
         let decoder = crate::input::basic_decoder::BasicInputDecoder::new();
 
-        let grouped = GroupedPresenter::new();
-        let flat = FlatPresenter::new();
+        let grouped = GroupedPresenter::new(Box::new(BasicEncoder::new()));
+        let flat = FlatPresenter::new(Box::new(BasicEncoder::new()));
 
         let policy = PolicySet::default();
         let grouped_root = run_pipeline(&source, &identifier, &decoder, &grouped, &policy).unwrap();
@@ -370,7 +371,7 @@ mod tests {
         let source = DirectoryInputSource::new(temp_dir.path());
         let identifier = BasicInputIdentifier::new();
         let decoder = BasicInputDecoder::new();
-        let presenter = GroupedPresenter::new();
+        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
 
         let default_policy = PolicySet::default();
         let alt_policy = alternate_policy();
