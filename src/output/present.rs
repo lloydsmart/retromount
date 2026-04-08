@@ -10,26 +10,3 @@ use crate::policy::PolicySet;
 pub trait OutputPresenter: Send + Sync {
     fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory;
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PresenterKind {
-    Grouped,
-    Flat,
-}
-
-impl PresenterKind {
-    pub fn parse(value: &str) -> Option<Self> {
-        match value {
-            "grouped" => Some(Self::Grouped),
-            "flat" => Some(Self::Flat),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Grouped => "grouped",
-            Self::Flat => "flat",
-        }
-    }
-}
