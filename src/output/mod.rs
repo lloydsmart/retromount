@@ -9,6 +9,5 @@ pub mod name_allocator;
 pub mod plan;
 pub mod present;
 pub mod presentation_expansion;
-pub mod presented;
 pub mod presenter_registry;
 pub mod resolution;

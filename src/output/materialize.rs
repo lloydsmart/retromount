@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 use std::io;
 
-use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
-use crate::output::plan::{
-    ArtifactId, GeneratedArtifact, PlanEntry, PlanFile, PlannedArtifactKind, PlaylistArtifact,
-    PresentationPlan, SourceArtifact,
-};
+use crate::core::vfs::{VfsDirectory, VfsNode};
+use crate::output::capabilities::EncoderCapability;
+use crate::output::encode::{MaterializationContext, OutputEncoder};
+use crate::output::encoder_registry::default_encoder_registry;
+use crate::output::plan::{ArtifactId, PlanEntry, PlanFile, PresentationPlan};
+use crate::output::resolution::{CapabilityResolver, ResolutionResult};
 
 pub fn materialize_plan(plan: &PresentationPlan) -> Result<VfsDirectory, io::Error> {
     let artifact_names = collect_artifact_names(&plan.entries);
-    let children = materialize_entries(&plan.entries, &artifact_names)?;
+    let encoders = default_encoder_registry().all();
+    let children = materialize_entries(&plan.entries, &artifact_names, &encoders)?;
     Ok(VfsDirectory::with_children("", children))
 }
 
@@ -36,20 +38,25 @@ fn collect_artifact_names_recursive(
 fn materialize_entries(
     entries: &[PlanEntry],
     artifact_names: &HashMap<ArtifactId, String>,
+    encoders: &[Box<dyn OutputEncoder>],
 ) -> Result<Vec<VfsNode>, io::Error> {
     let mut children = Vec::with_capacity(entries.len());
 
     for entry in entries {
         match entry {
             PlanEntry::Directory(dir) => {
-                let nested_children = materialize_entries(&dir.entries, artifact_names)?;
+                let nested_children = materialize_entries(&dir.entries, artifact_names, encoders)?;
                 children.push(VfsNode::Directory(VfsDirectory::with_children(
                     &dir.name,
                     nested_children,
                 )));
             }
             PlanEntry::File(file) => {
-                children.push(VfsNode::File(materialize_file(file, artifact_names)?));
+                children.push(VfsNode::File(materialize_file(
+                    file,
+                    artifact_names,
+                    encoders,
+                )?));
             }
         }
     }
@@ -60,71 +67,51 @@ fn materialize_entries(
 fn materialize_file(
     file: &PlanFile,
     artifact_names: &HashMap<ArtifactId, String>,
-) -> Result<VfsFile, io::Error> {
-    match &file.artifact.kind {
-        PlannedArtifactKind::SourceBacked(source_artifact) => {
-            materialize_source_backed_file(&file.name, source_artifact)
-        }
-        PlannedArtifactKind::Generated(generated) => {
-            materialize_generated_file(&file.name, generated, artifact_names)
-        }
-    }
-}
+    encoders: &[Box<dyn OutputEncoder>],
+) -> Result<crate::core::vfs::VfsFile, io::Error> {
+    let capabilities = collect_capabilities(encoders);
+    let resolver = CapabilityResolver;
 
-fn materialize_source_backed_file(
-    name: &str,
-    artifact: &SourceArtifact,
-) -> Result<VfsFile, io::Error> {
-    match artifact.inputs.as_slice() {
-        [input] => Ok(VfsFile::source_backed(
-            name,
-            input.size,
-            input.source.clone(),
-        )),
-        _ => Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "multi-source source-backed artifact materialization is not supported",
-        )),
-    }
-}
-
-fn materialize_generated_file(
-    name: &str,
-    artifact: &GeneratedArtifact,
-    artifact_names: &HashMap<ArtifactId, String>,
-) -> Result<VfsFile, io::Error> {
-    match artifact {
-        GeneratedArtifact::Playlist(playlist) => {
-            let contents = materialize_playlist_contents(playlist, artifact_names)?;
-            Ok(VfsFile::inline(name, contents))
-        }
-    }
-}
-
-fn materialize_playlist_contents(
-    playlist: &PlaylistArtifact,
-    artifact_names: &HashMap<ArtifactId, String>,
-) -> Result<Vec<u8>, io::Error> {
-    let mut lines = Vec::with_capacity(playlist.entries.len());
-
-    for entry in &playlist.entries {
-        let name = artifact_names.get(&entry.artifact_id).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
+    let selected = match resolver.resolve(&file.artifact, &capabilities) {
+        ResolutionResult::Resolved { selected, .. } => selected,
+        ResolutionResult::Unresolved { diagnostics } => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
                 format!(
-                    "playlist references unknown artifact '{}'",
-                    entry.artifact_id.0
+                    "no encoder could materialize artifact '{}' ({:?})",
+                    file.name, diagnostics
                 ),
+            ))
+        }
+    };
+
+    let encoder = encoders
+        .iter()
+        .find(|encoder| encoder.plugin_id() == selected.plugin_id)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("selected encoder '{}' is unavailable", selected.plugin_id),
             )
         })?;
 
-        lines.push(name.clone());
-    }
+    let materialized = encoder.materialize(
+        &file.name,
+        &file.artifact,
+        &selected.capability_id,
+        &MaterializationContext {
+            artifact_names: artifact_names.clone(),
+        },
+    )?;
 
-    let mut text = lines.join("\n");
-    text.push('\n');
+    Ok(materialized.to_vfs_file(&file.name))
+}
 
-    Ok(text.into_bytes())
+fn collect_capabilities(encoders: &[Box<dyn OutputEncoder>]) -> Vec<EncoderCapability> {
+    encoders
+        .iter()
+        .flat_map(|encoder| encoder.capabilities())
+        .collect()
 }
 
 #[cfg(test)]
@@ -231,7 +218,7 @@ mod tests {
                         size: 200,
                     },
                 ])),
-                CapabilityRequirements::new(ContentType::Archive).with_format(Format::Bin),
+                CapabilityRequirements::new(ContentType::Rom).with_format(Format::Bin),
             ),
         ))]);
 
