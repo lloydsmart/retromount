@@ -1,10 +1,13 @@
 pub mod basic_encoder;
+pub mod capabilities;
 pub mod encode;
 pub mod encoder_registry;
 pub mod flat_presenter;
 pub mod grouped_presenter;
 pub mod name_allocator;
+pub mod plan;
 pub mod present;
 pub mod presentation_expansion;
 pub mod presented;
 pub mod presenter_registry;
+pub mod resolution;
