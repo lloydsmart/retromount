@@ -18,11 +18,32 @@ pub enum RejectionReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolutionScore {
+    pub matched_preferred_features: usize,
+    pub capability_priority: u32,
+    pub capability_feature_count: usize,
+}
+
+impl ResolutionScore {
+    pub fn new(
+        matched_preferred_features: usize,
+        capability_priority: u32,
+        capability_feature_count: usize,
+    ) -> Self {
+        Self {
+            matched_preferred_features,
+            capability_priority,
+            capability_feature_count,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateDiagnostic {
     pub plugin_id: String,
     pub capability_id: String,
     pub accepted: bool,
-    pub matched_preferred_features: usize,
+    pub score: Option<ResolutionScore>,
     pub rejection_reasons: Vec<RejectionReason>,
 }
 
@@ -36,7 +57,7 @@ pub struct ResolutionDiagnostic {
 pub struct ResolvedCapability {
     pub plugin_id: String,
     pub capability_id: String,
-    pub matched_preferred_features: usize,
+    pub score: ResolutionScore,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,34 +80,37 @@ impl CapabilityResolver {
         request: &ArtifactRequest,
         capabilities: &[EncoderCapability],
     ) -> ResolutionResult {
-        let mut accepted: Vec<(ResolvedCapability, u32, usize)> = Vec::new();
+        let mut accepted: Vec<ResolvedCapability> = Vec::new();
         let mut diagnostics = Vec::with_capacity(capabilities.len());
 
         for capability in capabilities {
             let rejection_reasons = self.rejection_reasons(request, capability);
-            let matched_preferred_features =
-                matched_preferred_features(&request.requirements, capability);
-
             let accepted_candidate = rejection_reasons.is_empty();
 
-            diagnostics.push(CandidateDiagnostic {
-                plugin_id: capability.plugin_id.clone(),
-                capability_id: capability.capability_id.clone(),
-                accepted: accepted_candidate,
-                matched_preferred_features,
-                rejection_reasons,
-            });
-
             if accepted_candidate {
-                accepted.push((
-                    ResolvedCapability {
-                        plugin_id: capability.plugin_id.clone(),
-                        capability_id: capability.capability_id.clone(),
-                        matched_preferred_features,
-                    },
-                    capability.priority,
-                    capability.features.len(),
-                ));
+                let score = self.score(&request.requirements, capability);
+
+                diagnostics.push(CandidateDiagnostic {
+                    plugin_id: capability.plugin_id.clone(),
+                    capability_id: capability.capability_id.clone(),
+                    accepted: true,
+                    score: Some(score.clone()),
+                    rejection_reasons: Vec::new(),
+                });
+
+                accepted.push(ResolvedCapability {
+                    plugin_id: capability.plugin_id.clone(),
+                    capability_id: capability.capability_id.clone(),
+                    score,
+                });
+            } else {
+                diagnostics.push(CandidateDiagnostic {
+                    plugin_id: capability.plugin_id.clone(),
+                    capability_id: capability.capability_id.clone(),
+                    accepted: false,
+                    score: None,
+                    rejection_reasons,
+                });
             }
         }
 
@@ -101,17 +125,17 @@ impl CapabilityResolver {
             };
         }
 
-        accepted.sort_by_key(|(selected, priority, feature_count)| {
+        accepted.sort_by_key(|candidate| {
             (
-                Reverse(selected.matched_preferred_features),
-                Reverse(*priority),
-                Reverse(*feature_count),
-                selected.plugin_id.clone(),
-                selected.capability_id.clone(),
+                Reverse(candidate.score.matched_preferred_features),
+                Reverse(candidate.score.capability_priority),
+                Reverse(candidate.score.capability_feature_count),
+                candidate.plugin_id.clone(),
+                candidate.capability_id.clone(),
             )
         });
 
-        let (selected, _, _) = accepted.remove(0);
+        let selected = accepted.remove(0);
 
         ResolutionResult::Resolved {
             selected,
@@ -162,6 +186,18 @@ impl CapabilityResolver {
         }
 
         reasons
+    }
+
+    fn score(
+        &self,
+        requirements: &CapabilityRequirements,
+        capability: &EncoderCapability,
+    ) -> ResolutionScore {
+        ResolutionScore::new(
+            matched_preferred_features(requirements, capability),
+            capability.priority,
+            capability.features.len(),
+        )
     }
 }
 
@@ -215,6 +251,7 @@ mod tests {
             ResolutionResult::Resolved { selected, .. } => {
                 assert_eq!(selected.plugin_id, "builtin.chd");
                 assert_eq!(selected.capability_id, "disc.chd");
+                assert_eq!(selected.score, ResolutionScore::new(0, 0, 0));
             }
             ResolutionResult::Unresolved { .. } => panic!("expected resolution success"),
         }
@@ -246,7 +283,9 @@ mod tests {
             ResolutionResult::Resolved { selected, .. } => {
                 assert_eq!(selected.plugin_id, "plugin.b");
                 assert_eq!(selected.capability_id, "cap.b");
-                assert_eq!(selected.matched_preferred_features, 2);
+                assert_eq!(selected.score.matched_preferred_features, 2);
+                assert_eq!(selected.score.capability_priority, 0);
+                assert_eq!(selected.score.capability_feature_count, 2);
             }
             ResolutionResult::Unresolved { .. } => panic!("expected resolution success"),
         }
@@ -273,6 +312,7 @@ mod tests {
             ResolutionResult::Resolved { .. } => panic!("expected unresolved result"),
             ResolutionResult::Unresolved { diagnostics } => {
                 assert_eq!(diagnostics.candidates.len(), 1);
+                assert_eq!(diagnostics.candidates[0].score, None);
                 assert_eq!(
                     diagnostics.candidates[0].rejection_reasons,
                     vec![RejectionReason::ForbiddenFeaturePresent(
@@ -313,6 +353,7 @@ mod tests {
         match result {
             ResolutionResult::Resolved { .. } => panic!("expected unresolved result"),
             ResolutionResult::Unresolved { diagnostics } => {
+                assert_eq!(diagnostics.candidates[0].score, None);
                 assert_eq!(
                     diagnostics.candidates[0].rejection_reasons,
                     vec![RejectionReason::MultiSourceNotSupported]
@@ -342,6 +383,7 @@ mod tests {
             ResolutionResult::Resolved { selected, .. } => {
                 assert_eq!(selected.plugin_id, "plugin.b");
                 assert_eq!(selected.capability_id, "cap.b");
+                assert_eq!(selected.score.capability_priority, 20);
             }
             ResolutionResult::Unresolved { .. } => panic!("expected resolution success"),
         }
@@ -366,6 +408,47 @@ mod tests {
             ResolutionResult::Resolved { selected, .. } => {
                 assert_eq!(selected.plugin_id, "plugin.a");
                 assert_eq!(selected.capability_id, "cap.a");
+            }
+            ResolutionResult::Unresolved { .. } => panic!("expected resolution success"),
+        }
+    }
+
+    #[test]
+    fn diagnostics_capture_scores_for_accepted_candidates() {
+        let resolver = CapabilityResolver;
+        let request = request(
+            CapabilityRequirements::new(ContentType::Disc)
+                .with_format(Format::Chd)
+                .prefer_feature(CapabilityFeature::Lossless),
+        );
+
+        let capabilities = vec![
+            EncoderCapability::new("plugin.a", "cap.a", ContentType::Disc)
+                .supports_format(Format::Chd)
+                .with_feature(CapabilityFeature::Lossless)
+                .with_priority(5),
+            EncoderCapability::new("plugin.b", "cap.b", ContentType::Disc)
+                .supports_format(Format::Zip),
+        ];
+
+        let result = resolver.resolve(&request, &capabilities);
+
+        match result {
+            ResolutionResult::Resolved { diagnostics, .. } => {
+                assert_eq!(diagnostics.candidates.len(), 2);
+
+                let accepted = &diagnostics.candidates[0];
+                let rejected = &diagnostics.candidates[1];
+
+                assert!(accepted.accepted);
+                assert_eq!(accepted.score, Some(ResolutionScore::new(1, 5, 1)));
+
+                assert!(!rejected.accepted);
+                assert_eq!(rejected.score, None);
+                assert_eq!(
+                    rejected.rejection_reasons,
+                    vec![RejectionReason::FormatMismatch]
+                );
             }
             ResolutionResult::Unresolved { .. } => panic!("expected resolution success"),
         }
