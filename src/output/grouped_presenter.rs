@@ -2,7 +2,6 @@ use crate::core::content::{
     BytesContent, DiscPart, GameContent, GamePart, NormalizedContent, TextContent,
 };
 use crate::output::capabilities::{CapabilityRequirements, ContentType, Format};
-use crate::output::encode::OutputEncoder;
 use crate::output::plan::{
     ArtifactId, ArtifactReference, ArtifactRequest, GeneratedArtifact, PlanDirectory, PlanEntry,
     PlanFile, PlannedArtifactKind, PlaylistArtifact, PresentationPlan, SourceArtifact,
@@ -14,7 +13,7 @@ use crate::policy::PolicySet;
 pub struct GroupedPresenter;
 
 impl GroupedPresenter {
-    pub fn new(_encoder: Box<dyn OutputEncoder>) -> Self {
+    pub fn new() -> Self {
         Self
     }
 
@@ -184,6 +183,12 @@ impl GroupedPresenter {
     }
 }
 
+impl Default for GroupedPresenter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OutputPresenter for GroupedPresenter {
     fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> PresentationPlan {
         PresentationPlan::new(self.build_root_entries(content, policy))
@@ -320,7 +325,7 @@ mod tests {
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
-    use crate::output::materialize::materialize_presentation_plan;
+    use crate::output::materialize::materialize_plan;
     use crate::output::plan::{PlanEntry, PresentationPlan};
     use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy, PolicySet};
 
@@ -430,7 +435,7 @@ mod tests {
         policy: &PolicySet,
     ) -> crate::core::vfs::VfsDirectory {
         let plan = presenter.present(content, policy);
-        materialize_presentation_plan(&plan).unwrap()
+        materialize_plan(&plan).unwrap()
     }
 
     fn render_plan(

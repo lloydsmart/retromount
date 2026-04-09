@@ -1,6 +1,4 @@
-use crate::engine::bootstrap::{
-    build_presenter, default_encoder_registry, default_presenter_registry,
-};
+use crate::engine::bootstrap::{build_presenter, default_presenter_registry};
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
 use crate::input::decode::InputDecoder;
@@ -22,13 +20,10 @@ pub struct PipelineComponents {
 }
 
 pub fn default_pipeline_components() -> Result<PipelineComponents, RetromountError> {
-    pipeline_components("grouped", "basic")
+    pipeline_components("grouped")
 }
 
-pub fn pipeline_components(
-    presenter_name: &str,
-    encoder_name: &str,
-) -> Result<PipelineComponents, RetromountError> {
+pub fn pipeline_components(presenter_name: &str) -> Result<PipelineComponents, RetromountError> {
     let presenter_registry = default_presenter_registry();
     if presenter_registry.get(presenter_name).is_none() {
         return Err(RetromountError::LoadError(format!(
@@ -37,16 +32,7 @@ pub fn pipeline_components(
         )));
     }
 
-    let encoder_registry = default_encoder_registry();
-    if encoder_registry.get(encoder_name).is_none() {
-        return Err(RetromountError::LoadError(format!(
-            "unsupported encoder '{encoder_name}'; expected one of: {}",
-            encoder_registry.names().join(", ")
-        )));
-    }
-
-    let presenter =
-        build_presenter(presenter_name, encoder_name).map_err(RetromountError::LoadError)?;
+    let presenter = build_presenter(presenter_name).map_err(RetromountError::LoadError)?;
 
     Ok(PipelineComponents {
         identifier: Box::new(BasicInputIdentifier::new()),
@@ -59,5 +45,5 @@ pub fn pipeline_components(
 pub fn pipeline_components_for_presenter(
     presenter_name: &str,
 ) -> Result<PipelineComponents, RetromountError> {
-    pipeline_components(presenter_name, "basic")
+    pipeline_components(presenter_name)
 }

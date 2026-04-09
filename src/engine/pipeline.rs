@@ -8,7 +8,7 @@ use crate::core::vfs::VfsDirectory;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::{InputIdentifier, InputIdentity};
 use crate::input::source::InputSource;
-use crate::output::materialize::materialize_presentation_plan;
+use crate::output::materialize::materialize_plan;
 use crate::output::present::OutputPresenter;
 use crate::policy::PolicySet;
 use serde::Serialize;
@@ -98,7 +98,7 @@ pub fn run_pipeline_with_options(
     let normalized = normalize_decoded_content(all_decoded_content, normalization_options);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
     let presentation_plan = presenter.present(&normalized_presentable_content, policy);
-    let output_vfs = materialize_presentation_plan(&presentation_plan)?;
+    let output_vfs = materialize_plan(&presentation_plan)?;
 
     Ok(PipelineTrace {
         objects: traced_objects,

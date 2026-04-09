@@ -7,7 +7,7 @@ use crate::output::plan::{
     PresentationPlan, SourceArtifact,
 };
 
-pub fn materialize_presentation_plan(plan: &PresentationPlan) -> Result<VfsDirectory, io::Error> {
+pub fn materialize_plan(plan: &PresentationPlan) -> Result<VfsDirectory, io::Error> {
     let artifact_names = collect_artifact_names(&plan.entries);
     let children = materialize_entries(&plan.entries, &artifact_names)?;
     Ok(VfsDirectory::with_children("", children))
@@ -151,7 +151,7 @@ mod tests {
             ),
         ))]);
 
-        let root = materialize_presentation_plan(&plan).unwrap();
+        let root = materialize_plan(&plan).unwrap();
 
         assert_eq!(root.children().len(), 1);
         assert_eq!(root.children()[0].name(), "game.bin");
@@ -200,7 +200,7 @@ mod tests {
             )),
         ]);
 
-        let root = materialize_presentation_plan(&plan).unwrap();
+        let root = materialize_plan(&plan).unwrap();
 
         let playlist = match &root.children()[2] {
             VfsNode::File(file) => file,
@@ -235,7 +235,7 @@ mod tests {
             ),
         ))]);
 
-        let error = materialize_presentation_plan(&plan).unwrap_err();
+        let error = materialize_plan(&plan).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::Unsupported);
     }
 }
