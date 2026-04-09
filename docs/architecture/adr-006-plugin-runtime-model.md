@@ -1,162 +1,144 @@
 # ADR-006 — Plugin Runtime Model
 
-## Status
-
-Proposed
+**Status:** Accepted
+**Date:** 2026-04-09
+**Related:** Phase 5 — Runtime Plugins
 
 ---
 
 ## Context
 
-Phase 5 introduces runtime extensibility to Retromount, allowing external plugins to contribute presenters, encoders, and related capabilities without requiring recompilation of the core binary.
+Phase 5 introduces runtime extensibility to Retromount via plugins.
 
-This represents a significant architectural shift:
+Retromount’s architecture has already established:
 
-> Retromount transitions from a statically composed application into a runtime-extensible platform.
+* a **normalized, presentation-agnostic core model**
+* a strict **Presenter vs Encoder separation** (D-003)
+* a **policy-driven presentation layer** (Phase 4C)
+* a **host-controlled pipeline** from input → normalize → present → encode → VFS
 
-To support this, the system must define how plugins are:
+Phase 5 extends this by allowing presenters and encoders to be implemented externally.
 
-* packaged
-* discovered
-* loaded
-* executed
-* isolated from the host
-* versioned and validated for compatibility
+At the same time, Phase 5 introduces a key architectural shift:
 
-The plugin runtime model must align with the architectural principles established in earlier phases:
+> Presenters produce a **declarative presentation plan**, not encoded outputs.
 
-* strict pipeline boundaries
-* presentation-agnostic core model
-* clear Presenter / Encoder separation
-* deterministic and inspectable behaviour
+This implies:
 
----
+* the **host owns orchestration and capability resolution**
+* plugins provide **capabilities**, not control flow
+* multiple encoders may be used within a single presentation
 
-## Decision Drivers
-
-The chosen plugin runtime model must balance the following concerns:
-
-### Safety and isolation
-
-Plugins should not be able to crash or corrupt the host process, or violate architectural boundaries.
-
-### Runtime extensibility
-
-Plugins must be installable and usable without recompiling Retromount.
-
-### Versioning and compatibility
-
-The system must tolerate independent versioning of host and plugins without fragile ABI coupling.
-
-### Implementation complexity
-
-The initial implementation should be achievable within Phase 5 without excessive infrastructure overhead.
-
-### Performance
-
-The runtime model should support efficient processing of potentially large content sets.
-
-### Plugin author experience
-
-It should be reasonably straightforward to develop and distribute plugins.
-
-### Observability and debugging
-
-Failures should be visible, diagnosable, and attributable to specific plugins.
-
-### Long-term ecosystem viability
-
-The model should support future expansion, including third-party plugins and potentially multiple implementation languages.
-
----
-
-## Options Considered
-
-### Option A — Native Shared Libraries (C ABI)
-
-Plugins are compiled as shared libraries and loaded into the Retromount process via a stable C ABI boundary.
-
-#### Pros (Native shared libraries)
-
-* High performance (no IPC or sandbox overhead)
-* Simple execution model
-* Familiar pattern for systems programming
-
-#### Cons (Native shared libraries)
-
-* Requires strict ABI stability across versions
-* Weak isolation — plugin crashes can terminate the host
-* Memory safety risks cross the boundary
-* Difficult to evolve safely over time
-* Strong coupling between host and plugin implementations
-
----
-
-### Option B — WebAssembly Plugins
-
-Plugins are compiled to WebAssembly and executed inside an embedded runtime.
-
-#### Pros (WebAssembly plugins)
-
-* Strong sandboxing and isolation
-* Portable across platforms
-* Explicit host/plugin interface
-* Safer execution model than native libraries
-
-#### Cons (WebAssembly plugins)
-
-* Additional runtime complexity
-* Performance overhead compared to native execution
-* Requires explicit bridging for filesystem, I/O, and data access
-* More complex plugin authoring model
-
----
-
-### Option C — Out-of-Process Plugins
-
-Plugins run as separate processes and communicate with the host via a defined protocol (e.g. IPC or stdio).
-
-#### Pros (Out-of-process plugins)
-
-* Strong isolation — plugin crashes do not affect the host
-* No ABI compatibility concerns
-* Language-agnostic plugin development
-* Clear and explicit boundary between host and plugin
-* Flexible versioning and deployment
-
-#### Cons (Out-of-process plugins)
-
-* IPC overhead
-* Requires protocol design and implementation
-* More complex execution model (process lifecycle, communication)
-* Streaming and data transfer must be carefully designed
+Given this, the project must choose a **plugin runtime model**.
 
 ---
 
 ## Decision
 
-Retromount will adopt **out-of-process plugins** as the initial runtime plugin model for Phase 5.
+Retromount will:
+
+### 1. Adopt a declarative presentation-plan model
+
+* Presenters emit a **presentation plan** describing desired artifacts
+* The host resolves each artifact against available encoder capabilities
+* Encoders materialize artifacts on demand
+* The host retains full control of orchestration and resolution
+
+---
+
+### 2. Implement plugins as out-of-process components
+
+* Plugins run as **separate executables**
+* Communication occurs via an explicit **request/response protocol**
+* The host is responsible for:
+
+  * plugin discovery
+  * capability aggregation
+  * compatibility checks
+  * deterministic resolution
+  * diagnostics
+
+---
+
+### 3. Define a runtime-agnostic plugin contract
+
+* The plugin interface is defined as a **logical protocol**, independent of transport
+* The initial implementation uses **subprocess IPC**
+* Future runtimes (e.g. WebAssembly) may implement the same contract
+
+---
+
+### 4. Explicitly reject in-process ABI plugins
+
+Retromount will not support:
+
+* dynamically loaded shared libraries (`.so`, `.dll`) as plugins
+* Rust-to-Rust ABI coupling between host and plugins
 
 ---
 
 ## Rationale
 
-Out-of-process plugins provide the best balance of:
+### Declarative planning aligns with existing architecture
 
-* safety
-* flexibility
-* long-term maintainability
-* ecosystem viability
+The presentation-plan model:
 
-This model:
+* preserves the Presenter/Encoder boundary (D-003)
+* keeps the core model presentation-agnostic (D-004)
+* enables multi-encoder resolution per presentation
+* prevents presenters from embedding encoding logic
 
-* avoids fragile ABI coupling between host and plugin
-* prevents plugin failures from crashing the host
-* enables plugins to be written in multiple languages
-* creates a clean and explicit architectural boundary
-* supports independent versioning of plugins and host
+This is a natural continuation of Phase 3–4 architectural decisions.
 
-While this approach introduces additional complexity (protocol design, IPC), that complexity is **intentional and beneficial**, as it enforces clear separation of concerns and supports long-term extensibility.
+---
+
+### Out-of-process plugins provide strong isolation
+
+* plugin failures do not crash the host
+* safer for long-running operations (e.g. mounted filesystem)
+* supports timeouts, error capture, and controlled execution
+
+---
+
+### Protocol boundary avoids ABI instability
+
+Using an explicit protocol:
+
+* avoids Rust ABI compatibility issues
+* allows independent versioning of host and plugins
+* supports backward/forward-compatible evolution
+
+---
+
+### Enables future plugin ecosystem
+
+Out-of-process plugins:
+
+* support third-party development
+* allow implementation in other languages
+* enable per-plugin packaging and distribution
+
+---
+
+### Aligns with future WebAssembly support
+
+A protocol-based design:
+
+* decouples the plugin contract from the runtime
+* allows future implementation via WebAssembly without redesign
+* avoids lock-in to a specific execution model
+
+---
+
+### In-process ABI plugins conflict with project goals
+
+In-process plugins were rejected because they:
+
+* tightly couple host and plugin implementations
+* introduce ABI and versioning fragility
+* allow plugin crashes to terminate the host
+* hinder evolution toward sandboxed execution
+* do not align with a capability-based architecture
 
 ---
 
@@ -164,79 +146,95 @@ While this approach introduces additional complexity (protocol design, IPC), tha
 
 ### Positive
 
-* Strong isolation guarantees between host and plugins
-* Clear contract boundary encourages stable, well-defined interfaces
-* Simplifies future support for third-party plugins
-* Enables flexible packaging and distribution strategies
-* Reduces risk of subtle memory or ABI-related bugs
+* clear architectural boundaries
+* improved stability and fault isolation
+* flexible evolution of plugin contract
+* future-proof toward WASM or alternative runtimes
+* strong foundation for diagnostics and introspection
+
+---
 
 ### Negative
 
-* Requires definition of a plugin communication protocol
-* Introduces IPC overhead
-* Increases implementation complexity in Phase 5
-* Requires explicit handling of streaming and large data transfer
-* Debugging may involve cross-process tracing
+* increased implementation complexity (IPC, discovery, lifecycle)
+* runtime overhead (process startup, serialization)
+* need to define and maintain protocol schemas
+* more complex packaging and distribution
 
 ---
 
-## Implications for Phase 5
+### Neutral / Trade-offs
 
-### Phase 5A — Presentation Planning
-
-* Must produce a **serialisable presentation plan**
-* Plan must be transferable across process boundaries
-
-### Phase 5B — Capability Resolution
-
-* Capability metadata must be queryable from plugins
-* Resolution logic remains in the host
-
-### Phase 5D — Plugin Runtime Implementation
-
-* Must implement:
-
-  * plugin discovery
-  * process lifecycle management
-  * communication protocol
-  * capability querying
-  * artifact execution requests
+* performance is slightly reduced compared to in-process execution
+* plugins cannot directly use internal Rust types
+* contract design becomes a first-class concern
 
 ---
 
-## Follow-On Work
+## Implementation Notes
 
-* Define plugin communication protocol (request/response model)
-* Define plugin manifest format
-* Implement plugin discovery mechanism
-* Implement host-side plugin manager
-* Implement at least one reference plugin
-* Define logging and observability strategy across process boundaries
+### Plugin types
+
+Two initial plugin categories:
+
+* **Presenter plugins**
+
+  * input: normalized content + policy/config
+  * output: presentation plan
+
+* **Encoder plugins**
+
+  * advertise capabilities
+  * accept artifact materialization requests
+
+---
+
+### Host responsibilities
+
+The host must:
+
+* discover plugins
+* negotiate protocol/version compatibility
+* collect and index encoder capabilities
+* resolve artifacts deterministically
+* provide clear diagnostics (e.g. “why this encoder was chosen”)
+
+---
+
+### Contract design principles
+
+* request/response model (no shared memory)
+* capability-based, not imperative control
+* explicit versioning and feature negotiation
+* structured error reporting
+* minimal, stable surface area
+
+---
+
+### Runtime abstraction
+
+The host should define an internal abstraction layer for plugins.
+
+Initial implementation:
+
+* subprocess-based adapter
+
+Future implementations may include:
+
+* WebAssembly runtime adapter
 
 ---
 
 ## Future Considerations
 
-This decision does not prevent future support for additional plugin models.
-
-Potential future expansions:
-
-* WebAssembly plugins for sandboxed in-process execution
-* Native plugins for high-performance scenarios
-* Hybrid models depending on plugin type
-
-However, all future models must conform to the same logical contract defined in this phase.
+* WebAssembly-based plugin runtime for sandboxing
+* plugin signing and trust model
+* caching and performance optimisation
+* streaming vs materialized artifact handling
+* plugin capability prioritisation and user preferences
 
 ---
 
 ## Summary
 
-Retromount will implement runtime extensibility using an out-of-process plugin model.
-
-This establishes a robust, safe, and flexible foundation for:
-
-* ecosystem-specific integrations
-* independently distributed plugins
-* long-term platform evolution
-
-This decision prioritises architectural integrity and ecosystem viability over minimal implementation complexity.
+Retromount adopts a **declarative, capability-driven plugin architecture** with **out-of-process plugins** and an **explicit protocol boundary**, enabling safe extensibility while preserving architectural integrity and future flexibility.
