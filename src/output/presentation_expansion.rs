@@ -1,6 +1,4 @@
-use crate::core::content::{DiscPart, GameContent, GamePart, NormalizedContent};
-use crate::output::encode::{EncodedFile, OutputEncoder};
-use crate::policy::PolicySet;
+use crate::core::content::{DiscPart, GameContent, GamePart};
 
 /// Returns true when a game consists entirely of multiple disc parts.
 pub fn is_multi_disc_game(game: &GameContent) -> bool {
@@ -26,47 +24,70 @@ pub fn sorted_disc_parts(game: &GameContent) -> Vec<&DiscPart> {
     parts
 }
 
-/// Encodes a game that expands to a single output file.
-pub fn encode_game(
-    encoder: &(impl OutputEncoder + ?Sized),
-    game: &GameContent,
-    policy: &PolicySet,
-) -> EncodedFile {
-    encoder
-        .encode(&NormalizedContent::Game(game.clone()), policy)
-        .unwrap_or_else(|err| panic!("game should encode for '{}': {err}", game.title))
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::content::ContentId;
+    use crate::core::content::{DiscPart, GameContent, GamePart, Platform, RomPart};
+    use crate::core::source::SourceRef;
 
-/// Encodes a disc file for a multi-disc game.
-pub fn encode_disc(
-    encoder: &(impl OutputEncoder + ?Sized),
-    game: &GameContent,
-    disc: &DiscPart,
-    policy: &PolicySet,
-) -> EncodedFile {
-    encoder
-        .encode_game_part(game, &GamePart::Disc(disc.clone()), policy)
-        .unwrap_or_else(|err| {
-            panic!(
-                "multi-disc game part should encode for '{}' disc {}: {err}",
-                game.title, disc.disc_number
-            )
+    fn disc_part(number: u32) -> GamePart {
+        GamePart::Disc(DiscPart {
+            source: SourceRef::new(format!("file:/roms/disc{number}.cue")),
+            disc_number: number,
+            consumed_sources: vec![SourceRef::new(format!("file:/roms/disc{number}.bin"))],
         })
-}
+    }
 
-/// Encodes a playlist file for a multi-disc game.
-pub fn encode_playlist(
-    encoder: &(impl OutputEncoder + ?Sized),
-    game: &GameContent,
-    disc_names: &[String],
-    policy: &PolicySet,
-) -> EncodedFile {
-    encoder
-        .encode_playlist(game, disc_names, policy)
-        .unwrap_or_else(|err| {
-            panic!(
-                "multi-disc playlist should encode for '{}': {err}",
-                game.title
-            )
+    fn rom_part() -> GamePart {
+        GamePart::Rom(RomPart {
+            source: SourceRef::new("file:/roms/game.bin"),
+            size: 2048,
         })
+    }
+
+    #[test]
+    fn identifies_multi_disc_games() {
+        let game = GameContent {
+            id: ContentId::new("ff7"),
+            source: SourceRef::new("file:/roms/ff7-disc1.cue"),
+            title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![disc_part(2), disc_part(1)],
+            consumed_sources: vec![],
+        };
+
+        assert!(is_multi_disc_game(&game));
+    }
+
+    #[test]
+    fn rejects_mixed_part_games_as_multi_disc() {
+        let game = GameContent {
+            id: ContentId::new("mixed"),
+            source: SourceRef::new("file:/roms/mixed.bin"),
+            title: "Example".to_string(),
+            platform: Platform::Unknown,
+            parts: vec![disc_part(1), rom_part()],
+            consumed_sources: vec![],
+        };
+
+        assert!(!is_multi_disc_game(&game));
+    }
+
+    #[test]
+    fn sorts_disc_parts_by_disc_number() {
+        let game = GameContent {
+            id: ContentId::new("example"),
+            source: SourceRef::new("file:/roms/example-disc1.cue"),
+            title: "Example".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![disc_part(3), disc_part(1), disc_part(2)],
+            consumed_sources: vec![],
+        };
+
+        let sorted = sorted_disc_parts(&game);
+        let disc_numbers: Vec<u32> = sorted.iter().map(|disc| disc.disc_number).collect();
+
+        assert_eq!(disc_numbers, vec![1, 2, 3]);
+    }
 }

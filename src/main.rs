@@ -96,15 +96,13 @@ fn run_configured_views() -> Result<(), RetromountError> {
 
     for view in &config {
         let presenter_name = view.presenter.as_deref().unwrap_or("grouped");
-        let encoder_name = view.encoder.as_deref().unwrap_or("basic");
 
         info!("View: {}", view.name);
         info!("  Source: {}", view.source.display());
         info!("  Mount: {}", view.mount.display());
         info!("  Presenter: {}", presenter_name);
-        info!("  Encoder: {}", encoder_name);
 
-        let components = pipeline_components(presenter_name, encoder_name)?;
+        let components = pipeline_components(presenter_name)?;
         let source = build_input_source(&view.source)?;
 
         let trace = run_pipeline_with_options(

@@ -1,6 +1,11 @@
-use crate::core::content::{GameContent, GamePart, NormalizedContent};
-use crate::output::encode::{EncodedBacking, EncodedFile, OutputEncoder};
-use crate::policy::PolicySet;
+use std::io;
+
+use crate::output::capabilities::{ContentType, EncoderCapability, Format};
+use crate::output::encode::{MaterializationContext, MaterializedArtifact, OutputEncoder};
+use crate::output::plan::{
+    ArtifactReference, ArtifactRequest, GeneratedArtifact, PlannedArtifactKind, PlaylistArtifact,
+    SourceArtifact,
+};
 
 pub struct BasicEncoder;
 
@@ -9,69 +14,44 @@ impl BasicEncoder {
         Self
     }
 
-    fn file_name_for(&self, content: &NormalizedContent, policy: &PolicySet) -> String {
-        let raw = match content {
-            NormalizedContent::Bytes(bytes) => format!("{}.bin", bytes.id),
-            NormalizedContent::Game(game) => match game.parts.as_slice() {
-                [part] => policy.naming().part_name(game, part),
-                _ => policy.naming().game_name(game),
-            },
-            NormalizedContent::Text(text) => normalize_text_name(text.id.0.as_ref()),
-        };
-
-        policy.format_name(&raw)
-    }
-
-    fn backing_for(&self, content: &NormalizedContent) -> EncodedBacking {
-        match content {
-            NormalizedContent::Bytes(bytes) => EncodedBacking::SourceBacked {
-                size: bytes.size,
-                source: bytes.source.clone(),
-            },
-            NormalizedContent::Game(game) => match game.parts.as_slice() {
-                [part] => self.backing_for_game_part(part),
-                _ => EncodedBacking::SourceBacked {
-                    size: 0,
-                    source: game.source.clone(),
-                },
-            },
-            NormalizedContent::Text(text) => EncodedBacking::SourceBacked {
-                size: text.size,
-                source: text.source.clone(),
-            },
-        }
-    }
-
-    fn file_name_for_game_part(
+    fn materialize_source_backed(
         &self,
-        game: &GameContent,
-        part: &GamePart,
-        policy: &PolicySet,
-    ) -> String {
-        let raw = policy.naming().part_name(game, part);
-        policy.format_name(&raw)
-    }
-
-    fn backing_for_game_part(&self, part: &GamePart) -> EncodedBacking {
-        match part {
-            GamePart::Rom(rom) => EncodedBacking::SourceBacked {
-                size: rom.size,
-                source: rom.source.clone(),
-            },
-            GamePart::Disc(disc) => EncodedBacking::SourceBacked {
-                size: 0,
-                source: disc.source.clone(),
-            },
+        artifact: &SourceArtifact,
+    ) -> Result<MaterializedArtifact, io::Error> {
+        match artifact.inputs.as_slice() {
+            [input] => Ok(MaterializedArtifact::SourceBacked {
+                source: input.source.clone(),
+                size: input.size,
+            }),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "basic encoder does not support multi-source source-backed artifacts",
+            )),
         }
     }
 
-    fn playlist_name_for(&self, game: &GameContent, policy: &PolicySet) -> String {
-        let raw = policy.naming().playlist_name(game);
-        policy.format_name(&raw)
-    }
+    fn materialize_playlist(
+        &self,
+        playlist: &PlaylistArtifact,
+        context: &MaterializationContext,
+    ) -> Result<MaterializedArtifact, io::Error> {
+        let mut lines = Vec::with_capacity(playlist.entries.len());
 
-    fn playlist_backing(&self, entries: &[String]) -> EncodedBacking {
-        EncodedBacking::Inline((entries.join("\n") + "\n").into_bytes())
+        for ArtifactReference { artifact_id } in &playlist.entries {
+            let name = context.artifact_names.get(artifact_id).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("playlist references unknown artifact '{}'", artifact_id.0),
+                )
+            })?;
+
+            lines.push(name.clone());
+        }
+
+        let mut text = lines.join("\n");
+        text.push('\n');
+
+        Ok(MaterializedArtifact::Inline(text.into_bytes()))
     }
 }
 
@@ -81,392 +61,183 @@ impl Default for BasicEncoder {
     }
 }
 
-fn normalize_text_name(path: &str) -> String {
-    let normalized = path.replace('\\', "/");
-
-    match normalized.rsplit_once('.') {
-        Some((base, _)) => format!("{base}.txt"),
-        None => format!("{normalized}.txt"),
-    }
-}
-
 impl OutputEncoder for BasicEncoder {
-    fn can_encode(&self, _content: &NormalizedContent) -> bool {
-        true
+    fn plugin_id(&self) -> &'static str {
+        "basic"
     }
 
-    fn encode(
-        &self,
-        content: &NormalizedContent,
-        policy: &PolicySet,
-    ) -> Result<EncodedFile, std::io::Error> {
-        Ok(EncodedFile {
-            name: self.file_name_for(content, policy),
-            backing: self.backing_for(content),
-        })
+    fn capabilities(&self) -> Vec<EncoderCapability> {
+        vec![
+            EncoderCapability::new(self.plugin_id(), "bytes.bin", ContentType::Bytes)
+                .supports_format(Format::Bin),
+            EncoderCapability::new(self.plugin_id(), "text.txt", ContentType::Text)
+                .supports_format(Format::Text),
+            EncoderCapability::new(self.plugin_id(), "rom.bin", ContentType::Rom)
+                .supports_format(Format::Bin),
+            EncoderCapability::new(self.plugin_id(), "disc.bin", ContentType::Disc)
+                .supports_format(Format::Bin),
+            EncoderCapability::new(self.plugin_id(), "playlist.m3u", ContentType::Playlist)
+                .supports_format(Format::M3u),
+        ]
     }
 
-    fn encode_game_part(
+    fn materialize(
         &self,
-        game: &GameContent,
-        part: &GamePart,
-        policy: &PolicySet,
-    ) -> Result<EncodedFile, std::io::Error> {
-        Ok(EncodedFile {
-            name: self.file_name_for_game_part(game, part, policy),
-            backing: self.backing_for_game_part(part),
-        })
-    }
-
-    fn encode_playlist(
-        &self,
-        game: &GameContent,
-        entries: &[String],
-        policy: &PolicySet,
-    ) -> Result<EncodedFile, std::io::Error> {
-        Ok(EncodedFile {
-            name: self.playlist_name_for(game, policy),
-            backing: self.playlist_backing(entries),
-        })
+        _file_name: &str,
+        artifact: &ArtifactRequest,
+        selected_capability_id: &str,
+        context: &MaterializationContext,
+    ) -> Result<MaterializedArtifact, io::Error> {
+        match (&artifact.kind, selected_capability_id) {
+            (PlannedArtifactKind::SourceBacked(source), "bytes.bin")
+            | (PlannedArtifactKind::SourceBacked(source), "text.txt")
+            | (PlannedArtifactKind::SourceBacked(source), "rom.bin")
+            | (PlannedArtifactKind::SourceBacked(source), "disc.bin") => {
+                self.materialize_source_backed(source)
+            }
+            (
+                PlannedArtifactKind::Generated(GeneratedArtifact::Playlist(playlist)),
+                "playlist.m3u",
+            ) => self.materialize_playlist(playlist, context),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "basic encoder cannot materialize artifact '{}' with capability '{}'",
+                    artifact.id.0, selected_capability_id
+                ),
+            )),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::content::{
-        BytesContent, ContentId, DiscPart, GameContent, GamePart, NormalizedContent, Platform,
-        RomPart, TextContent,
-    };
     use crate::core::source::SourceRef;
-    use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy};
-
-    struct DefaultLikeNamingPolicy;
-
-    impl NamingPolicy for DefaultLikeNamingPolicy {
-        fn game_name(&self, game: &GameContent) -> String {
-            game.title.clone()
-        }
-
-        fn part_name(&self, game: &GameContent, part: &GamePart) -> String {
-            match part {
-                GamePart::Rom(rom) => rom.source.file_name(),
-                GamePart::Disc(disc) => format!("{} (Disc {}).cue", game.title, disc.disc_number),
-            }
-        }
-
-        fn playlist_name(&self, game: &GameContent) -> String {
-            format!("{}.m3u", game.title)
-        }
-
-        fn platform_name(&self, platform: &Platform) -> String {
-            platform.to_string()
-        }
-    }
-
-    struct LowercaseFormattingPolicy;
-
-    impl FormattingPolicy for LowercaseFormattingPolicy {
-        fn format_name(&self, raw: &str) -> String {
-            raw.to_lowercase()
-        }
-    }
-
-    struct PreserveConflictPolicy;
-
-    impl ConflictPolicy for PreserveConflictPolicy {
-        fn resolve_name_conflict(&self, proposed: &str, _existing: &[String]) -> String {
-            proposed.to_string()
-        }
-    }
-
-    fn lowercase_policy() -> PolicySet {
-        PolicySet::new(
-            Box::new(DefaultLikeNamingPolicy),
-            Box::new(LowercaseFormattingPolicy),
-            Box::new(PreserveConflictPolicy),
-        )
-    }
+    use crate::output::capabilities::CapabilityRequirements;
+    use crate::output::plan::{
+        ArtifactId, ArtifactReference, ArtifactRequest, GeneratedArtifact, PlannedArtifactKind,
+        PlaylistArtifact, SourceArtifact, SourceArtifactInput,
+    };
 
     #[test]
-    fn applies_formatting_policy_to_encoded_disc_names() {
+    fn exposes_expected_capabilities() {
         let encoder = BasicEncoder::new();
-        let policy = lowercase_policy();
+        let capabilities = encoder.capabilities();
 
-        let game = GameContent {
-            id: ContentId::new("ff7"),
-            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-            title: "Final Fantasy VII".to_string(),
-            platform: Platform::Ps1,
-            parts: vec![],
-            consumed_sources: vec![],
-        };
-
-        let part = GamePart::Disc(DiscPart {
-            source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
-            disc_number: 2,
-            consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
-        });
-
-        let encoded = encoder.encode_game_part(&game, &part, &policy).unwrap();
-        assert_eq!(encoded.name, "final fantasy vii (disc 2).cue");
-    }
-
-    #[test]
-    fn applies_formatting_policy_to_encoded_playlist_names() {
-        let encoder = BasicEncoder::new();
-        let policy = lowercase_policy();
-
-        let game = GameContent {
-            id: ContentId::new("ff7"),
-            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-            title: "Final Fantasy VII".to_string(),
-            platform: Platform::Ps1,
-            parts: vec![],
-            consumed_sources: vec![],
-        };
-
-        let encoded = encoder
-            .encode_playlist(
-                &game,
-                &[
-                    "final fantasy vii (disc 1).cue".to_string(),
-                    "final fantasy vii (disc 2).cue".to_string(),
-                ],
-                &policy,
-            )
-            .unwrap();
-
-        assert_eq!(encoded.name, "final fantasy vii.m3u");
-    }
-
-    #[test]
-    fn encodes_bytes_content() {
-        let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-        let content = NormalizedContent::Bytes(BytesContent {
-            id: ContentId::new("bios"),
-            source: SourceRef::new("file:/roms/bios"),
-            size: 512,
-        });
-
-        let encoded = encoder.encode(&content, &policy).unwrap();
-        assert_eq!(encoded.name, "bios.bin");
+        let ids: Vec<&str> = capabilities
+            .iter()
+            .map(|c| c.capability_id.as_str())
+            .collect();
         assert_eq!(
-            encoded.backing,
-            EncodedBacking::SourceBacked {
-                size: 512,
-                source: SourceRef::new("file:/roms/bios"),
-            }
+            ids,
+            vec![
+                "bytes.bin",
+                "text.txt",
+                "rom.bin",
+                "disc.bin",
+                "playlist.m3u"
+            ]
         );
     }
 
     #[test]
-    fn encodes_single_rom_game_content() {
+    fn materializes_single_source_artifact() {
         let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-        let content = NormalizedContent::Game(GameContent {
-            id: ContentId::new("smw"),
-            source: SourceRef::new("file:/roms/Super Mario World.sfc"),
-            title: "Super Mario World".to_string(),
-            platform: Platform::Snes,
-            parts: vec![GamePart::Rom(RomPart {
-                source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+
+        let artifact = ArtifactRequest::new(
+            ArtifactId::new("rom"),
+            PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                SourceRef::new("file:/roms/game.bin"),
+                4096,
+            )),
+            CapabilityRequirements::new(ContentType::Rom).with_format(Format::Bin),
+        );
+
+        let materialized = encoder
+            .materialize(
+                "game.bin",
+                &artifact,
+                "rom.bin",
+                &MaterializationContext {
+                    artifact_names: Default::default(),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(
+            materialized,
+            MaterializedArtifact::SourceBacked {
+                source: SourceRef::new("file:/roms/game.bin"),
                 size: 4096,
-            })],
-            consumed_sources: vec![],
-        });
-
-        let encoded = encoder.encode(&content, &policy).unwrap();
-        assert_eq!(encoded.name, "Super Mario World.sfc");
-        assert_eq!(
-            encoded.backing,
-            EncodedBacking::SourceBacked {
-                size: 4096,
-                source: SourceRef::new("file:/roms/Super Mario World.sfc"),
             }
         );
     }
 
     #[test]
-    fn encodes_single_disc_game_content() {
+    fn materializes_playlist_inline() {
         let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-        let content = NormalizedContent::Game(GameContent {
-            id: ContentId::new("mgs"),
-            source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
-            title: "Metal Gear Solid".to_string(),
-            platform: Platform::Ps1,
-            parts: vec![GamePart::Disc(DiscPart {
-                source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
-                disc_number: 1,
-                consumed_sources: vec![SourceRef::new("cue:/roms/mgs-disc1.bin")],
-            })],
-            consumed_sources: vec![SourceRef::new("cue:/roms/mgs-disc1.bin")],
-        });
 
-        let encoded = encoder.encode(&content, &policy).unwrap();
-        assert_eq!(encoded.name, "Metal Gear Solid (Disc 1).cue");
-        assert_eq!(
-            encoded.backing,
-            EncodedBacking::SourceBacked {
-                size: 0,
-                source: SourceRef::new("cue:/roms/mgs-disc1.cue"),
-            }
-        );
-    }
-
-    #[test]
-    fn encodes_disc_part() {
-        let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-        let game = GameContent {
-            id: ContentId::new("ff7"),
-            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-            title: "Final Fantasy VII".to_string(),
-            platform: Platform::Ps1,
-            parts: vec![],
-            consumed_sources: vec![],
-        };
-
-        let part = GamePart::Disc(DiscPart {
-            source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
-            disc_number: 2,
-            consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
-        });
-
-        let encoded = encoder.encode_game_part(&game, &part, &policy).unwrap();
-        assert_eq!(encoded.name, "Final Fantasy VII (Disc 2).cue");
-        assert_eq!(
-            encoded.backing,
-            EncodedBacking::SourceBacked {
-                size: 0,
-                source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
-            }
-        );
-    }
-
-    #[test]
-    fn encodes_playlist() {
-        let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-        let game = GameContent {
-            id: ContentId::new("ff7"),
-            source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-            title: "Final Fantasy VII".to_string(),
-            platform: Platform::Ps1,
-            parts: vec![],
-            consumed_sources: vec![],
-        };
-
-        let encoded = encoder
-            .encode_playlist(
-                &game,
-                &[
-                    "Final Fantasy VII (Disc 1).cue".to_string(),
-                    "Final Fantasy VII (Disc 2).cue".to_string(),
+        let artifact = ArtifactRequest::new(
+            ArtifactId::new("playlist"),
+            PlannedArtifactKind::Generated(GeneratedArtifact::Playlist(PlaylistArtifact::new(
+                vec![
+                    ArtifactReference::new(ArtifactId::new("disc1")),
+                    ArtifactReference::new(ArtifactId::new("disc2")),
                 ],
-                &policy,
+            ))),
+            CapabilityRequirements::new(ContentType::Playlist).with_format(Format::M3u),
+        );
+
+        let mut artifact_names = std::collections::HashMap::new();
+        artifact_names.insert(ArtifactId::new("disc1"), "Game (Disc 1).cue".to_string());
+        artifact_names.insert(ArtifactId::new("disc2"), "Game (Disc 2).cue".to_string());
+
+        let materialized = encoder
+            .materialize(
+                "Game.m3u",
+                &artifact,
+                "playlist.m3u",
+                &MaterializationContext { artifact_names },
             )
             .unwrap();
 
-        assert_eq!(encoded.name, "Final Fantasy VII.m3u");
         assert_eq!(
-            encoded.backing,
-            EncodedBacking::Inline(
-                b"Final Fantasy VII (Disc 1).cue\nFinal Fantasy VII (Disc 2).cue\n".to_vec()
+            materialized,
+            MaterializedArtifact::Inline(b"Game (Disc 1).cue\nGame (Disc 2).cue\n".to_vec())
+        );
+    }
+
+    #[test]
+    fn rejects_multi_source_source_backed_artifact() {
+        let encoder = BasicEncoder::new();
+
+        let artifact = ArtifactRequest::new(
+            ArtifactId::new("merged"),
+            PlannedArtifactKind::SourceBacked(SourceArtifact::multiple(vec![
+                SourceArtifactInput {
+                    source: SourceRef::new("file:/roms/part1.bin"),
+                    size: 100,
+                },
+                SourceArtifactInput {
+                    source: SourceRef::new("file:/roms/part2.bin"),
+                    size: 200,
+                },
+            ])),
+            CapabilityRequirements::new(ContentType::Rom).with_format(Format::Bin),
+        );
+
+        let err = encoder
+            .materialize(
+                "merged.bin",
+                &artifact,
+                "rom.bin",
+                &MaterializationContext {
+                    artifact_names: Default::default(),
+                },
             )
-        );
-    }
+            .unwrap_err();
 
-    #[test]
-    fn encodes_text_content() {
-        let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-        let content = NormalizedContent::Text(TextContent {
-            id: ContentId::new("readme"),
-            source: SourceRef::new("file:/roms/readme"),
-            size: 128,
-        });
-
-        let encoded = encoder.encode(&content, &policy).unwrap();
-        assert_eq!(encoded.name, "readme.txt");
-        assert_eq!(
-            encoded.backing,
-            EncodedBacking::SourceBacked {
-                size: 128,
-                source: SourceRef::new("file:/roms/readme"),
-            }
-        );
-    }
-
-    #[test]
-    fn preserves_relative_path_for_text_content() {
-        let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-        let content = NormalizedContent::Text(TextContent {
-            id: ContentId::new("mixed/notes"),
-            source: SourceRef::new("mixed/notes.txt"),
-            size: 10,
-        });
-
-        let encoded = encoder.encode(&content, &policy).unwrap();
-        assert_eq!(encoded.name, "mixed/notes.txt");
-        assert_eq!(
-            encoded.backing,
-            EncodedBacking::SourceBacked {
-                size: 10,
-                source: SourceRef::new("mixed/notes.txt"),
-            }
-        );
-    }
-
-    #[test]
-    fn normalizes_text_extension_from_id_path() {
-        let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-        let content = NormalizedContent::Text(TextContent {
-            id: ContentId::new("roms/snes/game"),
-            source: SourceRef::new("roms/snes/game.nfo"),
-            size: 19,
-        });
-
-        let encoded = encoder.encode(&content, &policy).unwrap();
-        assert_eq!(encoded.name, "roms/snes/game.txt");
-        assert_eq!(
-            encoded.backing,
-            EncodedBacking::SourceBacked {
-                size: 19,
-                source: SourceRef::new("roms/snes/game.nfo"),
-            }
-        );
-    }
-
-    #[test]
-    fn derives_rom_file_name_from_zip_member_source() {
-        let encoder = BasicEncoder::new();
-        let policy = PolicySet::default();
-
-        let game = GameContent {
-            id: ContentId::new("sonic"),
-            source: SourceRef::new("zip:/roms/megadrive.zip#Sonic the Hedgehog.bin"),
-            title: "Sonic the Hedgehog".to_string(),
-            platform: Platform::Megadrive,
-            parts: vec![],
-            consumed_sources: vec![],
-        };
-
-        let encoded = encoder
-            .encode_game_part(
-                &game,
-                &GamePart::Rom(RomPart {
-                    source: SourceRef::new("zip:/roms/megadrive.zip#Sonic the Hedgehog.bin"),
-                    size: 2048,
-                }),
-                &policy,
-            )
-            .unwrap();
-
-        assert_eq!(encoded.name, "Sonic the Hedgehog.bin");
+        assert_eq!(err.kind(), io::ErrorKind::Unsupported);
     }
 }
