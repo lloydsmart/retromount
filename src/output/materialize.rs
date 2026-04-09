@@ -9,9 +9,16 @@ use crate::output::plan::{ArtifactId, PlanEntry, PlanFile, PresentationPlan};
 use crate::output::resolution::{CapabilityResolver, ResolutionResult};
 
 pub fn materialize_plan(plan: &PresentationPlan) -> Result<VfsDirectory, io::Error> {
-    let artifact_names = collect_artifact_names(&plan.entries);
     let encoders = default_encoder_registry().all();
-    let children = materialize_entries(&plan.entries, &artifact_names, &encoders)?;
+    materialize_plan_with_encoders(plan, &encoders)
+}
+
+pub fn materialize_plan_with_encoders(
+    plan: &PresentationPlan,
+    encoders: &[Box<dyn OutputEncoder>],
+) -> Result<VfsDirectory, io::Error> {
+    let artifact_names = collect_artifact_names(&plan.entries);
+    let children = materialize_entries(&plan.entries, &artifact_names, encoders)?;
     Ok(VfsDirectory::with_children("", children))
 }
 
@@ -118,6 +125,7 @@ fn collect_capabilities(encoders: &[Box<dyn OutputEncoder>]) -> Vec<EncoderCapab
 mod tests {
     use super::*;
     use crate::core::source::SourceRef;
+    use crate::output::basic_encoder::BasicEncoder;
     use crate::output::capabilities::{CapabilityRequirements, ContentType, Format};
     use crate::output::plan::{
         ArtifactReference, ArtifactRequest, GeneratedArtifact, PlanFile, PlannedArtifactKind,
@@ -224,5 +232,27 @@ mod tests {
 
         let error = materialize_plan(&plan).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn materializes_plan_with_explicit_encoder_set() {
+        let plan = PresentationPlan::new(vec![PlanEntry::File(PlanFile::new(
+            "game.bin",
+            ArtifactRequest::new(
+                ArtifactId::new("game"),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                    SourceRef::new("file:/roms/game.bin"),
+                    1024,
+                )),
+                CapabilityRequirements::new(ContentType::Rom).with_format(Format::Bin),
+            ),
+        ))]);
+
+        let encoders: Vec<Box<dyn OutputEncoder>> = vec![Box::new(BasicEncoder::new())];
+
+        let root = materialize_plan_with_encoders(&plan, &encoders).unwrap();
+
+        assert_eq!(root.children().len(), 1);
+        assert_eq!(root.children()[0].name(), "game.bin");
     }
 }
