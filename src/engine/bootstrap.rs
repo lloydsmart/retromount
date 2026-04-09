@@ -17,11 +17,11 @@ pub fn default_presenter_registry() -> PresenterRegistry {
     let mut registry = PresenterRegistry::new();
 
     registry.register("grouped", || {
-        Box::new(GroupedPresenter::default()) as Box<dyn OutputPresenter>
+        Box::new(GroupedPresenter) as Box<dyn OutputPresenter>
     });
 
     registry.register("flat", || {
-        Box::new(FlatPresenter::default()) as Box<dyn OutputPresenter>
+        Box::new(FlatPresenter) as Box<dyn OutputPresenter>
     });
 
     registry

@@ -3,7 +3,7 @@ use std::cmp::Reverse;
 use crate::output::capabilities::{
     CapabilityFeature, CapabilityRequirements, ContentType, EncoderCapability,
 };
-use crate::output::plan::ArtifactRequest;
+use crate::output::plan::{ArtifactRequest, PlannedArtifactKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RejectionReason {
@@ -152,8 +152,13 @@ impl CapabilityResolver {
             }
         }
 
-        if request.sources.is_multi_source() && !capability.supports_multi_source() {
-            reasons.push(RejectionReason::MultiSourceNotSupported);
+        match &request.kind {
+            PlannedArtifactKind::SourceBacked(source_artifact) => {
+                if source_artifact.is_multi_source() && !capability.supports_multi_source() {
+                    reasons.push(RejectionReason::MultiSourceNotSupported);
+                }
+            }
+            PlannedArtifactKind::Generated(_) => {}
         }
 
         reasons
@@ -176,12 +181,17 @@ mod tests {
     use super::*;
     use crate::core::source::SourceRef;
     use crate::output::capabilities::{CapabilityFeature, Format};
-    use crate::output::plan::{ArtifactId, ArtifactRequest, SourceRefSet};
+    use crate::output::plan::{
+        ArtifactId, PlannedArtifactKind, SourceArtifact, SourceArtifactInput,
+    };
 
     fn request(requirements: CapabilityRequirements) -> ArtifactRequest {
         ArtifactRequest {
             id: ArtifactId::new("artifact-1"),
-            sources: SourceRefSet::single(SourceRef::new("file:/roms/game.bin")),
+            kind: PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                SourceRef::new("file:/roms/game.bin"),
+                1024,
+            )),
             requirements,
         }
     }
@@ -279,10 +289,16 @@ mod tests {
 
         let request = ArtifactRequest {
             id: ArtifactId::new("playlist-1"),
-            sources: SourceRefSet::multiple(vec![
-                SourceRef::new("file:/roms/disc1.chd"),
-                SourceRef::new("file:/roms/disc2.chd"),
-            ]),
+            kind: PlannedArtifactKind::SourceBacked(SourceArtifact::multiple(vec![
+                SourceArtifactInput {
+                    source: SourceRef::new("file:/roms/disc1.chd"),
+                    size: 1024,
+                },
+                SourceArtifactInput {
+                    source: SourceRef::new("file:/roms/disc2.chd"),
+                    size: 2048,
+                },
+            ])),
             requirements: CapabilityRequirements::new(ContentType::Playlist)
                 .with_format(Format::M3u),
         };

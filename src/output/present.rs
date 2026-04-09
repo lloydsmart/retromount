@@ -1,12 +1,12 @@
 use crate::core::content::NormalizedContent;
-use crate::core::vfs::VfsDirectory;
+use crate::output::plan::PresentationPlan;
 use crate::policy::PolicySet;
 
-/// Defines how normalized content is exposed in the output VFS.
+/// Defines how normalized content is described for output.
 ///
 /// Presenters are responsible for output structure, grouping, and layout.
-/// Representation-specific decisions such as filenames and file backing
-/// remain encoder responsibilities.
+/// They produce a declarative presentation plan describing what artifacts
+/// should exist, but do not choose encoders or materialise output.
 pub trait OutputPresenter: Send + Sync {
-    fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory;
+    fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> PresentationPlan;
 }

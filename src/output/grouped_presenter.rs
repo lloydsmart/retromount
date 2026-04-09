@@ -1,87 +1,192 @@
-use crate::core::content::NormalizedContent;
-use crate::core::vfs::{VfsDirectory, VfsFile, VfsNode};
-use crate::output::basic_encoder::BasicEncoder;
+use crate::core::content::{
+    BytesContent, DiscPart, GameContent, GamePart, NormalizedContent, TextContent,
+};
+use crate::output::capabilities::{CapabilityRequirements, ContentType, Format};
 use crate::output::encode::OutputEncoder;
-use crate::output::name_allocator::{allocate_directory_name, allocate_file_name};
+use crate::output::plan::{
+    ArtifactId, ArtifactReference, ArtifactRequest, GeneratedArtifact, PlanDirectory, PlanEntry,
+    PlanFile, PlannedArtifactKind, PlaylistArtifact, PresentationPlan, SourceArtifact,
+};
 use crate::output::present::OutputPresenter;
-use crate::output::presented::{build_presented_entries, PresentedEntry, PresentedGame};
+use crate::output::presentation_expansion::{is_multi_disc_game, sorted_disc_parts};
 use crate::policy::PolicySet;
 
-pub struct GroupedPresenter {
-    encoder: Box<dyn OutputEncoder>,
-}
+pub struct GroupedPresenter;
 
 impl GroupedPresenter {
-    pub fn new(encoder: Box<dyn OutputEncoder>) -> Self {
-        Self { encoder }
+    pub fn new(_encoder: Box<dyn OutputEncoder>) -> Self {
+        Self
     }
 
-    fn build_root_children(&self, entries: &[PresentedEntry], policy: &PolicySet) -> Vec<VfsNode> {
-        let mut root = VfsDirectory::new("");
+    fn build_root_entries(
+        &self,
+        content: &[NormalizedContent],
+        policy: &PolicySet,
+    ) -> Vec<PlanEntry> {
+        let mut root = PlanDirectory::new("", Vec::new());
 
-        for entry in entries {
-            match entry {
-                PresentedEntry::Game(presented) => {
-                    self.insert_game_node(&mut root, presented, policy);
-                }
-                PresentedEntry::File(encoded) => {
-                    self.insert_file_path(&mut root, &encoded.name, encoded.to_vfs_file(), policy);
-                }
+        for item in content {
+            match item {
+                NormalizedContent::Game(game) => self.insert_game_node(&mut root, game, policy),
+                NormalizedContent::Bytes(bytes) => self.insert_bytes_path(&mut root, bytes, policy),
+                NormalizedContent::Text(text) => self.insert_text_path(&mut root, text, policy),
             }
         }
 
-        root.children().to_vec()
+        root.entries
     }
 
-    fn insert_game_node(
-        &self,
-        root: &mut VfsDirectory,
-        presented: &PresentedGame,
-        policy: &PolicySet,
-    ) {
-        let game = &presented.game;
+    fn insert_game_node(&self, root: &mut PlanDirectory, game: &GameContent, policy: &PolicySet) {
         let platform_name = policy.format_name(&policy.naming().platform_name(&game.platform));
         let game_name = policy.format_name(&policy.naming().game_name(game));
 
         let platform_dir = ensure_directory(root, &[platform_name], policy);
         let game_dir = ensure_distinct_child_directory(platform_dir, &game_name, policy);
 
-        for encoded in &presented.files {
-            let mut file = encoded.to_vfs_file();
-            file.name = allocate_file_name(game_dir, &file.name, policy);
-            game_dir.add_child(VfsNode::File(file));
+        if is_multi_disc_game(game) {
+            self.insert_multi_disc_game_files(game_dir, game, policy);
+        } else {
+            self.insert_single_game_file(game_dir, game, policy);
         }
     }
 
-    fn insert_file_path(
+    fn insert_single_game_file(
         &self,
-        root: &mut VfsDirectory,
-        path: &str,
-        file: VfsFile,
+        game_dir: &mut PlanDirectory,
+        game: &GameContent,
         policy: &PolicySet,
     ) {
-        let normalized = normalize_path(path);
-        let (parents, file_name) = split_parent_dirs(&normalized);
-        let directory = ensure_directory(root, &parents, policy);
+        let proposed_name = match game.parts.first() {
+            Some(part) => policy.naming().part_name(game, part),
+            None => policy.naming().game_name(game),
+        };
 
-        let mut file = file;
-        file.name = allocate_file_name(directory, &file_name, policy);
-        directory.add_child(VfsNode::File(file));
+        let resolved_name = resolve_file_name(game_dir, &proposed_name, policy);
+
+        let artifact = match game.parts.first() {
+            Some(GamePart::Rom(rom)) => ArtifactRequest::new(
+                ArtifactId::new(format!("game:{}", game.id)),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                    rom.source.clone(),
+                    rom.size,
+                )),
+                CapabilityRequirements::new(ContentType::Rom).with_format(Format::Bin),
+            ),
+            Some(GamePart::Disc(disc)) => ArtifactRequest::new(
+                ArtifactId::new(format!("game:{}", game.id)),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                    disc.source.clone(),
+                    estimate_disc_size(game, disc),
+                )),
+                CapabilityRequirements::new(ContentType::Disc).with_format(Format::Bin),
+            ),
+            None => ArtifactRequest::new(
+                ArtifactId::new(format!("game:{}", game.id)),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(game.source.clone(), 0)),
+                CapabilityRequirements::new(ContentType::Game),
+            ),
+        };
+
+        game_dir
+            .entries
+            .push(PlanEntry::File(PlanFile::new(resolved_name, artifact)));
     }
-}
 
-impl Default for GroupedPresenter {
-    fn default() -> Self {
-        Self::new(Box::new(BasicEncoder::new()))
+    fn insert_multi_disc_game_files(
+        &self,
+        game_dir: &mut PlanDirectory,
+        game: &GameContent,
+        policy: &PolicySet,
+    ) {
+        let mut disc_refs = Vec::new();
+
+        for disc in sorted_disc_parts(game) {
+            let proposed_name = policy
+                .naming()
+                .part_name(game, &GamePart::Disc(disc.clone()));
+            let resolved_name = resolve_file_name(game_dir, &proposed_name, policy);
+
+            let artifact_id =
+                ArtifactId::new(format!("game:{}:disc:{}", game.id, disc.disc_number));
+            disc_refs.push(ArtifactReference::new(artifact_id.clone()));
+
+            game_dir.entries.push(PlanEntry::File(PlanFile::new(
+                resolved_name,
+                ArtifactRequest::new(
+                    artifact_id,
+                    PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                        disc.source.clone(),
+                        estimate_disc_size(game, disc),
+                    )),
+                    CapabilityRequirements::new(ContentType::Disc).with_format(Format::Bin),
+                ),
+            )));
+        }
+
+        let playlist_name =
+            resolve_file_name(game_dir, &policy.naming().playlist_name(game), policy);
+
+        game_dir.entries.push(PlanEntry::File(PlanFile::new(
+            playlist_name,
+            ArtifactRequest::new(
+                ArtifactId::new(format!("game:{}:playlist", game.id)),
+                PlannedArtifactKind::Generated(GeneratedArtifact::Playlist(PlaylistArtifact::new(
+                    disc_refs,
+                ))),
+                CapabilityRequirements::new(ContentType::Playlist).with_format(Format::M3u),
+            ),
+        )));
+    }
+
+    fn insert_bytes_path(
+        &self,
+        root: &mut PlanDirectory,
+        bytes: &BytesContent,
+        policy: &PolicySet,
+    ) {
+        let (parents, _) = split_parent_dirs(&bytes.id.to_string());
+        let directory = ensure_directory(root, &parents, policy);
+        let resolved_name = resolve_file_name(
+            directory,
+            &format!("{}.bin", bytes.source.file_name()),
+            policy,
+        );
+
+        directory.entries.push(PlanEntry::File(PlanFile::new(
+            resolved_name,
+            ArtifactRequest::new(
+                ArtifactId::new(format!("bytes:{}", bytes.id)),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                    bytes.source.clone(),
+                    bytes.size,
+                )),
+                CapabilityRequirements::new(ContentType::Bytes).with_format(Format::Bin),
+            ),
+        )));
+    }
+
+    fn insert_text_path(&self, root: &mut PlanDirectory, text: &TextContent, policy: &PolicySet) {
+        let (parents, _) = split_parent_dirs(&text.id.to_string());
+        let directory = ensure_directory(root, &parents, policy);
+        let resolved_name = resolve_file_name(directory, &text_file_name(text), policy);
+
+        directory.entries.push(PlanEntry::File(PlanFile::new(
+            resolved_name,
+            ArtifactRequest::new(
+                ArtifactId::new(format!("text:{}", text.id)),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                    text.source.clone(),
+                    text.size,
+                )),
+                CapabilityRequirements::new(ContentType::Text).with_format(Format::Text),
+            ),
+        )));
     }
 }
 
 impl OutputPresenter for GroupedPresenter {
-    fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> VfsDirectory {
-        let presented_entries = build_presented_entries(content, self.encoder.as_ref(), policy);
-        let root_children = self.build_root_children(&presented_entries, policy);
-
-        VfsDirectory::with_children("", root_children)
+    fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> PresentationPlan {
+        PresentationPlan::new(self.build_root_entries(content, policy))
     }
 }
 
@@ -106,33 +211,43 @@ fn split_parent_dirs(path: &str) -> (Vec<String>, String) {
 }
 
 fn ensure_directory<'a>(
-    root: &'a mut VfsDirectory,
+    root: &'a mut PlanDirectory,
     parents: &[String],
     policy: &PolicySet,
-) -> &'a mut VfsDirectory {
+) -> &'a mut PlanDirectory {
     let mut current = root;
 
     for segment in parents {
-        let resolved_segment = allocate_directory_name(current, segment, policy);
-        let index = match current.children.iter().position(
-            |node| matches!(node, VfsNode::Directory(dir) if dir.name == resolved_segment),
-        ) {
+        let existing_index = current
+            .entries
+            .iter()
+            .position(|entry| matches!(entry, PlanEntry::Directory(dir) if dir.name == *segment));
+
+        let index = match existing_index {
             Some(index) => index,
             None => {
-                current.add_child(VfsNode::Directory(VfsDirectory::new(&resolved_segment)));
+                let existing_names = child_names(current);
+                let resolved_name = policy.resolve_name_conflict(segment, &existing_names);
 
                 current
-                    .children
+                    .entries
+                    .push(PlanEntry::Directory(PlanDirectory::new(
+                        &resolved_name,
+                        Vec::new(),
+                    )));
+
+                current
+                    .entries
                     .iter()
-                    .position(|node| {
-                        matches!(node, VfsNode::Directory(dir) if dir.name == resolved_segment)
+                    .position(|entry| {
+                        matches!(entry, PlanEntry::Directory(dir) if dir.name == resolved_name)
                     })
                     .expect("inserted directory should be present")
             }
         };
 
-        current = match current.children.get_mut(index) {
-            Some(VfsNode::Directory(dir)) => dir,
+        current = match current.entries.get_mut(index) {
+            Some(PlanEntry::Directory(dir)) => dir,
             _ => unreachable!("directory entry should be a directory"),
         };
     }
@@ -141,23 +256,59 @@ fn ensure_directory<'a>(
 }
 
 fn ensure_distinct_child_directory<'a>(
-    parent: &'a mut VfsDirectory,
+    parent: &'a mut PlanDirectory,
     proposed: &str,
     policy: &PolicySet,
-) -> &'a mut VfsDirectory {
-    let resolved_name = allocate_file_name(parent, proposed, policy);
+) -> &'a mut PlanDirectory {
+    let existing_names = child_names(parent);
+    let resolved_name = policy.resolve_name_conflict(proposed, &existing_names);
 
-    parent.add_child(VfsNode::Directory(VfsDirectory::new(&resolved_name)));
+    parent.entries.push(PlanEntry::Directory(PlanDirectory::new(
+        &resolved_name,
+        Vec::new(),
+    )));
 
     let index = parent
-        .children
+        .entries
         .iter()
-        .position(|node| matches!(node, VfsNode::Directory(dir) if dir.name == resolved_name))
+        .position(|entry| matches!(entry, PlanEntry::Directory(dir) if dir.name == resolved_name))
         .expect("inserted child directory should be present");
 
-    match parent.children.get_mut(index) {
-        Some(VfsNode::Directory(dir)) => dir,
+    match parent.entries.get_mut(index) {
+        Some(PlanEntry::Directory(dir)) => dir,
         _ => unreachable!("child directory entry should be a directory"),
+    }
+}
+
+fn resolve_file_name(parent: &PlanDirectory, proposed: &str, policy: &PolicySet) -> String {
+    let existing_names = child_names(parent);
+    policy.resolve_name_conflict(proposed, &existing_names)
+}
+
+fn child_names(directory: &PlanDirectory) -> Vec<String> {
+    directory
+        .entries
+        .iter()
+        .map(|entry| match entry {
+            PlanEntry::Directory(dir) => dir.name.clone(),
+            PlanEntry::File(file) => file.name.clone(),
+        })
+        .collect()
+}
+
+fn estimate_disc_size(_game: &GameContent, _disc: &DiscPart) -> u64 {
+    // TODO(phase5b): carry authoritative source-backed sizes for disc artifacts
+    // through the presentation plan. Disc cues currently materialize with size 0.
+    0
+}
+
+fn text_file_name(text: &TextContent) -> String {
+    let file_name = text.source.file_name();
+
+    if file_name.contains('.') {
+        file_name
+    } else {
+        format!("{file_name}.txt")
     }
 }
 
@@ -169,6 +320,8 @@ mod tests {
     };
     use crate::core::source::SourceRef;
     use crate::core::vfs::FileBacking;
+    use crate::output::materialize::materialize_presentation_plan;
+    use crate::output::plan::{PlanEntry, PresentationPlan};
     use crate::policy::{ConflictPolicy, FormattingPolicy, NamingPolicy, PolicySet};
 
     struct AlternateNamingPolicy;
@@ -232,6 +385,22 @@ mod tests {
         }
     }
 
+    fn alternate_policy() -> PolicySet {
+        PolicySet::new(
+            Box::new(AlternateNamingPolicy),
+            Box::new(PassthroughFormattingPolicy),
+            Box::new(PreserveConflictPolicy),
+        )
+    }
+
+    fn suffix_conflict_policy() -> PolicySet {
+        PolicySet::new(
+            Box::new(DefaultLikeNamingPolicy),
+            Box::new(PassthroughFormattingPolicy),
+            Box::new(SuffixConflictPolicy),
+        )
+    }
+
     struct DefaultLikeNamingPolicy;
 
     impl NamingPolicy for DefaultLikeNamingPolicy {
@@ -255,25 +424,63 @@ mod tests {
         }
     }
 
-    fn alternate_policy() -> PolicySet {
-        PolicySet::new(
-            Box::new(AlternateNamingPolicy),
-            Box::new(PassthroughFormattingPolicy),
-            Box::new(PreserveConflictPolicy),
-        )
+    fn render_root(
+        presenter: &GroupedPresenter,
+        content: &[NormalizedContent],
+        policy: &PolicySet,
+    ) -> crate::core::vfs::VfsDirectory {
+        let plan = presenter.present(content, policy);
+        materialize_presentation_plan(&plan).unwrap()
     }
 
-    fn suffix_conflict_policy() -> PolicySet {
-        PolicySet::new(
-            Box::new(DefaultLikeNamingPolicy),
-            Box::new(PassthroughFormattingPolicy),
-            Box::new(SuffixConflictPolicy),
-        )
+    fn render_plan(
+        presenter: &GroupedPresenter,
+        content: &[NormalizedContent],
+        policy: &PolicySet,
+    ) -> PresentationPlan {
+        presenter.present(content, policy)
+    }
+
+    #[test]
+    fn grouped_presenter_plan_places_game_under_platform_directory() {
+        let presenter = GroupedPresenter;
+        let policy = PolicySet::default();
+
+        let content = vec![NormalizedContent::Game(GameContent {
+            id: ContentId::new("smw"),
+            source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+            title: "Super Mario World".to_string(),
+            platform: Platform::Snes,
+            parts: vec![GamePart::Rom(RomPart {
+                source: SourceRef::new("file:/roms/Super Mario World.sfc"),
+                size: 4096,
+            })],
+            consumed_sources: vec![],
+        })];
+
+        let plan = render_plan(&presenter, &content, &policy);
+
+        assert_eq!(plan.entries.len(), 1);
+
+        let platform_dir = match &plan.entries[0] {
+            PlanEntry::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        assert_eq!(platform_dir.name, "snes");
+
+        let game_dir = match &platform_dir.entries[0] {
+            PlanEntry::Directory(dir) => dir,
+            other => panic!("expected directory, got {other:?}"),
+        };
+
+        assert_eq!(game_dir.name, "Super Mario World");
+        assert_eq!(game_dir.entries.len(), 1);
     }
 
     #[test]
     fn presents_mixed_content_in_library_view() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
+        let presenter = GroupedPresenter;
         let policy = PolicySet::default();
 
         let content = vec![
@@ -312,51 +519,15 @@ mod tests {
             }),
         ];
 
-        let root = presenter.present(&content, &policy);
+        let root = render_root(&presenter, &content, &policy);
 
         let names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["megadrive", "ps1", "bios.bin", "manifest.txt"]);
     }
 
     #[test]
-    fn presents_single_rom_game_as_file_in_platform_title_directory() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
-        let policy = PolicySet::default();
-
-        let content = vec![NormalizedContent::Game(GameContent {
-            id: ContentId::new("smw"),
-            source: SourceRef::new("file:/roms/Super Mario World.sfc"),
-            title: "Super Mario World".to_string(),
-            platform: Platform::Snes,
-            parts: vec![GamePart::Rom(RomPart {
-                source: SourceRef::new("file:/roms/Super Mario World.sfc"),
-                size: 4096,
-            })],
-            consumed_sources: vec![],
-        })];
-
-        let root = presenter.present(&content, &policy);
-
-        assert_eq!(root.children().len(), 1);
-        assert_eq!(root.children()[0].name(), "snes");
-
-        let snes = match &root.children()[0] {
-            VfsNode::Directory(dir) => dir,
-            other => panic!("expected directory, got {other:?}"),
-        };
-
-        let game = match &snes.children()[0] {
-            VfsNode::Directory(dir) => dir,
-            other => panic!("expected directory, got {other:?}"),
-        };
-
-        assert_eq!(game.name, "Super Mario World");
-        assert_eq!(game.children()[0].name(), "Super Mario World.sfc");
-    }
-
-    #[test]
     fn presents_multi_disc_game_as_directory_with_playlist_in_library_view() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
+        let presenter = GroupedPresenter;
         let policy = PolicySet::default();
 
         let content = vec![NormalizedContent::Game(GameContent {
@@ -382,17 +553,17 @@ mod tests {
             ],
         })];
 
-        let root = presenter.present(&content, &policy);
+        let root = render_root(&presenter, &content, &policy);
 
         assert_eq!(root.children()[0].name(), "ps1");
 
         let ps1 = match &root.children()[0] {
-            VfsNode::Directory(dir) => dir,
+            crate::core::vfs::VfsNode::Directory(dir) => dir,
             other => panic!("expected directory, got {other:?}"),
         };
 
         let game_dir = match &ps1.children()[0] {
-            VfsNode::Directory(dir) => dir,
+            crate::core::vfs::VfsNode::Directory(dir) => dir,
             other => panic!("expected directory, got {other:?}"),
         };
 
@@ -407,7 +578,7 @@ mod tests {
         );
 
         let playlist = match &game_dir.children()[2] {
-            VfsNode::File(file) => file,
+            crate::core::vfs::VfsNode::File(file) => file,
             other => panic!("expected file, got {other:?}"),
         };
 
@@ -423,107 +594,8 @@ mod tests {
     }
 
     #[test]
-    fn presents_multiple_games_under_platform_directories() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
-        let policy = PolicySet::default();
-
-        let content = vec![
-            NormalizedContent::Game(GameContent {
-                id: ContentId::new("crash-bandicoot"),
-                source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
-                title: "Crash Bandicoot".to_string(),
-                platform: Platform::Ps1,
-                parts: vec![GamePart::Rom(RomPart {
-                    source: SourceRef::new("file:/roms/Crash Bandicoot.bin"),
-                    size: 1024,
-                })],
-                consumed_sources: vec![],
-            }),
-            NormalizedContent::Game(GameContent {
-                id: ContentId::new("ff7"),
-                source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-                title: "Final Fantasy VII".to_string(),
-                platform: Platform::Ps1,
-                parts: vec![
-                    GamePart::Disc(DiscPart {
-                        source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
-                        disc_number: 2,
-                        consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
-                    }),
-                    GamePart::Disc(DiscPart {
-                        source: SourceRef::new("cue:/roms/ff7-disc1.cue"),
-                        disc_number: 1,
-                        consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc1.bin")],
-                    }),
-                ],
-                consumed_sources: vec![
-                    SourceRef::new("cue:/roms/ff7-disc2.bin"),
-                    SourceRef::new("cue:/roms/ff7-disc1.bin"),
-                ],
-            }),
-        ];
-
-        let root = presenter.present(&content, &policy);
-
-        assert_eq!(root.children().len(), 1);
-        assert_eq!(root.children()[0].name(), "ps1");
-
-        let ps1 = match &root.children()[0] {
-            VfsNode::Directory(dir) => dir,
-            other => panic!("expected directory, got {other:?}"),
-        };
-
-        let names: Vec<&str> = ps1.children().iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["Crash Bandicoot", "Final Fantasy VII"]);
-    }
-
-    #[test]
-    fn presents_text_content_with_relative_path_using_leaf_file_name() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
-        let policy = PolicySet::default();
-
-        let content = vec![NormalizedContent::Text(TextContent {
-            id: ContentId::new("mixed/notes"),
-            source: SourceRef::new("file:/roms/mixed/notes.txt"),
-            size: 12,
-        })];
-
-        let root = presenter.present(&content, &policy);
-
-        let mixed = match root.find_directory("mixed") {
-            Some(dir) => dir,
-            None => panic!("expected mixed directory"),
-        };
-
-        let names: Vec<&str> = mixed.children().iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["notes.txt"]);
-    }
-
-    #[test]
-    fn presents_bytes_content_with_relative_path_using_leaf_file_name() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
-        let policy = PolicySet::default();
-
-        let content = vec![NormalizedContent::Bytes(BytesContent {
-            id: ContentId::new("zips/gameboy_collection.zip"),
-            source: SourceRef::new("file:/roms/zips/gameboy_collection.zip"),
-            size: 481,
-        })];
-
-        let root = presenter.present(&content, &policy);
-
-        let zips = match root.find_directory("zips") {
-            Some(dir) => dir,
-            None => panic!("expected zips directory"),
-        };
-
-        let names: Vec<&str> = zips.children().iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["gameboy_collection.zip.bin"]);
-    }
-
-    #[test]
     fn naming_policy_can_change_grouped_output_names_without_changing_structure() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
+        let presenter = GroupedPresenter;
         let default_policy = PolicySet::default();
         let alt_policy = alternate_policy();
 
@@ -550,8 +622,8 @@ mod tests {
             ],
         })];
 
-        let default_root = presenter.present(&content, &default_policy);
-        let alt_root = presenter.present(&content, &alt_policy);
+        let default_root = render_root(&presenter, &content, &default_policy);
+        let alt_root = render_root(&presenter, &content, &alt_policy);
 
         let default_platform = default_root.find_directory("ps1").unwrap();
         let default_game = default_platform
@@ -590,33 +662,8 @@ mod tests {
     }
 
     #[test]
-    fn conflict_policy_can_disambiguate_sibling_file_names() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
-        let policy = suffix_conflict_policy();
-
-        let content = vec![
-            NormalizedContent::Bytes(BytesContent {
-                id: ContentId::new("docs/readme"),
-                source: SourceRef::new("file:/roms/docs/readme"),
-                size: 10,
-            }),
-            NormalizedContent::Bytes(BytesContent {
-                id: ContentId::new("docs/readme"),
-                source: SourceRef::new("file:/roms/docs/readme-copy"),
-                size: 11,
-            }),
-        ];
-
-        let root = presenter.present(&content, &policy);
-        let docs = root.find_directory("docs").unwrap();
-
-        let names: Vec<&str> = docs.children().iter().map(|node| node.name()).collect();
-        assert_eq!(names, vec!["readme.bin", "readme.bin (1)"]);
-    }
-
-    #[test]
     fn conflict_policy_can_disambiguate_game_directory_names_under_same_platform() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
+        let presenter = GroupedPresenter;
         let policy = suffix_conflict_policy();
 
         let content = vec![
@@ -644,38 +691,10 @@ mod tests {
             }),
         ];
 
-        let root = presenter.present(&content, &policy);
+        let root = render_root(&presenter, &content, &policy);
         let ps1 = root.find_directory("ps1").unwrap();
 
         let names: Vec<&str> = ps1.children().iter().map(|node| node.name()).collect();
         assert_eq!(names, vec!["Duplicate Game", "Duplicate Game (1)"]);
-    }
-
-    #[test]
-    fn reuses_existing_directory_name_before_applying_conflict_suffixes() {
-        let presenter = GroupedPresenter::new(Box::new(BasicEncoder::new()));
-        let policy = suffix_conflict_policy();
-
-        let content = vec![
-            NormalizedContent::Text(TextContent {
-                id: ContentId::new("docs/notes"),
-                source: SourceRef::new("file:/roms/docs/notes.txt"),
-                size: 12,
-            }),
-            NormalizedContent::Text(TextContent {
-                id: ContentId::new("docs/todo"),
-                source: SourceRef::new("file:/roms/docs/todo.txt"),
-                size: 8,
-            }),
-        ];
-
-        let root = presenter.present(&content, &policy);
-
-        let root_names: Vec<&str> = root.children().iter().map(|node| node.name()).collect();
-        assert_eq!(root_names, vec!["docs"]);
-
-        let docs = root.find_directory("docs").unwrap();
-        let child_names: Vec<&str> = docs.children().iter().map(|node| node.name()).collect();
-        assert_eq!(child_names, vec!["notes.txt", "todo.txt"]);
     }
 }
