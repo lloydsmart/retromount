@@ -442,6 +442,28 @@ pub fn to_protocol_response(artifact: MaterializedArtifact) -> MaterializationRe
     }
 }
 
+pub fn to_encoder_capability(
+    plugin_id: &str,
+    capability: ProtocolEncoderCapability,
+) -> EncoderCapability {
+    let mut result = EncoderCapability::new(
+        plugin_id,
+        capability.capability_id,
+        capability.content_type.into(),
+    )
+    .with_priority(capability.priority);
+
+    for format in capability.formats {
+        result = result.supports_format(format.into());
+    }
+
+    for feature in capability.features {
+        result = result.with_feature(feature.into());
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -582,5 +604,22 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn converts_protocol_capability_to_encoder_capability() {
+        let protocol = ProtocolEncoderCapability::new("disc.chd", ProtocolContentType::Disc)
+            .supports_format(ProtocolFormat::Chd)
+            .with_feature(ProtocolCapabilityFeature::Lossless)
+            .with_priority(100);
+
+        let capability = to_encoder_capability("plugin.example", protocol);
+
+        assert_eq!(capability.plugin_id, "plugin.example");
+        assert_eq!(capability.capability_id, "disc.chd");
+        assert_eq!(capability.content_type, ContentType::Disc);
+        assert!(capability.formats.contains(&Format::Chd));
+        assert!(capability.features.contains(&CapabilityFeature::Lossless));
+        assert_eq!(capability.priority, 100);
     }
 }

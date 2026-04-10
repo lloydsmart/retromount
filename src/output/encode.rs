@@ -29,7 +29,7 @@ pub struct MaterializationContext {
 }
 
 pub trait OutputEncoder: Send + Sync {
-    fn plugin_id(&self) -> &'static str;
+    fn plugin_id(&self) -> &str;
 
     fn capabilities(&self) -> Vec<EncoderCapability>;
 
