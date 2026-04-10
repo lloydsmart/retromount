@@ -6,10 +6,24 @@ use crate::output::capabilities::EncoderCapability;
 use crate::output::encode::{MaterializationContext, OutputEncoder};
 use crate::output::encoder_registry::default_encoder_registry;
 use crate::output::plan::{ArtifactId, PlanEntry, PlanFile, PresentationPlan};
+use crate::output::plugin_registry::PluginRegistry;
 use crate::output::resolution::{CapabilityResolver, ResolutionResult};
 
 pub fn materialize_plan(plan: &PresentationPlan) -> Result<VfsDirectory, io::Error> {
     let encoders = default_encoder_registry().all();
+    materialize_plan_with_encoders(plan, &encoders)
+}
+
+pub fn materialize_plan_with_plugins(
+    plan: &PresentationPlan,
+    plugin_registry: &PluginRegistry,
+) -> Result<VfsDirectory, io::Error> {
+    let builtin_encoders = default_encoder_registry().all();
+    let plugin_encoders = plugin_registry
+        .build_encoders()
+        .map_err(|error| io::Error::other(format!("{error:?}")))?;
+
+    let encoders = merge_encoders(builtin_encoders, plugin_encoders);
     materialize_plan_with_encoders(plan, &encoders)
 }
 
@@ -20,6 +34,14 @@ pub fn materialize_plan_with_encoders(
     let artifact_names = collect_artifact_names(&plan.entries);
     let children = materialize_entries(&plan.entries, &artifact_names, encoders)?;
     Ok(VfsDirectory::with_children("", children))
+}
+
+fn merge_encoders(
+    mut builtin: Vec<Box<dyn OutputEncoder>>,
+    plugins: Vec<Box<dyn OutputEncoder>>,
+) -> Vec<Box<dyn OutputEncoder>> {
+    builtin.extend(plugins);
+    builtin
 }
 
 fn collect_artifact_names(entries: &[PlanEntry]) -> HashMap<ArtifactId, String> {
@@ -123,6 +145,8 @@ fn collect_capabilities(encoders: &[Box<dyn OutputEncoder>]) -> Vec<EncoderCapab
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::core::source::SourceRef;
     use crate::output::basic_encoder::BasicEncoder;
@@ -131,6 +155,53 @@ mod tests {
         ArtifactReference, ArtifactRequest, GeneratedArtifact, PlanFile, PlannedArtifactKind,
         PlaylistArtifact, SourceArtifact, SourceArtifactInput,
     };
+    use crate::output::plugin_client::EncoderPluginClient;
+    use crate::output::plugin_protocol::{
+        MaterializationRequest, MaterializationResponse, PluginManifest, ProtocolContentType,
+        ProtocolEncoderCapability, ProtocolFormat, ProtocolMaterializedSourceFile,
+        ENCODER_PLUGIN_PROTOCOL_V1,
+    };
+
+    #[derive(Clone)]
+    struct TestPluginClient {
+        manifest: PluginManifest,
+    }
+
+    impl EncoderPluginClient for TestPluginClient {
+        fn manifest(
+            &self,
+        ) -> Result<PluginManifest, crate::output::plugin_protocol::ProtocolError> {
+            Ok(self.manifest.clone())
+        }
+
+        fn materialize(
+            &self,
+            _request: &MaterializationRequest,
+        ) -> Result<MaterializationResponse, crate::output::plugin_protocol::ProtocolError>
+        {
+            Ok(MaterializationResponse::SourceBacked(
+                ProtocolMaterializedSourceFile {
+                    source: "file:/plugins/game.iso".to_string(),
+                    size: 8192,
+                },
+            ))
+        }
+    }
+
+    fn plugin_manifest() -> PluginManifest {
+        PluginManifest {
+            plugin_id: "plugin.test".to_string(),
+            plugin_version: "0.1.0".to_string(),
+            protocol_version: ENCODER_PLUGIN_PROTOCOL_V1,
+            display_name: None,
+            description: None,
+            capabilities: vec![ProtocolEncoderCapability::new(
+                "disc.iso",
+                ProtocolContentType::Disc,
+            )
+            .supports_format(ProtocolFormat::Iso)],
+        }
+    }
 
     #[test]
     fn materializes_source_backed_file() {
@@ -254,5 +325,43 @@ mod tests {
 
         assert_eq!(root.children().len(), 1);
         assert_eq!(root.children()[0].name(), "game.bin");
+    }
+
+    #[test]
+    fn materializes_plan_with_plugin_registry() {
+        let plan = PresentationPlan::new(vec![PlanEntry::File(PlanFile::new(
+            "Game.iso",
+            ArtifactRequest::new(
+                ArtifactId::new("game"),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                    SourceRef::new("file:/roms/game.iso"),
+                    4096,
+                )),
+                CapabilityRequirements::new(ContentType::Disc).with_format(Format::Iso),
+            ),
+        ))]);
+
+        let mut plugin_registry = PluginRegistry::new();
+        let client: Arc<dyn EncoderPluginClient> = Arc::new(TestPluginClient {
+            manifest: plugin_manifest(),
+        });
+        plugin_registry.register(client).unwrap();
+
+        let root = materialize_plan_with_plugins(&plan, &plugin_registry).unwrap();
+
+        assert_eq!(root.children().len(), 1);
+
+        let file = match &root.children()[0] {
+            VfsNode::File(file) => file,
+            other => panic!("expected file, got {other:?}"),
+        };
+
+        match &file.backing {
+            crate::core::vfs::FileBacking::Source(source) => {
+                assert_eq!(source, &SourceRef::new("file:/plugins/game.iso"));
+                assert_eq!(file.size, 8192);
+            }
+            other => panic!("expected source-backed file, got {other:?}"),
+        }
     }
 }
