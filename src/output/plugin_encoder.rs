@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::output::capabilities::EncoderCapability;
 use crate::output::encode::{MaterializationContext, MaterializedArtifact, OutputEncoder};
 use crate::output::plan::ArtifactRequest;
@@ -10,14 +12,14 @@ use crate::output::plugin_protocol_conversion::{
 pub struct PluginBackedEncoder {
     plugin_id: String,
     capabilities: Vec<EncoderCapability>,
-    client: Box<dyn EncoderPluginClient>,
+    client: Arc<dyn EncoderPluginClient>,
 }
 
 impl PluginBackedEncoder {
     pub fn new(
         plugin_id: String,
         capabilities: Vec<EncoderCapability>,
-        client: Box<dyn EncoderPluginClient>,
+        client: Arc<dyn EncoderPluginClient>,
     ) -> Self {
         Self {
             plugin_id,
@@ -26,7 +28,7 @@ impl PluginBackedEncoder {
         }
     }
 
-    pub fn from_client(client: Box<dyn EncoderPluginClient>) -> Result<Self, ProtocolError> {
+    pub fn from_client(client: Arc<dyn EncoderPluginClient>) -> Result<Self, ProtocolError> {
         let manifest = client.manifest()?;
         validate_manifest(&manifest)?;
 
@@ -76,6 +78,7 @@ fn to_io_error(error: ProtocolError) -> std::io::Error {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     use super::*;
     use crate::core::source::SourceRef;
@@ -129,15 +132,17 @@ mod tests {
 
     #[test]
     fn plugin_encoder_integrates_with_output_encoder_trait() {
+        let client: Arc<dyn EncoderPluginClient> = Arc::new(TestClient {
+            manifest: manifest(),
+        });
+
         let encoder = PluginBackedEncoder::new(
             "plugin.example".to_string(),
             vec![
                 EncoderCapability::new("plugin.example", "disc.iso", ContentType::Disc)
                     .supports_format(Format::Iso),
             ],
-            Box::new(TestClient {
-                manifest: manifest(),
-            }),
+            client,
         );
 
         let artifact = ArtifactRequest::new(
@@ -172,7 +177,8 @@ mod tests {
         let expected_plugin_id = manifest.plugin_id.clone();
         let expected_capability_count = manifest.capabilities.len();
 
-        let encoder = PluginBackedEncoder::from_client(Box::new(TestClient { manifest })).unwrap();
+        let client: Arc<dyn EncoderPluginClient> = Arc::new(TestClient { manifest });
+        let encoder = PluginBackedEncoder::from_client(client).unwrap();
 
         assert_eq!(encoder.plugin_id(), expected_plugin_id);
         assert_eq!(encoder.capabilities().len(), expected_capability_count);
