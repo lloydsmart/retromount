@@ -7,6 +7,7 @@ pub mod grouped_presenter;
 pub mod materialize;
 pub mod name_allocator;
 pub mod plan;
+pub mod plugin_protocol;
 pub mod present;
 pub mod presentation_expansion;
 pub mod presenter_registry;
