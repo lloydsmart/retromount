@@ -174,16 +174,18 @@ mod tests {
             &format!(
                 r#"#!/bin/sh
 cat >/dev/null
-printf '%s' '{}'
+cat <<'EOF'
+{}
+EOF
 "#,
-                manifest_json.replace('\'', "'\\''")
+                manifest_json
             ),
         );
 
         let report = discover_encoder_plugins(dir.path());
 
-        assert_eq!(report.discovered.len(), 1);
-        assert_eq!(report.rejected.len(), 0);
+        assert_eq!(report.discovered.len(), 1, "report: {report:?}");
+        assert_eq!(report.rejected.len(), 0, "report: {report:?}");
         assert_eq!(report.discovered[0].manifest.plugin_id, "plugin.discovery");
     }
 
@@ -237,9 +239,11 @@ printf '%s' 'not-json'
             &format!(
                 r#"#!/bin/sh
 cat >/dev/null
-printf '%s' '{}'
+cat <<'EOF'
+{}
+EOF
 "#,
-                manifest_json.replace('\'', "'\\''")
+                manifest_json
             ),
         );
 
@@ -282,25 +286,28 @@ printf '%s' '{}'
 
         let script = format!(
             r#"#!/bin/sh
-    request="$(cat)"
-    case "$request" in
-    *'"type":"get_manifest"'*)
-        printf '%s' '{}'
-        ;;
-    *)
-        printf '%s' '{}'
-        ;;
-    esac
-    "#,
-            manifest_json.replace('\'', "'\\''"),
-            materialize_json.replace('\'', "'\\''")
+request="$(cat)"
+case "$request" in
+  *'"type":"get_manifest"'*)
+    cat <<'EOF'
+{}
+EOF
+    ;;
+  *)
+    cat <<'EOF'
+{}
+EOF
+    ;;
+esac
+"#,
+            manifest_json, materialize_json
         );
 
         write_executable_script(&dir, "plugin-ok.sh", &script);
 
         let report = discover_encoder_plugins(dir.path());
-        assert_eq!(report.discovered.len(), 1);
-        assert_eq!(report.rejected.len(), 0);
+        assert_eq!(report.discovered.len(), 1, "report: {report:?}");
+        assert_eq!(report.rejected.len(), 0, "report: {report:?}");
 
         let registry = build_registry_from_discovery(report).unwrap();
 
