@@ -12,6 +12,8 @@ pub mod plugin_encoder;
 pub mod plugin_protocol;
 pub mod plugin_protocol_conversion;
 pub mod plugin_registry;
+pub mod plugin_runtime;
+pub mod plugin_runtime_error;
 pub mod present;
 pub mod presentation_expansion;
 pub mod presenter_registry;
