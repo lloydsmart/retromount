@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::output::plugin_client::EncoderPluginClient;
-use crate::output::plugin_protocol::PluginManifest;
+use crate::output::plugin_protocol::{PluginManifest, ProtocolError};
+use crate::output::plugin_registry::PluginRegistry;
 use crate::output::plugin_runtime::SubprocessEncoderPluginClient;
 use crate::output::plugin_runtime_error::PluginRuntimeError;
 
@@ -49,6 +50,7 @@ pub fn discover_encoder_plugins(dir: &Path) -> PluginDiscoveryReport {
                     message: error.to_string(),
                 },
             });
+
             return PluginDiscoveryReport {
                 discovered,
                 rejected,
@@ -68,7 +70,7 @@ pub fn discover_encoder_plugins(dir: &Path) -> PluginDiscoveryReport {
             use std::os::unix::fs::PermissionsExt;
 
             let metadata = match entry.metadata() {
-                Ok(m) => m,
+                Ok(metadata) => metadata,
                 Err(_) => continue,
             };
 
@@ -102,28 +104,40 @@ pub fn discover_encoder_plugins(dir: &Path) -> PluginDiscoveryReport {
     }
 }
 
+pub fn build_registry_from_discovery(
+    report: PluginDiscoveryReport,
+) -> Result<PluginRegistry, ProtocolError> {
+    let mut registry = PluginRegistry::new();
+
+    for plugin in report.discovered {
+        registry.register(plugin.client)?;
+    }
+
+    Ok(registry)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::output::plugin_protocol::{
-        PluginManifest, PluginResponse, ProtocolContentType, ProtocolEncoderCapability,
-        ProtocolFormat, ENCODER_PLUGIN_PROTOCOL_V1,
-    };
+    use std::fs;
 
     use tempfile::TempDir;
 
+    use super::*;
+    use crate::output::plugin_protocol::{
+        PluginResponse, ProtocolContentType, ProtocolEncoderCapability, ProtocolFormat,
+        ENCODER_PLUGIN_PROTOCOL_V1,
+    };
+
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
-
-    use std::fs;
 
     fn example_manifest() -> PluginManifest {
         PluginManifest {
             plugin_id: "plugin.discovery".to_string(),
             plugin_version: "1.0.0".to_string(),
             protocol_version: ENCODER_PLUGIN_PROTOCOL_V1,
-            display_name: None,
-            description: None,
+            display_name: Some("Discovery Plugin".to_string()),
+            description: Some("Fixture plugin for discovery tests".to_string()),
             capabilities: vec![ProtocolEncoderCapability::new(
                 "disc.iso",
                 ProtocolContentType::Disc,
@@ -133,13 +147,13 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn write_exec(dir: &TempDir, name: &str, body: &str) -> PathBuf {
+    fn write_executable_script(dir: &TempDir, name: &str, body: &str) -> PathBuf {
         let path = dir.path().join(name);
         fs::write(&path, body).unwrap();
 
-        let mut perms = fs::metadata(&path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&path, perms).unwrap();
+        let mut permissions = fs::metadata(&path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&path, permissions).unwrap();
 
         path
     }
@@ -154,7 +168,7 @@ mod tests {
         })
         .unwrap();
 
-        write_exec(
+        write_executable_script(
             &dir,
             "plugin-ok.sh",
             &format!(
@@ -170,7 +184,6 @@ printf '%s' '{}'
 
         assert_eq!(report.discovered.len(), 1);
         assert_eq!(report.rejected.len(), 0);
-
         assert_eq!(report.discovered[0].manifest.plugin_id, "plugin.discovery");
     }
 
@@ -179,7 +192,7 @@ printf '%s' '{}'
     fn rejects_invalid_plugin() {
         let dir = TempDir::new().unwrap();
 
-        write_exec(
+        write_executable_script(
             &dir,
             "plugin-bad.sh",
             r#"#!/bin/sh
@@ -192,5 +205,132 @@ printf '%s' 'not-json'
 
         assert_eq!(report.discovered.len(), 0);
         assert_eq!(report.rejected.len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_non_executable_files() {
+        let dir = TempDir::new().unwrap();
+
+        let path = dir.path().join("not-executable.sh");
+        fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
+
+        let report = discover_encoder_plugins(dir.path());
+
+        assert_eq!(report.discovered.len(), 0);
+        assert_eq!(report.rejected.len(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn builds_registry_from_discovered_plugins() {
+        let dir = TempDir::new().unwrap();
+
+        let manifest_json = serde_json::to_string(&PluginResponse::Manifest {
+            manifest: example_manifest(),
+        })
+        .unwrap();
+
+        write_executable_script(
+            &dir,
+            "plugin-ok.sh",
+            &format!(
+                r#"#!/bin/sh
+cat >/dev/null
+printf '%s' '{}'
+"#,
+                manifest_json.replace('\'', "'\\''")
+            ),
+        );
+
+        let report = discover_encoder_plugins(dir.path());
+        let registry = build_registry_from_discovery(report).unwrap();
+        let encoders = registry.build_encoders().unwrap();
+
+        assert_eq!(encoders.len(), 1);
+        assert_eq!(encoders[0].plugin_id(), "plugin.discovery");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn discovered_plugin_can_materialize_plan() {
+        use crate::core::source::SourceRef;
+        use crate::core::vfs::VfsNode;
+        use crate::output::capabilities::{CapabilityRequirements, ContentType, Format};
+        use crate::output::materialize::materialize_plan_with_plugins;
+        use crate::output::plan::{
+            ArtifactId, ArtifactRequest, PlanEntry, PlanFile, PlannedArtifactKind,
+            PresentationPlan, SourceArtifact,
+        };
+        use crate::output::plugin_protocol::{
+            MaterializationResponse, PluginResponse, ProtocolInlineFile,
+        };
+
+        let dir = TempDir::new().unwrap();
+
+        let manifest_json = serde_json::to_string(&PluginResponse::Manifest {
+            manifest: example_manifest(),
+        })
+        .unwrap();
+
+        let materialize_json = serde_json::to_string(&PluginResponse::Materialized {
+            response: MaterializationResponse::Inline(ProtocolInlineFile {
+                bytes: b"plugin-output".to_vec(),
+            }),
+        })
+        .unwrap();
+
+        let script = format!(
+            r#"#!/bin/sh
+    request="$(cat)"
+    case "$request" in
+    *'"type":"get_manifest"'*)
+        printf '%s' '{}'
+        ;;
+    *)
+        printf '%s' '{}'
+        ;;
+    esac
+    "#,
+            manifest_json.replace('\'', "'\\''"),
+            materialize_json.replace('\'', "'\\''")
+        );
+
+        write_executable_script(&dir, "plugin-ok.sh", &script);
+
+        let report = discover_encoder_plugins(dir.path());
+        assert_eq!(report.discovered.len(), 1);
+        assert_eq!(report.rejected.len(), 0);
+
+        let registry = build_registry_from_discovery(report).unwrap();
+
+        let plan = PresentationPlan::new(vec![PlanEntry::File(PlanFile::new(
+            "Game.iso",
+            ArtifactRequest::new(
+                ArtifactId::new("game"),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                    SourceRef::new("file:/roms/game.iso"),
+                    4096,
+                )),
+                CapabilityRequirements::new(ContentType::Disc).with_format(Format::Iso),
+            ),
+        ))]);
+
+        let root = materialize_plan_with_plugins(&plan, &registry).unwrap();
+
+        assert_eq!(root.children().len(), 1);
+
+        let file = match &root.children()[0] {
+            VfsNode::File(file) => file,
+            other => panic!("expected file, got {other:?}"),
+        };
+
+        match &file.backing {
+            crate::core::vfs::FileBacking::Inline(contents) => {
+                assert_eq!(contents, b"plugin-output");
+                assert_eq!(file.size, b"plugin-output".len() as u64);
+            }
+            other => panic!("expected inline plugin output, got {other:?}"),
+        }
     }
 }

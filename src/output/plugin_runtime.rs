@@ -251,6 +251,7 @@ printf '%s' '{}'
         let temp_dir = TempDir::new().unwrap();
 
         let script = r#"#!/bin/sh
+cat >/dev/null
 echo "boom" >&2
 exit 12
 "#;
