@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::output::basic_encoder::BasicEncoder;
 use crate::output::encode::OutputEncoder;
 
 pub struct EncoderRegistry {
@@ -24,6 +25,16 @@ impl EncoderRegistry {
         self.encoders.get(name).map(|factory| factory())
     }
 
+    pub fn all(&self) -> Vec<Box<dyn OutputEncoder>> {
+        let mut names: Vec<&str> = self.encoders.keys().map(|name| name.as_str()).collect();
+        names.sort_unstable();
+
+        names
+            .into_iter()
+            .filter_map(|name| self.get(name))
+            .collect()
+    }
+
     pub fn names(&self) -> Vec<&str> {
         let mut names: Vec<&str> = self.encoders.keys().map(|k| k.as_str()).collect();
         names.sort_unstable();
@@ -35,4 +46,10 @@ impl Default for EncoderRegistry {
     fn default() -> Self {
         Self::new()
     }
+}
+
+pub fn default_encoder_registry() -> EncoderRegistry {
+    let mut registry = EncoderRegistry::new();
+    registry.register("basic", || Box::new(BasicEncoder::new()));
+    registry
 }
