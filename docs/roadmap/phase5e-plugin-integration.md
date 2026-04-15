@@ -20,6 +20,8 @@ Plugins are now:
 
 This phase establishes a complete end-to-end path from input content to plugin-driven output artifacts.
 
+See also: `docs/architecture/plugins.md` for the runtime plugin model.
+
 ---
 
 ## Key Outcomes
@@ -80,7 +82,7 @@ This plugin:
 * Supports multiple formats (e.g. Bin, Iso, Chd)
 * Returns a fixed inline payload (`"PLUGIN"`) for all materialization requests
 
-This allows:
+This enables:
 
 * Clear verification of plugin selection
 * Deterministic assertions in automated tests
@@ -100,7 +102,9 @@ This test:
 
 * Uses real decoded and normalized content (CUE/BIN disc)
 * Loads the fixture plugin from a temporary plugin directory
-* Runs the full pipeline (identify → decode → normalize → present → resolve → materialize)
+* Runs the full pipeline:
+
+  * identify → decode → normalize → present → resolve → materialize
 * Forces a plugin-resolved capability via a controlled presenter
 * Asserts that:
 
@@ -130,6 +134,20 @@ The same applies to:
 * `mount`
 
 If no plugin directory is provided, only built-in encoders are used.
+
+---
+
+## Guarantees Established by Phase 5E
+
+Phase 5E proves that:
+
+* Plugins are first-class encoder implementations
+* The pipeline remains intact and deterministic with external components
+* Capability resolution works uniformly across built-in and plugin encoders
+* The plugin protocol is stable and enforceable
+* End-to-end execution is testable and reproducible
+
+These guarantees form the foundation for future extensibility work.
 
 ---
 

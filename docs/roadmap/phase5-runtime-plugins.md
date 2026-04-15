@@ -1,6 +1,6 @@
 # Phase 5 — Runtime Plugins & Adaptive Presentations
 
-This document defines the proposed scope and architectural direction for Phase 5.
+This document defines the scope and architectural direction for Phase 5.
 
 Phase 5 is the point at which Retromount begins to fully realize its original vision:
 
@@ -18,13 +18,36 @@ Phase 5 builds on that by introducing runtime-extensible plugins and multi-encod
 
 ---
 
+## Status
+
+### Implemented (Phases 5A–5E)
+
+* Declarative presentation planning
+* Capability-based encoder resolution
+* Plugin protocol definition
+* Out-of-process plugin runtime
+* Plugin discovery and registration
+* End-to-end plugin integration (validated via integration tests)
+
+### Remaining (Phase 5F+)
+
+* Plugin packaging and distribution model
+* Plugin configuration surface
+* CLI ergonomics and discovery tooling
+* Additional real-world plugins (e.g. MiSTer, Batocera)
+* Optional runtime improvements (e.g. WASM exploration)
+
+See also: `docs/architecture/plugins.md` for the runtime plugin model.
+
+---
+
 ## Goal
 
 Enable Retromount to load capability at runtime and compose it safely into the pipeline, so users can extend the system without recompiling the main binary.
 
 Specifically:
 
-> Retromount should be able to discover and use separately installed plugins that contribute presenters, encoders, and related capabilities at runtime.
+> Retromount should be able to discover and use separately installed plugins that contribute encoding capabilities at runtime.
 
 This supports the long-term product vision of installing ecosystem-specific support independently, for example:
 
@@ -40,9 +63,9 @@ Phase 5 introduces two major shifts:
 
 ### 1. Retromount becomes runtime-extensible
 
-Retromount should no longer be limited to capabilities compiled directly into the main binary.
+Retromount is no longer limited to capabilities compiled into the main binary.
 
-Instead, it should support a plugin model in which externally shipped components can be installed and discovered at runtime.
+Instead, it supports a plugin model in which externally shipped components can be installed and discovered at runtime.
 
 ### 2. Presentations may require multiple encoders
 
@@ -54,8 +77,6 @@ For example, a Batocera-oriented presentation might require:
 * ZIP encoding for some ROM content
 * passthrough encoding for already-compatible files
 
-A different presentation such as MiSTer may require a different but overlapping set of encoders.
-
 This means the architecture must support:
 
 > one presentation plan being satisfied by multiple encoders
@@ -66,27 +87,24 @@ rather than assuming a single presenter/encoder pair.
 
 ## Design Principles
 
-Phase 5 should preserve the architectural boundaries established in earlier phases.
+Phase 5 preserves the architectural boundaries established in earlier phases.
 
 ### Pipeline integrity remains mandatory
 
-Plugins must integrate into defined pipeline stages. They must not bypass or collapse the pipeline into a less structured model.
+Plugins integrate into defined pipeline stages and must not bypass or collapse the pipeline.
 
 ### The core model remains presentation-agnostic
 
-Plugins must not reintroduce filenames, filesystem concerns, or consumer-specific semantics into normalized content.
+Plugins must not introduce filenames, filesystem concerns, or consumer-specific semantics into normalized content.
 
 ### Presenter and Encoder responsibilities remain distinct
 
-Presenters define the intended structure and artifact requirements.
-
-Encoders materialize those artifacts.
-
-A presenter must not directly own or hard-code concrete encoding behaviour.
+* Presenters define structure and artifact requirements
+* Encoders (including plugins) materialize those artifacts
 
 ### Runtime extensibility must be real
 
-Phase 5 should not introduce a temporary “fake plugin” model that later needs to be discarded in favour of a true runtime mechanism.
+The plugin model is implemented as a real runtime mechanism (out-of-process), not a temporary abstraction.
 
 ---
 
@@ -96,83 +114,67 @@ Phase 5 includes the following work.
 
 ### 1. Define a runtime plugin model
 
-Retromount should define a formal plugin contract that supports runtime discovery and capability loading.
-
-At minimum, this should cover:
+A formal plugin contract is defined (see `plugins.md`) covering:
 
 * plugin identity
-* plugin type
 * supported capabilities
-* compatibility/version metadata
-* configuration surface
-* error reporting expectations
-
-This plugin model must be suitable for independently packaged plugins.
+* protocol compatibility
+* error handling
 
 ### 2. Introduce presentation planning
 
-Presenters should evolve from directly producing encoded output toward producing a declarative presentation plan.
+Presenters now produce a **declarative presentation plan** describing:
 
-A presentation plan should describe:
-
-* the intended logical output structure
-* the files/artifacts required at specific output locations
-* the source normalized content each artifact derives from
-* the required or preferred encoding characteristics for each artifact
-
-This allows the system to resolve each artifact independently against one or more available encoders.
+* logical output structure
+* required artifacts
+* source content relationships
+* encoding requirements
 
 ### 3. Add encoder capability resolution
 
-Retromount should introduce a resolution layer that matches presentation artifact requirements against available encoder capabilities.
+A resolution layer matches artifact requirements to encoder capabilities.
 
-This should support:
+Supports:
 
-* multiple encoders contributing to one presentation
-* deterministic selection behaviour
-* clear failure modes when no suitable encoder is available
-* optional preference and fallback rules
+* multiple encoders per presentation
+* deterministic selection
+* explicit failure when unsatisfied
 
 ### 4. Implement runtime plugin loading
 
-Retromount should support a real runtime loading mechanism for plugins.
+Phase 5 selects and implements:
 
-The exact implementation mechanism remains open for design evaluation.
+> **Out-of-process plugins with a JSON protocol over stdin/stdout**
 
-Candidate approaches include:
+This provides:
 
-* native shared libraries with a stable ABI
-* WebAssembly-based plugins
-* out-of-process plugins with an explicit protocol
+* strong isolation
+* language-agnostic plugin development
+* stable versioning boundary
 
-Phase 5 should choose one initial runtime model and implement it properly.
+### 5. Add plugin discovery
 
-### 5. Add plugin discovery and inspection
+Plugins are:
 
-Users should be able to inspect what plugins are installed and what capabilities they provide.
+* discovered from a directory
+* validated via manifest
+* registered into the encoder registry
 
-This includes functionality to:
+### 6. Deliver external integration proof
 
-* list installed plugins
-* inspect plugin metadata
-* inspect available presentations and encoders
-* inspect resolution decisions for a planned presentation
+A fixture plugin demonstrates:
 
-### 6. Deliver at least one real external integration
+* manifest exchange
+* capability registration
+* materialization via plugin
+* deterministic integration test coverage
 
-Phase 5 should include at least one externally installable plugin that proves the model end-to-end.
+### 7. Add configuration hooks
 
-Likely candidates:
+Initial CLI support includes:
 
-* MiSTer presentation plugin
-* Batocera presentation plugin
-* CHD encoder plugin
-
-### 7. Add configuration support for runtime capability selection
-
-Retromount should support selecting presentations and constraining or influencing encoder resolution through CLI and/or configuration.
-
-The model should reflect that multiple encoders may participate in a single presentation.
+* `--plugin-dir` for runtime loading
+* future support for encoder constraints and preferences
 
 ---
 
@@ -183,229 +185,95 @@ Phase 5 does not include:
 * metadata scraping
 * ROM management features
 * artwork acquisition
-* permanent export pipelines as a primary workflow
+* plugin marketplace/distribution
+* automatic plugin installation
 * GUI or web UI
-* plugin marketplace/distribution infrastructure
-* automatic downloading of plugins
-* solving every possible security or sandboxing concern
-* finalising every future plugin category
+* full sandboxing model
+* final plugin ecosystem design
 
 ---
 
 ## Proposed Architectural Model
 
-### Presenter output becomes declarative
+### Presenter output is declarative
 
-Move from:
-
-`normalized content -> presenter -> encoder -> VFS`
-
-to:
-
-`normalized content -> presenter -> presentation plan -> capability resolver -> multiple encoders -> VFS`
+```text
+normalized content
+    ↓
+presenter
+    ↓
+presentation plan
+    ↓
+capability resolver
+    ↓
+encoders (built-in + plugins)
+    ↓
+VFS
+```
 
 ### Presentation plan responsibilities
 
-A presentation plan should describe:
+A presentation plan describes:
 
-* directories to create
-* logical files to expose
-* normalized content backing each file
-* required artifact representation (and constraints)
-* optional preferences or constraints
-
-### Conceptual Model (Non-Normative)
-
-A presentation plan represents a declarative description of the intended output.
-
-At a high level, it consists of:
-
-* a virtual directory tree
-* a set of artifact requests attached to file nodes
-
-Each artifact request describes:
-
-* the normalized content it derives from
-* the desired output representation
-* any constraints or preferences for encoding
-
-For example (conceptually):
-
-* `/PlayStation/Game Name/Game Name.chd`
-  * source: DiscContent
-  * requirement: representation=CHD
-
-* `/NES/Game Name/Game Name.zip`
-  * source: RomParts
-  * requirement: representation=ZIP
-
-* `/Arcade/Game Name/Game Name.rom`
-  * source: SingleRom
-  * requirement: representation=Passthrough
+* directory structure
+* logical files
+* normalized content backing
+* encoding requirements
 
 ### Encoder capability model
 
-Encoders advertise capabilities rather than existing as fixed pairings.
+Encoders (including plugins) advertise capabilities:
 
-Examples:
+* content type
+* supported formats
+* supported features
+* priority
 
-* passthrough encoder → exposes existing files
-* ZIP encoder → archive-based output
-* CHD encoder → optical disc → CHD
-* ISO encoder → optical disc → ISO
+### Artifact Requirements vs Capabilities
 
-### Artifact Requirements vs Encoder Capabilities
+* Presenters define **requirements**
+* Encoders define **capabilities**
+* Resolver matches them deterministically
 
-A presentation plan expresses **artifact requirements**.
+---
 
-Encoders advertise **capabilities**.
+## Resolution Behaviour
 
-Retromount is responsible for matching requirements to capabilities.
+The resolver:
 
-For example:
+* selects exactly one encoder per artifact
+* is deterministic
+* fails explicitly when no match exists
+* does not depend on plugin load order
 
-* requirement: "optical-disc → CHD"
-* capability: "can encode optical-disc content to CHD"
+---
 
-A match occurs when an encoder can satisfy the requirement for a given artifact.
+## Plugin Runtime Model
 
-This separation ensures that:
+Phase 5 adopts:
 
-* presenters remain declarative
-* encoders remain interchangeable
-* resolution logic is centralised and inspectable
+> **Out-of-process plugins**
 
-### Resolution Behaviour (Initial Expectations)
+See `docs/architecture/plugins.md` for full details.
 
-The capability resolver should:
+### Key properties
 
-* select exactly one encoder per artifact
-* behave deterministically given the same inputs and plugin set
-* fail clearly if no suitable encoder is available
-* optionally support preference rules (e.g. prefer passthrough)
-* resolution should not depend on plugin load order
+* process-per-invocation
+* JSON protocol over stdin/stdout
+* no shared state
+* strong isolation
 
-Initial implementations do not need to support:
+---
 
-* complex scoring systems
-* cost-based optimisation
-* multi-step encoding pipelines
+## Failure Model
 
-These may be introduced in later phases.
-
-### Plugin Contract (Initial Expectations)
-
-Plugins should:
-
-* declare their type (presenter, encoder, etc.)
-* advertise capabilities or provided functionality
-* declare compatibility with a host version range
-* expose a clear entry point for invocation
-
-Plugins should not:
-
-* access internal Retromount state directly
-* assume implementation details of the host
-* bypass the defined pipeline stages
-* assume exclusive ownership of an artifact or content type
-
-### Failure Model (Initial Direction)
-
-Failures during planning or resolution should be:
+Failures are:
 
 * explicit
 * actionable
-* tied to missing capabilities or incompatible plugins
+* tied to missing capabilities or invalid plugins
 
-For example:
-
-* "No encoder available for optical-disc → CHD"
-* "Plugin X is incompatible with this Retromount version"
-
-Silent fallback behaviour should be avoided in initial implementations.
-
-### No Implicit Fallbacks (Initial Constraint)
-
-Phase 5 should avoid introducing implicit or hidden fallback behaviour.
-
-If a required artifact cannot be satisfied, the system should fail clearly rather than attempting silent alternatives.
-
-Explicit fallback strategies may be introduced later via policy or configuration.
-
----
-
-## Plugin Runtime Options
-
-### Option A: Native shared libraries (C ABI)
-
-#### Pros (Native shared libraries)
-
-* high performance
-* package-manager friendly
-* simple user model
-
-#### Cons (Native shared libraries)
-
-* requires stable ABI boundary
-* weaker isolation
-* crash risk propagates to host
-
----
-
-### Option B: WebAssembly plugins
-
-#### Pros (WebAssembly plugins)
-
-* sandboxed
-* portable
-* structured host/plugin API
-
-#### Cons (WebAssembly plugins)
-
-* runtime complexity
-* performance considerations
-* explicit host bridging required
-
----
-
-### Option C: Out-of-process plugins
-
-#### Pros (Out-of-process plugins)
-
-* strong isolation
-* no ABI issues
-* language-agnostic
-* robust versioning
-
-#### Cons (Out-of-process plugins)
-
-* IPC overhead
-* protocol complexity
-* streaming considerations
-
----
-
-## Initial Recommendation
-
-### Critical Architectural Decision
-
-The most important architectural change in Phase 5 is:
-
-> presenters must emit a declarative plan that can be satisfied by multiple encoders
-
-This decision is independent of the chosen plugin runtime mechanism and should be implemented first.
-
-If this is done correctly:
-
-* plugin runtime can evolve independently
-* encoder implementations remain interchangeable
-* ecosystem-specific presentations become straightforward to express
-
-If this is done incorrectly:
-
-* presentations will remain tightly coupled to encoders
-* multi-encoder scenarios will be difficult or fragile
-* future plugin support will be constrained
+No implicit fallbacks are introduced in Phase 5.
 
 ---
 
@@ -420,34 +288,20 @@ Optional controls:
 
 ```bash
 --allow-encoder chd
---allow-encoder zip
 --prefer-encoder passthrough
---plugin-dir /usr/lib/retromount/plugins
-```
-
-Diagnostics:
-
-```bash
-retromount plugins list
-retromount plugins inspect mister
-retromount plan inspect <input> --presentation batocera
+--plugin-dir ./plugins
 ```
 
 ---
 
 ## Suggested Sub-Phases
 
-### Phase 5A — Presentation Planning Model
-
-### Phase 5B — Capability Resolution
-
-### Phase 5C — Plugin Runtime Selection
-
-### Phase 5D — Plugin Runtime Implementation
-
-### Phase 5E — External Plugin Proof
-
-### Phase 5F — Packaging & UX
+* 5A — Presentation Planning
+* 5B — Capability Resolution
+* 5C — Plugin Protocol
+* 5D — Plugin Runtime
+* 5E — Integration Proof
+* 5F — Packaging & UX
 
 ---
 
@@ -456,25 +310,9 @@ retromount plan inspect <input> --presentation batocera
 * runtime plugin discovery works
 * presenters emit declarative plans
 * multiple encoders satisfy one presentation
-* resolution is deterministic and inspectable
-* clear errors for missing capabilities
-* at least one external plugin works end-to-end
+* resolution is deterministic
+* plugin integration works end-to-end
 * architectural boundaries remain intact
-
----
-
-## Open Questions
-
-1. Which runtime model to choose?
-2. Plugin manifest format?
-3. Version compatibility strategy?
-4. Capability description model?
-5. Plugin configuration approach?
-6. Preference vs requirement handling?
-7. Failure model?
-8. Observability/debugging?
-9. Sandbox requirements?
-10. First integration target?
 
 ---
 
@@ -486,13 +324,12 @@ Phase 5 transforms Retromount from:
 
 into:
 
-> a platform that adapts ROM collections to any ecosystem
+> a platform that adapts ROM collections to different ecosystems
 
 This is achieved through:
 
 * runtime plugins
 * declarative presentation planning
 * multi-encoder resolution
-* strict adherence to architectural boundaries
 
-This phase is the foundation for everything that comes next.
+Phase 5 establishes the extensibility foundation for the system.

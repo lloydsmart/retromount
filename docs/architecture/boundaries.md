@@ -1,6 +1,6 @@
 # Architecture Boundaries
 
-This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation, D-002 through D-005, Phase 4A FUSE implementation, and Phase 4C policy introduction.
+This document describes the intended architectural boundaries of Retromount following Phase 3 consolidation, D-002 through D-005, Phase 4A FUSE implementation, Phase 4C policy introduction, and Phase 5 runtime plugin integration.
 
 ---
 
@@ -152,10 +152,18 @@ Responsible for:
 * generating file contents (e.g. playlists)
 * applying representation-specific transformations
 
+Encoders may be:
+
+* built-in implementations (e.g. `BasicEncoder`)
+* runtime plugin-provided implementations (Phase 5)
+
+Encoder selection is performed via **capability resolution**, based on the requirements expressed by the presentation layer.
+
 Key components:
 
 * `OutputEncoder`
 * `BasicEncoder`
+* Plugin-backed encoders (via plugin registry)
 * `VfsFile`
 
 This stage answers:
@@ -231,8 +239,8 @@ Conflict resolution is applied when inserting entries into a namespace, not by t
 ### Presenter → Encoder
 
 * Presenter defines structure and grouping
-* Encoder defines representation of each item
 * Expansion determines the set of output artifacts
+* Encoder selection is resolved via capability matching (built-in or plugin)
 * Policy determines naming and conflict behaviour
 
 Responsibilities remain strictly separated:
@@ -264,7 +272,7 @@ Responsibilities remain strictly separated:
   Naming, formatting, and conflict handling must not leak into core model or VFS primitives
 
 * **Extensibility**
-  Each stage should be replaceable or extensible without affecting others
+  Each stage should be replaceable or extensible without affecting others, including runtime extension via plugins
 
 ---
 
