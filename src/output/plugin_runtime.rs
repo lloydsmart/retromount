@@ -142,14 +142,14 @@ impl EncoderPluginClient for SubprocessEncoderPluginClient {
 
 #[cfg(test)]
 mod tests {
-    use crate::output::plugin_protocol::ProtocolInlineFile;
-    use std::path::Path;
-    use tempfile::TempDir;
     use super::*;
+    use crate::output::plugin_protocol::ProtocolInlineFile;
     use crate::output::plugin_protocol::{
         PluginManifest, ProtocolContentType, ProtocolEncoderCapability, ProtocolFormat,
         ENCODER_PLUGIN_PROTOCOL_V1,
     };
+    use std::path::Path;
+    use tempfile::TempDir;
 
     #[cfg(unix)]
     fn example_manifest() -> PluginManifest {
