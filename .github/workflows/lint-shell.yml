@@ -1,0 +1,83 @@
+name: Lint Shell
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/**/*.sh'
+      - 'plugins/**/*.sh'
+      - '.github/workflows/lint-shell.yml'
+  pull_request:
+    paths:
+      - 'scripts/**/*.sh'
+      - 'plugins/**/*.sh'
+      - '.github/workflows/lint-shell.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    name: Lint and format shell scripts
+    runs-on: ubuntu-latest
+
+    env:
+      SHFMT_VERSION: "3.10.0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Restore shfmt cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/shfmt
+          key: shfmt-${{ runner.os }}-${{ env.SHFMT_VERSION }}
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Install shfmt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.local/bin
+
+          if [ ! -x ~/.local/bin/shfmt ]; then
+            curl -fsSL \
+              "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64" \
+              -o ~/.local/bin/shfmt
+            chmod +x ~/.local/bin/shfmt
+          fi
+
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -d '' files < <(find scripts plugins -type f -name '*.sh' -print0 2>/dev/null || true)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No shell scripts found."
+            exit 0
+          fi
+
+          shfmt -d "${files[@]}"
+
+      - name: Lint shell scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -d '' files < <(find scripts plugins -type f -name '*.sh' -print0 2>/dev/null || true)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No shell scripts found."
+            exit 0
+          fi
+
+          shellcheck "${files[@]}"
