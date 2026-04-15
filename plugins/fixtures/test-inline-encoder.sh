@@ -8,7 +8,7 @@
 request="$(cat)"
 
 case "$request" in
-  *'"type":"get_manifest"'*)
+*'"type":"get_manifest"'*)
     cat <<'EOF'
 {
   "type": "manifest",
@@ -34,7 +34,7 @@ case "$request" in
 }
 EOF
     ;;
-  *)
+*)
     cat <<'EOF'
 {
   "type": "materialized",
