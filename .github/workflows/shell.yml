@@ -1,0 +1,40 @@
+name: Shell Scripts
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/**/*.sh'
+      - 'plugins/**/*.sh'
+      - '.github/workflows/shell.yml'
+  push:
+    branches: [ "main", "develop" ]
+    paths:
+      - 'scripts/**/*.sh'
+      - 'plugins/**/*.sh'
+      - '.github/workflows/shell.yml'
+
+jobs:
+  shell:
+    name: Lint & Format (shell)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+          curl -fsSL https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64 -o shfmt
+          chmod +x shfmt
+          sudo mv shfmt /usr/local/bin/shfmt
+
+      - name: Check formatting (shfmt)
+        run: |
+          shfmt -d -r scripts plugins
+
+      - name: Lint scripts (shellcheck)
+        run: |
+          find scripts plugins -name '*.sh' -print0 | xargs -0 shellcheck
