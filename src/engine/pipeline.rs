@@ -8,7 +8,9 @@ use crate::core::vfs::VfsDirectory;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::{InputIdentifier, InputIdentity};
 use crate::input::source::InputSource;
-use crate::output::materialize::materialize_plan;
+use crate::output::materialize::{materialize_plan, materialize_plan_with_plugins};
+use crate::output::plan::PresentationPlan;
+use crate::output::plugin_registry::PluginRegistry;
 use crate::output::present::OutputPresenter;
 use crate::policy::PolicySet;
 use serde::Serialize;
@@ -28,6 +30,12 @@ pub struct TracedObject {
     pub decoded: Vec<DecodedContent>,
 }
 
+#[derive(Default)]
+pub struct PipelineOptions<'a> {
+    pub normalization: NormalizationOptions,
+    pub plugin_registry: Option<&'a PluginRegistry>,
+}
+
 pub fn run_pipeline(
     source: &dyn InputSource,
     identifier: &dyn InputIdentifier,
@@ -41,7 +49,7 @@ pub fn run_pipeline(
         decoder,
         presenter,
         policy,
-        &NormalizationOptions::default(),
+        &PipelineOptions::default(),
     )?
     .output_vfs)
 }
@@ -59,7 +67,7 @@ pub fn run_pipeline_with_trace(
         decoder,
         presenter,
         policy,
-        &NormalizationOptions::default(),
+        &PipelineOptions::default(),
     )
 }
 
@@ -69,7 +77,7 @@ pub fn run_pipeline_with_options(
     decoder: &dyn InputDecoder,
     presenter: &dyn OutputPresenter,
     policy: &PolicySet,
-    normalization_options: &NormalizationOptions,
+    options: &PipelineOptions<'_>,
 ) -> Result<PipelineTrace, io::Error> {
     let objects = source.enumerate()?;
     let mut traced_objects = Vec::new();
@@ -95,16 +103,26 @@ pub fn run_pipeline_with_options(
         });
     }
 
-    let normalized = normalize_decoded_content(all_decoded_content, normalization_options);
+    let normalized = normalize_decoded_content(all_decoded_content, &options.normalization);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
     let presentation_plan = presenter.present(&normalized_presentable_content, policy);
-    let output_vfs = materialize_plan(&presentation_plan)?;
+    let output_vfs = materialize_presentation_plan(&presentation_plan, options)?;
 
     Ok(PipelineTrace {
         objects: traced_objects,
         normalized,
         output_vfs,
     })
+}
+
+fn materialize_presentation_plan(
+    plan: &PresentationPlan,
+    options: &PipelineOptions<'_>,
+) -> Result<VfsDirectory, io::Error> {
+    match options.plugin_registry {
+        Some(plugin_registry) => materialize_plan_with_plugins(plan, plugin_registry),
+        None => materialize_plan(plan),
+    }
 }
 
 fn suppress_consumed_content(all_content: &[NormalizedContent]) -> Vec<NormalizedContent> {
