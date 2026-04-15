@@ -13,6 +13,9 @@ on:
       - 'plugins/**/*.sh'
       - '.github/workflows/lint-shell.yml'
 
+permissions:
+  contents: read
+
 jobs:
   shell:
     name: Lint and format shell scripts
