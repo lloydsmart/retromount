@@ -3,10 +3,11 @@ use std::path::Path;
 use log::info;
 
 use crate::engine::components::pipeline_components_for_presenter;
-use crate::engine::pipeline::run_pipeline;
+use crate::engine::pipeline::{run_pipeline, run_pipeline_with_options, PipelineOptions};
 use crate::engine::preview::build_input_source;
 use crate::error::RetromountError;
 use crate::mount::session::MountSession;
+use crate::output::plugin_registry::PluginRegistry;
 
 #[cfg(target_os = "linux")]
 use crate::mount::adapter::FilesystemAdapter;
@@ -18,16 +19,41 @@ pub fn run_mount_command(
     mountpoint: &Path,
     presenter_name: &str,
 ) -> Result<(), RetromountError> {
+    run_mount_command_with_plugins(input, mountpoint, presenter_name, None)
+}
+
+pub fn run_mount_command_with_plugins(
+    input: &Path,
+    mountpoint: &Path,
+    presenter_name: &str,
+    plugin_registry: Option<&PluginRegistry>,
+) -> Result<(), RetromountError> {
     let source = build_input_source(input)?;
     let components = pipeline_components_for_presenter(presenter_name)?;
 
-    let root = run_pipeline(
-        source.as_ref(),
-        components.identifier.as_ref(),
-        components.decoder.as_ref(),
-        components.presenter.as_ref(),
-        &components.policy,
-    )?;
+    let root = match plugin_registry {
+        Some(plugin_registry) => {
+            run_pipeline_with_options(
+                source.as_ref(),
+                components.identifier.as_ref(),
+                components.decoder.as_ref(),
+                components.presenter.as_ref(),
+                &components.policy,
+                &PipelineOptions {
+                    normalization: Default::default(),
+                    plugin_registry: Some(plugin_registry),
+                },
+            )?
+            .output_vfs
+        }
+        None => run_pipeline(
+            source.as_ref(),
+            components.identifier.as_ref(),
+            components.decoder.as_ref(),
+            components.presenter.as_ref(),
+            &components.policy,
+        )?,
+    };
 
     let session = MountSession::from_root(&root);
     let root_children = session

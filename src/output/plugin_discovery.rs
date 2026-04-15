@@ -129,8 +129,6 @@ mod tests {
     };
 
     #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
-
     fn example_manifest() -> PluginManifest {
         PluginManifest {
             plugin_id: "plugin.discovery".to_string(),
@@ -148,14 +146,26 @@ mod tests {
 
     #[cfg(unix)]
     fn write_executable_script(dir: &TempDir, name: &str, body: &str) -> PathBuf {
-        let path = dir.path().join(name);
-        fs::write(&path, body).unwrap();
+        use std::fs::{self, File};
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
 
-        let mut permissions = fs::metadata(&path).unwrap().permissions();
+        let tmp_path = dir.path().join(format!("{name}.tmp"));
+        let final_path = dir.path().join(name);
+
+        {
+            let mut file = File::create(&tmp_path).unwrap();
+            file.write_all(body.as_bytes()).unwrap();
+            file.sync_all().unwrap();
+        }
+
+        let mut permissions = fs::metadata(&tmp_path).unwrap().permissions();
         permissions.set_mode(0o755);
-        fs::set_permissions(&path, permissions).unwrap();
+        fs::set_permissions(&tmp_path, permissions).unwrap();
 
-        path
+        fs::rename(&tmp_path, &final_path).unwrap();
+
+        final_path
     }
 
     #[cfg(unix)]

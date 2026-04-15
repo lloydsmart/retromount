@@ -8,10 +8,13 @@ use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
 use retromount::engine::bootstrap::default_presenter_registry;
 use retromount::engine::components::pipeline_components;
-use retromount::engine::inspect::run_phase3_inspect;
-use retromount::engine::mount::run_mount_command;
-use retromount::engine::pipeline::run_pipeline_with_options;
-use retromount::engine::preview::{build_input_source, run_phase3_preview, write_vfs_tree};
+use retromount::engine::inspect::{run_phase3_inspect, run_phase3_inspect_with_plugins};
+use retromount::engine::mount::{run_mount_command, run_mount_command_with_plugins};
+use retromount::engine::pipeline::{run_pipeline_with_options, PipelineOptions};
+use retromount::engine::plugins::load_plugin_registry;
+use retromount::engine::preview::{
+    build_input_source, run_phase3_preview, run_phase3_preview_with_plugins, write_vfs_tree,
+};
 use retromount::{RetromountError, ViewConfig};
 
 fn main() -> Result<(), RetromountError> {
@@ -21,10 +24,21 @@ fn main() -> Result<(), RetromountError> {
 
     match args.as_slice() {
         [] => run_configured_views(),
+
         [command, path] if command.to_string_lossy() == "phase3-preview" => {
             let path = PathBuf::from(path);
             run_phase3_preview(&path)
         }
+        [command, path, plugin_flag, plugin_dir]
+            if command.to_string_lossy() == "phase3-preview"
+                && plugin_flag.to_string_lossy() == "--plugin-dir" =>
+        {
+            let path = PathBuf::from(path);
+            let plugin_dir = PathBuf::from(plugin_dir);
+            let plugin_registry = load_plugin_registry(&plugin_dir)?;
+            run_phase3_preview_with_plugins(&path, Some(&plugin_registry))
+        }
+
         [command, path] if command.to_string_lossy() == "inspect" => {
             let path = PathBuf::from(path);
             run_phase3_inspect(&path, false, "grouped")
@@ -51,6 +65,49 @@ fn main() -> Result<(), RetromountError> {
             let presenter_name = parse_presenter_name(view)?;
             run_phase3_inspect(&path, true, &presenter_name)
         }
+        [command, path, plugin_flag, plugin_dir]
+            if command.to_string_lossy() == "inspect"
+                && plugin_flag.to_string_lossy() == "--plugin-dir" =>
+        {
+            let path = PathBuf::from(path);
+            let plugin_dir = PathBuf::from(plugin_dir);
+            let plugin_registry = load_plugin_registry(&plugin_dir)?;
+            run_phase3_inspect_with_plugins(&path, false, "grouped", Some(&plugin_registry))
+        }
+        [command, path, json_flag, plugin_flag, plugin_dir]
+            if command.to_string_lossy() == "inspect"
+                && json_flag.to_string_lossy() == "--json"
+                && plugin_flag.to_string_lossy() == "--plugin-dir" =>
+        {
+            let path = PathBuf::from(path);
+            let plugin_dir = PathBuf::from(plugin_dir);
+            let plugin_registry = load_plugin_registry(&plugin_dir)?;
+            run_phase3_inspect_with_plugins(&path, true, "grouped", Some(&plugin_registry))
+        }
+        [command, path, view_flag, view, plugin_flag, plugin_dir]
+            if command.to_string_lossy() == "inspect"
+                && view_flag.to_string_lossy() == "--view"
+                && plugin_flag.to_string_lossy() == "--plugin-dir" =>
+        {
+            let path = PathBuf::from(path);
+            let presenter_name = parse_presenter_name(view)?;
+            let plugin_dir = PathBuf::from(plugin_dir);
+            let plugin_registry = load_plugin_registry(&plugin_dir)?;
+            run_phase3_inspect_with_plugins(&path, false, &presenter_name, Some(&plugin_registry))
+        }
+        [command, path, json_flag, view_flag, view, plugin_flag, plugin_dir]
+            if command.to_string_lossy() == "inspect"
+                && json_flag.to_string_lossy() == "--json"
+                && view_flag.to_string_lossy() == "--view"
+                && plugin_flag.to_string_lossy() == "--plugin-dir" =>
+        {
+            let path = PathBuf::from(path);
+            let presenter_name = parse_presenter_name(view)?;
+            let plugin_dir = PathBuf::from(plugin_dir);
+            let plugin_registry = load_plugin_registry(&plugin_dir)?;
+            run_phase3_inspect_with_plugins(&path, true, &presenter_name, Some(&plugin_registry))
+        }
+
         [command, input, mountpoint] if command.to_string_lossy() == "mount" => {
             let input = PathBuf::from(input);
             let mountpoint = PathBuf::from(mountpoint);
@@ -64,8 +121,36 @@ fn main() -> Result<(), RetromountError> {
             let presenter_name = parse_presenter_name(view)?;
             run_mount_command(&input, &mountpoint, &presenter_name)
         }
+        [command, input, mountpoint, plugin_flag, plugin_dir]
+            if command.to_string_lossy() == "mount"
+                && plugin_flag.to_string_lossy() == "--plugin-dir" =>
+        {
+            let input = PathBuf::from(input);
+            let mountpoint = PathBuf::from(mountpoint);
+            let plugin_dir = PathBuf::from(plugin_dir);
+            let plugin_registry = load_plugin_registry(&plugin_dir)?;
+            run_mount_command_with_plugins(&input, &mountpoint, "grouped", Some(&plugin_registry))
+        }
+        [command, input, mountpoint, view_flag, view, plugin_flag, plugin_dir]
+            if command.to_string_lossy() == "mount"
+                && view_flag.to_string_lossy() == "--view"
+                && plugin_flag.to_string_lossy() == "--plugin-dir" =>
+        {
+            let input = PathBuf::from(input);
+            let mountpoint = PathBuf::from(mountpoint);
+            let presenter_name = parse_presenter_name(view)?;
+            let plugin_dir = PathBuf::from(plugin_dir);
+            let plugin_registry = load_plugin_registry(&plugin_dir)?;
+            run_mount_command_with_plugins(
+                &input,
+                &mountpoint,
+                &presenter_name,
+                Some(&plugin_registry),
+            )
+        }
+
         _ => Err(RetromountError::LoadError(
-            "usage:\n  retromount\n  retromount phase3-preview <path>\n  retromount inspect <path> [--json] [--view <grouped|flat>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat>]"
+            "usage:\n  retromount\n  retromount phase3-preview <path> [--plugin-dir <dir>]\n  retromount inspect <path> [--json] [--view <grouped|flat>] [--plugin-dir <dir>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat>] [--plugin-dir <dir>]"
                 .to_string(),
         )),
     }
@@ -111,9 +196,7 @@ fn run_configured_views() -> Result<(), RetromountError> {
             components.decoder.as_ref(),
             components.presenter.as_ref(),
             &components.policy,
-            &NormalizationOptions {
-                platform_hint: Some(map_view_platform(&view.platform)),
-            },
+            &pipeline_options_for_view(view),
         )
         .map_err(RetromountError::ConfigFileError)?;
 
@@ -136,6 +219,15 @@ fn run_configured_views() -> Result<(), RetromountError> {
     }
 
     Ok(())
+}
+
+fn pipeline_options_for_view(view: &ViewConfig) -> PipelineOptions<'static> {
+    PipelineOptions {
+        normalization: NormalizationOptions {
+            platform_hint: Some(map_view_platform(&view.platform)),
+        },
+        plugin_registry: None,
+    }
 }
 
 fn map_view_platform(platform: &ConfigPlatform) -> ContentPlatform {

@@ -32,15 +32,43 @@ impl SubprocessEncoderPluginClient {
             });
         }
 
-        let mut child = Command::new(&self.executable)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| PluginRuntimeError::SpawnFailed {
+        let mut child = None;
+        let mut last_error: Option<std::io::Error> = None;
+
+        for _ in 0..5 {
+            match Command::new(&self.executable)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+            {
+                Ok(process) => {
+                    child = Some(process);
+                    break;
+                }
+                Err(error) if error.raw_os_error() == Some(26) => {
+                    last_error = Some(error);
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+                Err(error) => {
+                    return Err(PluginRuntimeError::SpawnFailed {
+                        path: self.executable.clone(),
+                        message: error.to_string(),
+                    });
+                }
+            }
+        }
+
+        let mut child = child.ok_or_else(|| {
+            let message = last_error
+                .map(|error| error.to_string())
+                .unwrap_or_else(|| "failed to spawn plugin process".to_string());
+
+            PluginRuntimeError::SpawnFailed {
                 path: self.executable.clone(),
-                message: error.to_string(),
-            })?;
+                message,
+            }
+        })?;
 
         {
             let stdin = child.stdin.as_mut().ok_or_else(|| PluginRuntimeError::Io {
@@ -142,22 +170,16 @@ impl EncoderPluginClient for SubprocessEncoderPluginClient {
 
 #[cfg(test)]
 mod tests {
-    use crate::output::plugin_protocol::ProtocolInlineFile;
-
-    use std::fs;
-    use std::path::Path;
-
-    use tempfile::TempDir;
-
     use super::*;
+    use crate::output::plugin_protocol::ProtocolInlineFile;
     use crate::output::plugin_protocol::{
         PluginManifest, ProtocolContentType, ProtocolEncoderCapability, ProtocolFormat,
         ENCODER_PLUGIN_PROTOCOL_V1,
     };
+    use std::path::Path;
+    use tempfile::TempDir;
 
     #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
-
     fn example_manifest() -> PluginManifest {
         PluginManifest {
             plugin_id: "plugin.subprocess".to_string(),
@@ -174,15 +196,27 @@ mod tests {
     }
 
     #[cfg(unix)]
-    fn write_executable_script(dir: &TempDir, name: &str, body: &str) -> std::path::PathBuf {
-        let path = dir.path().join(name);
-        fs::write(&path, body).unwrap();
+    fn write_executable_script(dir: &TempDir, name: &str, body: &str) -> PathBuf {
+        use std::fs::{self, File};
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
 
-        let mut permissions = fs::metadata(&path).unwrap().permissions();
+        let tmp_path = dir.path().join(format!("{name}.tmp"));
+        let final_path = dir.path().join(name);
+
+        {
+            let mut file = File::create(&tmp_path).unwrap();
+            file.write_all(body.as_bytes()).unwrap();
+            file.sync_all().unwrap();
+        }
+
+        let mut permissions = fs::metadata(&tmp_path).unwrap().permissions();
         permissions.set_mode(0o755);
-        fs::set_permissions(&path, permissions).unwrap();
+        fs::set_permissions(&tmp_path, permissions).unwrap();
 
-        path
+        fs::rename(&tmp_path, &final_path).unwrap();
+
+        final_path
     }
 
     #[cfg(unix)]
@@ -227,10 +261,7 @@ printf '%s' '{}'
         .unwrap();
 
         let script = format!(
-            r#"#!/bin/sh
-    cat >/dev/null
-    printf '%s' '{}'
-    "#,
+            "#!/bin/sh\ncat >/dev/null\nprintf '%s' '{}'\n",
             response_json.replace('\'', "'\\''")
         );
 
