@@ -18,18 +18,38 @@ jobs:
     name: Lint and format shell scripts
     runs-on: ubuntu-latest
 
+    env:
+      SHFMT_VERSION: "3.10.0"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install tools
+      - name: Restore shfmt cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/shfmt
+          key: shfmt-${{ runner.os }}-${{ env.SHFMT_VERSION }}
+
+      - name: Install shellcheck
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
 
-          curl -fsSL https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64 -o shfmt
-          chmod +x shfmt
-          sudo mv shfmt /usr/local/bin/shfmt
+      - name: Install shfmt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.local/bin
+
+          if [ ! -x ~/.local/bin/shfmt ]; then
+            curl -fsSL \
+              "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64" \
+              -o ~/.local/bin/shfmt
+            chmod +x ~/.local/bin/shfmt
+          fi
+
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check formatting
         shell: bash
