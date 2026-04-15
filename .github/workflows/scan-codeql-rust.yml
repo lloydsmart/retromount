@@ -1,7 +1,7 @@
-name: "CodeQL Rust"
-description: "Runs CodeQL security analysis for Rust on PRs, direct pushes to develop/main, and weekly for baseline checks."
+name: CodeQL Rust
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "main", "develop" ]
     paths:
@@ -47,4 +47,3 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:rust"
-          
