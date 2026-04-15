@@ -1,26 +1,26 @@
-name: Shell Scripts
+name: Lint Shell
 
 on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/**/*.sh'
+      - 'plugins/**/*.sh'
+      - '.github/workflows/lint-shell.yml'
   pull_request:
     paths:
       - 'scripts/**/*.sh'
       - 'plugins/**/*.sh'
-      - '.github/workflows/shell.yml'
-  push:
-    branches: [ "main", "develop" ]
-    paths:
-      - 'scripts/**/*.sh'
-      - 'plugins/**/*.sh'
-      - '.github/workflows/shell.yml'
+      - '.github/workflows/lint-shell.yml'
 
 jobs:
   shell:
-    name: Lint & Format (shell)
+    name: Lint and format shell scripts
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install tools
         run: |
@@ -31,10 +31,10 @@ jobs:
           chmod +x shfmt
           sudo mv shfmt /usr/local/bin/shfmt
 
-      - name: Check formatting (shfmt)
+      - name: Check formatting
         run: |
           shfmt -d -r scripts plugins
 
-      - name: Lint scripts (shellcheck)
+      - name: Lint shell scripts
         run: |
           find scripts plugins -name '*.sh' -print0 | xargs -0 shellcheck
