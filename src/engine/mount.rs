@@ -6,8 +6,13 @@ use crate::engine::components::pipeline_components_for_presenter;
 use crate::engine::pipeline::{run_pipeline, run_pipeline_with_options, PipelineOptions};
 use crate::engine::preview::build_input_source;
 use crate::error::RetromountError;
+use crate::input::decode::InputDecoder;
+use crate::input::identify::InputIdentifier;
+use crate::input::source::InputSource;
 use crate::mount::session::MountSession;
 use crate::output::plugin_registry::PluginRegistry;
+use crate::output::present::OutputPresenter;
+use crate::policy::PolicySet;
 
 #[cfg(target_os = "linux")]
 use crate::mount::adapter::FilesystemAdapter;
@@ -28,34 +33,7 @@ pub fn run_mount_command_with_plugins(
     presenter_name: &str,
     plugin_registry: Option<&PluginRegistry>,
 ) -> Result<(), RetromountError> {
-    let source = build_input_source(input)?;
-    let components = pipeline_components_for_presenter(presenter_name)?;
-
-    let root = match plugin_registry {
-        Some(plugin_registry) => {
-            run_pipeline_with_options(
-                source.as_ref(),
-                components.identifier.as_ref(),
-                components.decoder.as_ref(),
-                components.presenter.as_ref(),
-                &components.policy,
-                &PipelineOptions {
-                    normalization: Default::default(),
-                    plugin_registry: Some(plugin_registry),
-                },
-            )?
-            .output_vfs
-        }
-        None => run_pipeline(
-            source.as_ref(),
-            components.identifier.as_ref(),
-            components.decoder.as_ref(),
-            components.presenter.as_ref(),
-            &components.policy,
-        )?,
-    };
-
-    let session = MountSession::from_root(&root);
+    let session = prepare_mount_session_with_plugins(input, presenter_name, plugin_registry)?;
     let root_children = session
         .children(session.root_inode())
         .map(|children| children.len())
@@ -69,6 +47,60 @@ pub fn run_mount_command_with_plugins(
     info!("Root child entries: {}", root_children);
 
     mount_session(session, mountpoint)
+}
+
+pub fn prepare_mount_session(
+    input: &Path,
+    presenter_name: &str,
+) -> Result<MountSession, RetromountError> {
+    prepare_mount_session_with_plugins(input, presenter_name, None)
+}
+
+pub fn prepare_mount_session_with_plugins(
+    input: &Path,
+    presenter_name: &str,
+    plugin_registry: Option<&PluginRegistry>,
+) -> Result<MountSession, RetromountError> {
+    let source = build_input_source(input)?;
+    let components = pipeline_components_for_presenter(presenter_name)?;
+
+    prepare_mount_session_from_pipeline(
+        source.as_ref(),
+        components.identifier.as_ref(),
+        components.decoder.as_ref(),
+        components.presenter.as_ref(),
+        &components.policy,
+        plugin_registry,
+    )
+}
+
+pub fn prepare_mount_session_from_pipeline(
+    source: &dyn InputSource,
+    identifier: &dyn InputIdentifier,
+    decoder: &dyn InputDecoder,
+    presenter: &dyn OutputPresenter,
+    policy: &PolicySet,
+    plugin_registry: Option<&PluginRegistry>,
+) -> Result<MountSession, RetromountError> {
+    let root = match plugin_registry {
+        Some(plugin_registry) => {
+            run_pipeline_with_options(
+                source,
+                identifier,
+                decoder,
+                presenter,
+                policy,
+                &PipelineOptions {
+                    normalization: Default::default(),
+                    plugin_registry: Some(plugin_registry),
+                },
+            )?
+            .output_vfs
+        }
+        None => run_pipeline(source, identifier, decoder, presenter, policy)?,
+    };
+
+    Ok(MountSession::from_root(&root))
 }
 
 #[cfg(target_os = "linux")]

@@ -7,9 +7,11 @@ use std::path::{Path, PathBuf};
 use retromount::core::content::{GamePart, NormalizedContent};
 use retromount::core::vfs::VfsNode;
 use retromount::engine::components::default_pipeline_components;
+use retromount::engine::mount::prepare_mount_session_from_pipeline;
 use retromount::engine::pipeline::{run_pipeline_with_options, PipelineOptions};
 use retromount::engine::plugins::load_plugin_registry;
 use retromount::input::file_source::FileInputSource;
+use retromount::mount::session::MountNodeKind;
 use retromount::output::capabilities::{CapabilityRequirements, ContentType, Format};
 use retromount::output::plan::{
     ArtifactId, ArtifactRequest, PlanEntry, PlanFile, PlannedArtifactKind, PresentationPlan,
@@ -133,6 +135,63 @@ fn pipeline_materializes_disc_via_fixture_plugin() {
         retromount::core::vfs::FileBacking::Inline(bytes) => {
             assert_eq!(bytes, b"PLUGIN");
             assert_eq!(file.size, 6);
+        }
+        other => panic!("expected inline-backed file from fixture plugin, got {other:?}"),
+    }
+}
+
+#[test]
+fn mount_preparation_uses_runtime_plugin_materialization() {
+    let temp = TempDir::new().unwrap();
+
+    let input_dir = temp.path().join("input");
+    let plugin_dir = temp.path().join("plugins");
+    fs::create_dir_all(&input_dir).unwrap();
+    fs::create_dir_all(&plugin_dir).unwrap();
+
+    let cue_path = write_test_disc(&input_dir);
+    let _plugin_path = copy_fixture_plugin_to_tempdir(&plugin_dir);
+
+    let plugin_registry = load_plugin_registry(&plugin_dir).unwrap();
+    assert!(
+        !plugin_registry.is_empty(),
+        "expected fixture plugin registry to contain at least one plugin"
+    );
+
+    let source = FileInputSource::new(&cue_path);
+    let components = default_pipeline_components().unwrap();
+    let presenter = PluginOnlyDiscPresenter;
+
+    let session = prepare_mount_session_from_pipeline(
+        &source,
+        components.identifier.as_ref(),
+        components.decoder.as_ref(),
+        &presenter,
+        &components.policy,
+        Some(&plugin_registry),
+    )
+    .unwrap();
+
+    let root_children = session
+        .children(session.root_inode())
+        .expect("expected root inode to have children");
+
+    assert_eq!(root_children.len(), 1);
+
+    let file_node = root_children[0];
+    assert_eq!(file_node.name, "Plugin Test.chd");
+
+    let file = match &file_node.kind {
+        MountNodeKind::File { file } => file,
+        other => panic!("expected mounted file node, got {other:?}"),
+    };
+
+    assert_eq!(file.name, "Plugin Test.chd");
+    assert_eq!(file.size, 6);
+
+    match &file.backing {
+        retromount::core::vfs::FileBacking::Inline(bytes) => {
+            assert_eq!(bytes, b"PLUGIN");
         }
         other => panic!("expected inline-backed file from fixture plugin, got {other:?}"),
     }
