@@ -20,7 +20,7 @@ pub fn sorted_disc_parts(game: &GameContent) -> Vec<&DiscPart> {
         })
         .collect();
 
-    parts.sort_by(|a, b| a.disc_number.cmp(&b.disc_number));
+    parts.sort_by_key(|a| a.disc_number);
     parts
 }
 
