@@ -268,4 +268,8 @@ fn mount_preparation_fails_when_no_encoder_matches() {
             || message.contains("ContentTypeMismatch"),
         "expected error to describe encoder resolution failure, got: {message}"
     );
+    assert!(
+        !message.contains("Failed to open config file"),
+        "expected mount preparation failure to preserve pipeline context, got: {message}"
+    );
 }

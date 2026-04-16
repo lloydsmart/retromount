@@ -94,10 +94,12 @@ pub fn prepare_mount_session_from_pipeline(
                     normalization: Default::default(),
                     plugin_registry: Some(plugin_registry),
                 },
-            )?
+            )
+            .map_err(|err| RetromountError::LoadError(err.to_string()))?
             .output_vfs
         }
-        None => run_pipeline(source, identifier, decoder, presenter, policy)?,
+        None => run_pipeline(source, identifier, decoder, presenter, policy)
+            .map_err(|err| RetromountError::LoadError(err.to_string()))?,
     };
 
     Ok(MountSession::from_root(&root))
