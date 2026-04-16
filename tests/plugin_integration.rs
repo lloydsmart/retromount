@@ -47,6 +47,32 @@ impl OutputPresenter for PluginOnlyDiscPresenter {
     }
 }
 
+struct UnmatchedDiscPresenter;
+
+impl OutputPresenter for UnmatchedDiscPresenter {
+    fn present(&self, content: &[NormalizedContent], _policy: &PolicySet) -> PresentationPlan {
+        let disc_source = content
+            .iter()
+            .find_map(|item| match item {
+                NormalizedContent::Game(game) => game.parts.iter().find_map(|part| match part {
+                    GamePart::Disc(disc) => Some(disc.source.clone()),
+                    _ => None,
+                }),
+                _ => None,
+            })
+            .expect("expected at least one normalized disc game");
+
+        PresentationPlan::new(vec![PlanEntry::File(PlanFile::new(
+            "Unmatched.m3u",
+            ArtifactRequest::new(
+                ArtifactId::new("unmatched-disc"),
+                PlannedArtifactKind::SourceBacked(SourceArtifact::single(disc_source, 0)),
+                CapabilityRequirements::new(ContentType::Disc).with_format(Format::M3u),
+            ),
+        ))])
+    }
+}
+
 fn write_test_disc(dir: &Path) -> PathBuf {
     let bin_path = dir.join("Crash Bandicoot.bin");
     let cue_path = dir.join("Crash Bandicoot.cue");
@@ -195,4 +221,51 @@ fn mount_preparation_uses_runtime_plugin_materialization() {
         }
         other => panic!("expected inline-backed file from fixture plugin, got {other:?}"),
     }
+}
+
+#[test]
+fn mount_preparation_fails_when_no_encoder_matches() {
+    let temp = TempDir::new().unwrap();
+
+    let input_dir = temp.path().join("input");
+    let plugin_dir = temp.path().join("plugins");
+    fs::create_dir_all(&input_dir).unwrap();
+    fs::create_dir_all(&plugin_dir).unwrap();
+
+    let cue_path = write_test_disc(&input_dir);
+    let _plugin_path = copy_fixture_plugin_to_tempdir(&plugin_dir);
+
+    let plugin_registry = load_plugin_registry(&plugin_dir).unwrap();
+    assert!(
+        !plugin_registry.is_empty(),
+        "expected fixture plugin registry to contain at least one plugin"
+    );
+
+    let source = FileInputSource::new(&cue_path);
+    let components = default_pipeline_components().unwrap();
+    let presenter = UnmatchedDiscPresenter;
+
+    let error = prepare_mount_session_from_pipeline(
+        &source,
+        components.identifier.as_ref(),
+        components.decoder.as_ref(),
+        &presenter,
+        &components.policy,
+        Some(&plugin_registry),
+    )
+    .unwrap_err();
+
+    let message = error.to_string();
+
+    assert!(
+        message.contains("unmatched-disc") || message.contains("Unmatched.m3u"),
+        "expected error to mention artifact identity, got: {message}"
+    );
+    assert!(
+        message.contains("no encoder could materialize artifact")
+            || message.contains("ResolutionDiagnostic")
+            || message.contains("FormatMismatch")
+            || message.contains("ContentTypeMismatch"),
+        "expected error to describe encoder resolution failure, got: {message}"
+    );
 }
