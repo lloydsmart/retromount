@@ -124,14 +124,28 @@ fn materialize_file(
             )
         })?;
 
-    let materialized = encoder.materialize(
-        &file.name,
-        &file.artifact,
-        &selected.capability_id,
-        &MaterializationContext {
-            artifact_names: artifact_names.clone(),
-        },
-    )?;
+    let materialized = encoder
+        .materialize(
+            &file.name,
+            &file.artifact,
+            &selected.capability_id,
+            &MaterializationContext {
+                artifact_names: artifact_names.clone(),
+            },
+        )
+        .map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!(
+                    "failed to materialize artifact '{}' (id '{}') using encoder '{}' capability '{}': {}",
+                    file.name,
+                    file.artifact.id.0,
+                    selected.plugin_id,
+                    selected.capability_id,
+                    err
+                ),
+            )
+        })?;
 
     Ok(materialized.to_vfs_file(&file.name))
 }

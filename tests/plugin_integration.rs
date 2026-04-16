@@ -92,10 +92,14 @@ fn write_test_disc(dir: &Path) -> PathBuf {
 }
 
 fn copy_fixture_plugin_to_tempdir(dir: &Path) -> PathBuf {
+    copy_named_fixture_plugin_to_tempdir("test-inline-encoder.sh", dir)
+}
+
+fn copy_named_fixture_plugin_to_tempdir(file_name: &str, dir: &Path) -> PathBuf {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("plugins")
         .join("fixtures")
-        .join("test-inline-encoder.sh");
+        .join(file_name);
 
     assert!(
         source.exists(),
@@ -103,7 +107,7 @@ fn copy_fixture_plugin_to_tempdir(dir: &Path) -> PathBuf {
         source.display()
     );
 
-    let destination = dir.join("test-inline-encoder.sh");
+    let destination = dir.join(file_name);
     fs::copy(&source, &destination).unwrap();
 
     let mut permissions = fs::metadata(&destination).unwrap().permissions();
@@ -271,5 +275,60 @@ fn mount_preparation_fails_when_no_encoder_matches() {
     assert!(
         !message.contains("Failed to open config file"),
         "expected mount preparation failure to preserve pipeline context, got: {message}"
+    );
+}
+
+#[test]
+fn mount_preparation_fails_when_selected_plugin_materialization_fails() {
+    let temp = TempDir::new().unwrap();
+
+    let input_dir = temp.path().join("input");
+    let plugin_dir = temp.path().join("plugins");
+    fs::create_dir_all(&input_dir).unwrap();
+    fs::create_dir_all(&plugin_dir).unwrap();
+
+    let cue_path = write_test_disc(&input_dir);
+    let _plugin_path = copy_named_fixture_plugin_to_tempdir("test-failing-encoder.sh", &plugin_dir);
+
+    let plugin_registry = load_plugin_registry(&plugin_dir).unwrap();
+    assert!(
+        !plugin_registry.is_empty(),
+        "expected failing fixture plugin registry to contain at least one plugin"
+    );
+
+    let source = FileInputSource::new(&cue_path);
+    let components = default_pipeline_components().unwrap();
+    let presenter = PluginOnlyDiscPresenter;
+
+    let error = prepare_mount_session_from_pipeline(
+        &source,
+        components.identifier.as_ref(),
+        components.decoder.as_ref(),
+        &presenter,
+        &components.policy,
+        Some(&plugin_registry),
+    )
+    .unwrap_err();
+
+    let message = error.to_string();
+
+    assert!(
+        message.contains("Plugin Test.chd") || message.contains("plugin-test-disc"),
+        "expected error to mention requested artifact, got: {message}"
+    );
+    assert!(
+        message.contains("plugin.fixture.failing")
+            || message.contains("fixture.disc.failing")
+            || message.contains("test-failing-encoder.sh"),
+        "expected error to mention selected plugin context, got: {message}"
+    );
+    assert!(
+        message.contains("fixture plugin forced materialization failure")
+            || message.contains("non-zero status 42"),
+        "expected error to describe plugin runtime failure, got: {message}"
+    );
+    assert!(
+        !message.contains("Failed to open config file"),
+        "expected mount preparation failure to preserve runtime plugin context, got: {message}"
     );
 }
