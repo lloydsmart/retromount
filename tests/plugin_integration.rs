@@ -332,3 +332,92 @@ fn mount_preparation_fails_when_selected_plugin_materialization_fails() {
         "expected mount preparation failure to preserve runtime plugin context, got: {message}"
     );
 }
+
+#[test]
+fn load_plugin_registry_fails_for_invalid_discovered_plugin() {
+    let temp = TempDir::new().unwrap();
+    let plugin_dir = temp.path().join("plugins");
+    fs::create_dir_all(&plugin_dir).unwrap();
+
+    let _plugin_path =
+        copy_named_fixture_plugin_to_tempdir("test-invalid-manifest-encoder.sh", &plugin_dir);
+
+    let error = match load_plugin_registry(&plugin_dir) {
+        Ok(_) => panic!("expected invalid discovered plugin to fail registry loading"),
+        Err(error) => error,
+    };
+
+    let message = error.to_string();
+
+    assert!(
+        message.contains("plugin")
+            || message.contains("manifest")
+            || message.contains("rejected")
+            || message.contains("invalid"),
+        "expected discovery/load failure context, got: {message}"
+    );
+    assert!(
+        message.contains("test-invalid-manifest-encoder.sh")
+            || message.contains("plugin_id")
+            || message.contains("empty"),
+        "expected invalid plugin details in error, got: {message}"
+    );
+}
+
+#[test]
+fn mount_preparation_fails_when_selected_plugin_returns_malformed_response() {
+    let temp = TempDir::new().unwrap();
+
+    let input_dir = temp.path().join("input");
+    let plugin_dir = temp.path().join("plugins");
+    fs::create_dir_all(&input_dir).unwrap();
+    fs::create_dir_all(&plugin_dir).unwrap();
+
+    let cue_path = write_test_disc(&input_dir);
+    let _plugin_path =
+        copy_named_fixture_plugin_to_tempdir("test-malformed-response-encoder.sh", &plugin_dir);
+
+    let plugin_registry = load_plugin_registry(&plugin_dir).unwrap();
+    assert!(
+        !plugin_registry.is_empty(),
+        "expected malformed-response fixture plugin registry to contain at least one plugin"
+    );
+
+    let source = FileInputSource::new(&cue_path);
+    let components = default_pipeline_components().unwrap();
+    let presenter = PluginOnlyDiscPresenter;
+
+    let error = prepare_mount_session_from_pipeline(
+        &source,
+        components.identifier.as_ref(),
+        components.decoder.as_ref(),
+        &presenter,
+        &components.policy,
+        Some(&plugin_registry),
+    )
+    .unwrap_err();
+
+    let message = error.to_string();
+
+    assert!(
+        message.contains("Plugin Test.chd") || message.contains("plugin-test-disc"),
+        "expected error to mention requested artifact, got: {message}"
+    );
+    assert!(
+        message.contains("plugin.fixture.malformed")
+            || message.contains("fixture.disc.malformed")
+            || message.contains("test-malformed-response-encoder.sh"),
+        "expected error to mention selected plugin context, got: {message}"
+    );
+    assert!(
+        message.contains("invalid")
+            || message.contains("json")
+            || message.contains("unexpected")
+            || message.contains("response"),
+        "expected error to describe malformed runtime response, got: {message}"
+    );
+    assert!(
+        !message.contains("Failed to open config file"),
+        "expected mount preparation failure to preserve runtime plugin context, got: {message}"
+    );
+}
