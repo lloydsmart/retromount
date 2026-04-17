@@ -77,12 +77,10 @@ pub enum NamingSpec {
     /// Use the game title, with any file extension supplied later by
     /// compilation/materialization rules.
     GameTitle,
-
     /// Use the source-derived or content-derived name.
-    ///
     /// The exact resolution of this name is deferred to the compiler.
+    PartName,
     SourceName,
-
     /// Use a fixed literal file name.
     Literal(String),
 }

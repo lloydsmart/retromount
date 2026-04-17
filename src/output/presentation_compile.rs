@@ -73,7 +73,7 @@ fn try_compile_rule(
         SelectSpec::Text => match_text(item),
     }?;
 
-    let proposed_name = build_name(&rule.naming, item, &rule.artifact)?;
+    let proposed_name = build_name(&rule.naming, item, &rule.artifact, policy)?;
     let proposed_name = apply_extension(proposed_name, rule.artifact.format);
     let allocated_name = policy.resolve_name_conflict(&proposed_name, root_names);
     root_names.push(allocated_name.clone());
@@ -166,12 +166,27 @@ fn build_name(
     naming: &NamingSpec,
     item: &NormalizedContent,
     artifact: &ArtifactSpec,
+    policy: &PolicySet,
 ) -> Option<String> {
     match naming {
         NamingSpec::GameTitle => game_title(item),
+        NamingSpec::PartName => part_name(item, policy),
         NamingSpec::SourceName => source_name(item, artifact),
         NamingSpec::Literal(value) => Some(value.clone()),
     }
+}
+
+fn part_name(item: &NormalizedContent, policy: &PolicySet) -> Option<String> {
+    let NormalizedContent::Game(game) = item else {
+        return None;
+    };
+
+    if game.parts.len() != 1 {
+        return None;
+    }
+
+    let part = &game.parts[0];
+    Some(policy.naming().part_name(game, part))
 }
 
 fn game_title(item: &NormalizedContent) -> Option<String> {
@@ -215,10 +230,21 @@ fn strip_known_extension(file_name: &str, format: Option<Format>) -> String {
 }
 
 fn apply_extension(name: String, format: Option<Format>) -> String {
-    match extension_for_format(format) {
-        Some(ext) if !name.ends_with(&format!(".{ext}")) => format!("{name}.{ext}"),
-        _ => name,
+    if has_extension(&name) {
+        return name;
     }
+
+    match extension_for_format(format) {
+        Some(ext) => format!("{name}.{ext}"),
+        None => name,
+    }
+}
+
+fn has_extension(name: &str) -> bool {
+    std::path::Path::new(name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some()
 }
 
 fn extension_for_format(format: Option<Format>) -> Option<&'static str> {
