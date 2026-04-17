@@ -17,5 +17,6 @@ pub mod plugin_runtime;
 pub mod plugin_runtime_error;
 pub mod present;
 pub mod presentation_expansion;
+pub mod presentation_spec;
 pub mod presenter_registry;
 pub mod resolution;
