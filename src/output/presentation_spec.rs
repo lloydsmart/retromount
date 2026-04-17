@@ -7,16 +7,8 @@ use crate::output::capabilities::{CapabilityFeature, ContentType, Format};
 /// A `PresentationSpec` describes desired output structure and artifact
 /// requirements as data. Specs are later compiled into `PresentationPlan`.
 ///
-/// This initial model is intentionally minimal:
-///
-/// - one top-level layout choice
-/// - a flat list of file rules
-/// - simple content selection
-/// - simple naming
-/// - artifact requirements that align with encoder capability resolution
-///
-/// It is expected to evolve incrementally as real presentation use cases
-/// require more expressive power.
+/// This initial model is intentionally minimal and will be extended only as
+/// real presentation use cases require it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PresentationSpec {
     pub layout: LayoutSpec,
@@ -32,6 +24,7 @@ impl PresentationSpec {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LayoutSpec {
     Flat,
+    GroupedByPlatformAndGame,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,9 +47,6 @@ impl FileRuleSpec {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectSpec {
     /// Match any normalized game.
-    ///
-    /// This is deliberately broad and may later be refined or replaced by a
-    /// richer matching model once compilation needs make that necessary.
     Games,
 
     /// Match games with exactly one disc part.
@@ -74,13 +64,15 @@ pub enum SelectSpec {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NamingSpec {
-    /// Use the game title, with any file extension supplied later by
-    /// compilation/materialization rules.
+    /// Use the game title.
     GameTitle,
-    /// Use the source-derived or content-derived name.
-    /// The exact resolution of this name is deferred to the compiler.
+
+    /// Use the policy-derived part name for a single-part game.
     PartName,
+
+    /// Use a source-derived/content-derived name.
     SourceName,
+
     /// Use a fixed literal file name.
     Literal(String),
 }
@@ -136,17 +128,17 @@ mod tests {
             LayoutSpec::Flat,
             vec![FileRuleSpec::new(
                 SelectSpec::SingleDiscGames,
-                NamingSpec::GameTitle,
-                ArtifactSpec::new(ContentType::Disc).with_format(Format::Iso),
+                NamingSpec::PartName,
+                ArtifactSpec::new(ContentType::Disc).with_format(Format::Bin),
             )],
         );
 
         assert_eq!(spec.layout, LayoutSpec::Flat);
         assert_eq!(spec.files.len(), 1);
         assert_eq!(spec.files[0].select, SelectSpec::SingleDiscGames);
-        assert_eq!(spec.files[0].naming, NamingSpec::GameTitle);
+        assert_eq!(spec.files[0].naming, NamingSpec::PartName);
         assert_eq!(spec.files[0].artifact.content_type, ContentType::Disc);
-        assert_eq!(spec.files[0].artifact.format, Some(Format::Iso));
+        assert_eq!(spec.files[0].artifact.format, Some(Format::Bin));
     }
 
     #[test]

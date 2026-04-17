@@ -1,8 +1,9 @@
 use crate::core::content::{ContentMeta, GameContent, GamePart, NormalizedContent};
+use crate::core::source::SourceRef;
 use crate::output::capabilities::{CapabilityRequirements, Format};
 use crate::output::plan::{
-    ArtifactId, ArtifactRequest, PlanEntry, PlanFile, PlannedArtifactKind, PresentationPlan,
-    SourceArtifact,
+    ArtifactId, ArtifactRequest, PlanDirectory, PlanEntry, PlanFile, PlannedArtifactKind,
+    PresentationPlan, SourceArtifact,
 };
 use crate::output::presentation_spec::{
     ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
@@ -13,10 +14,10 @@ use crate::policy::PolicySet;
 ///
 /// This initial compiler is intentionally minimal:
 ///
-/// - supports flat layout only
-/// - emits files only
+/// - supports flat layout and a minimal grouped layout
+/// - emits files and simple directories only
 /// - supports single-source artifacts only
-/// - does not yet handle grouped layouts, playlists, or generated artifacts
+/// - does not yet handle playlists or generated artifacts
 pub fn compile_presentation_spec(
     spec: &PresentationSpec,
     content: &[NormalizedContent],
@@ -24,6 +25,9 @@ pub fn compile_presentation_spec(
 ) -> PresentationPlan {
     match spec.layout {
         LayoutSpec::Flat => compile_flat(spec, content, policy),
+        LayoutSpec::GroupedByPlatformAndGame => {
+            compile_grouped_by_platform_and_game(spec, content, policy)
+        }
     }
 }
 
@@ -44,6 +48,34 @@ fn compile_flat(
     PresentationPlan::new(entries)
 }
 
+fn compile_grouped_by_platform_and_game(
+    spec: &PresentationSpec,
+    content: &[NormalizedContent],
+    policy: &PolicySet,
+) -> PresentationPlan {
+    let mut root_entries = Vec::new();
+
+    for item in content {
+        let NormalizedContent::Game(game) = item else {
+            continue;
+        };
+
+        let Some(file) = compile_item_to_file(spec, item, policy) else {
+            continue;
+        };
+
+        let platform_name = policy.format_name(&policy.naming().platform_name(&game.platform));
+        let game_dir_name = policy.format_name(&policy.naming().game_name(game));
+
+        let game_dir = PlanDirectory::new(game_dir_name, vec![PlanEntry::File(file)]);
+        let platform_dir = PlanDirectory::new(platform_name, vec![PlanEntry::Directory(game_dir)]);
+
+        root_entries.push(PlanEntry::Directory(platform_dir));
+    }
+
+    PresentationPlan::new(root_entries)
+}
+
 fn compile_item(
     spec: &PresentationSpec,
     item: &NormalizedContent,
@@ -52,6 +84,22 @@ fn compile_item(
 ) -> Option<PlanFile> {
     for rule in &spec.files {
         if let Some(file) = try_compile_rule(rule, item, policy, root_names) {
+            return Some(file);
+        }
+    }
+
+    None
+}
+
+fn compile_item_to_file(
+    spec: &PresentationSpec,
+    item: &NormalizedContent,
+    policy: &PolicySet,
+) -> Option<PlanFile> {
+    let mut names = Vec::new();
+
+    for rule in &spec.files {
+        if let Some(file) = try_compile_rule(rule, item, policy, &mut names) {
             return Some(file);
         }
     }
@@ -91,7 +139,7 @@ fn try_compile_rule(
 }
 
 struct SourceMatch {
-    source: crate::core::source::SourceRef,
+    source: SourceRef,
     size: u64,
 }
 
@@ -117,7 +165,6 @@ fn match_single_disc_game(item: &NormalizedContent) -> Option<SourceMatch> {
     match &game.parts[0] {
         GamePart::Disc(disc) => Some(SourceMatch {
             source: disc.source.clone(),
-            // Current presenter code also lacks authoritative disc size here.
             size: 0,
         }),
         GamePart::Rom(_) => None,
@@ -176,6 +223,13 @@ fn build_name(
     }
 }
 
+fn game_title(item: &NormalizedContent) -> Option<String> {
+    match item {
+        NormalizedContent::Game(game) => Some(game.title.clone()),
+        _ => None,
+    }
+}
+
 fn part_name(item: &NormalizedContent, policy: &PolicySet) -> Option<String> {
     let NormalizedContent::Game(game) = item else {
         return None;
@@ -187,13 +241,6 @@ fn part_name(item: &NormalizedContent, policy: &PolicySet) -> Option<String> {
 
     let part = &game.parts[0];
     Some(policy.naming().part_name(game, part))
-}
-
-fn game_title(item: &NormalizedContent) -> Option<String> {
-    match item {
-        NormalizedContent::Game(game) => Some(game.title.clone()),
-        _ => None,
-    }
 }
 
 fn source_name(item: &NormalizedContent, artifact: &ArtifactSpec) -> Option<String> {
@@ -307,12 +354,11 @@ fn build_requirements(spec: &ArtifactSpec) -> CapabilityRequirements {
 mod tests {
     use super::*;
     use crate::core::content::{
-        BytesContent, ContentId, GameContent, GamePart, Platform, TextContent,
+        BytesContent, ContentId, DiscPart, GameContent, GamePart, Platform, TextContent,
     };
-    use crate::core::source::SourceRef;
     use crate::policy::{
-        default::DefaultConflictPolicy, default::DefaultFormattingPolicy,
-        default::DefaultNamingPolicy, PolicySet,
+        default::{DefaultConflictPolicy, DefaultFormattingPolicy, DefaultNamingPolicy},
+        PolicySet,
     };
 
     fn test_policy() -> PolicySet {
@@ -329,9 +375,9 @@ mod tests {
             LayoutSpec::Flat,
             vec![FileRuleSpec::new(
                 SelectSpec::SingleDiscGames,
-                NamingSpec::GameTitle,
+                NamingSpec::PartName,
                 ArtifactSpec::new(crate::output::capabilities::ContentType::Disc)
-                    .with_format(Format::Iso),
+                    .with_format(Format::Bin),
             )],
         );
 
@@ -340,7 +386,7 @@ mod tests {
             source: SourceRef::new("file:/roms/Shadow of the Colossus.chd"),
             title: "Shadow of the Colossus".to_string(),
             platform: Platform::Unknown,
-            parts: vec![GamePart::Disc(crate::core::content::DiscPart {
+            parts: vec![GamePart::Disc(DiscPart {
                 source: SourceRef::new("file:/roms/Shadow of the Colossus.chd"),
                 disc_number: 1,
                 consumed_sources: vec![],
@@ -356,12 +402,12 @@ mod tests {
             panic!("expected file entry");
         };
 
-        assert_eq!(file.name, "Shadow of the Colossus.iso");
+        assert_eq!(file.name, "Shadow of the Colossus (Disc 1).cue");
         assert_eq!(
             file.artifact.requirements.content_type,
             crate::output::capabilities::ContentType::Disc
         );
-        assert_eq!(file.artifact.requirements.format, Some(Format::Iso));
+        assert_eq!(file.artifact.requirements.format, Some(Format::Bin));
     }
 
     #[test]
