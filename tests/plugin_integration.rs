@@ -4,76 +4,28 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use retromount::core::content::{GamePart, NormalizedContent};
 use retromount::core::vfs::VfsNode;
 use retromount::engine::components::default_pipeline_components;
-use retromount::engine::mount::prepare_mount_session_from_pipeline;
+use retromount::engine::mount::prepare_mount_session_from_presentation;
 use retromount::engine::pipeline::{run_pipeline_with_presentation_options, PipelineOptions};
 use retromount::engine::plugins::load_plugin_registry;
 use retromount::input::file_source::FileInputSource;
 use retromount::mount::session::MountNodeKind;
-use retromount::output::capabilities::{CapabilityRequirements, ContentType, Format};
-use retromount::output::plan::{
-    ArtifactId, ArtifactRequest, PlanEntry, PlanFile, PlannedArtifactKind, PresentationPlan,
-    SourceArtifact,
-};
-use retromount::output::present::OutputPresenter;
+use retromount::output::capabilities::{ContentType, Format};
 use retromount::output::presentation_spec::{
     ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
 };
-use retromount::policy::PolicySet;
 use tempfile::TempDir;
 
-struct PluginOnlyDiscPresenter;
-
-impl OutputPresenter for PluginOnlyDiscPresenter {
-    fn present(&self, content: &[NormalizedContent], _policy: &PolicySet) -> PresentationPlan {
-        let disc_source = content
-            .iter()
-            .find_map(|item| match item {
-                NormalizedContent::Game(game) => game.parts.iter().find_map(|part| match part {
-                    GamePart::Disc(disc) => Some(disc.source.clone()),
-                    _ => None,
-                }),
-                _ => None,
-            })
-            .expect("expected at least one normalized disc game");
-
-        PresentationPlan::new(vec![PlanEntry::File(PlanFile::new(
-            "Plugin Test.chd",
-            ArtifactRequest::new(
-                ArtifactId::new("plugin-test-disc"),
-                PlannedArtifactKind::SourceBacked(SourceArtifact::single(disc_source, 0)),
-                CapabilityRequirements::new(ContentType::Disc).with_format(Format::Chd),
-            ),
-        ))])
-    }
-}
-
-struct UnmatchedDiscPresenter;
-
-impl OutputPresenter for UnmatchedDiscPresenter {
-    fn present(&self, content: &[NormalizedContent], _policy: &PolicySet) -> PresentationPlan {
-        let disc_source = content
-            .iter()
-            .find_map(|item| match item {
-                NormalizedContent::Game(game) => game.parts.iter().find_map(|part| match part {
-                    GamePart::Disc(disc) => Some(disc.source.clone()),
-                    _ => None,
-                }),
-                _ => None,
-            })
-            .expect("expected at least one normalized disc game");
-
-        PresentationPlan::new(vec![PlanEntry::File(PlanFile::new(
-            "Unmatched.m3u",
-            ArtifactRequest::new(
-                ArtifactId::new("unmatched-disc"),
-                PlannedArtifactKind::SourceBacked(SourceArtifact::single(disc_source, 0)),
-                CapabilityRequirements::new(ContentType::Disc).with_format(Format::M3u),
-            ),
-        ))])
-    }
+fn disc_presentation(name: &str, format: Format) -> PresentationSpec {
+    PresentationSpec::new(
+        LayoutSpec::Flat,
+        vec![FileRuleSpec::new(
+            SelectSpec::SingleDiscGames,
+            NamingSpec::Literal(name.to_string()),
+            ArtifactSpec::new(ContentType::Disc).with_format(format),
+        )],
+    )
 }
 
 fn write_test_disc(dir: &Path) -> PathBuf {
@@ -140,14 +92,7 @@ fn pipeline_materializes_disc_via_fixture_plugin() {
 
     let source = FileInputSource::new(&cue_path);
     let components = default_pipeline_components().unwrap();
-    let presentation = PresentationSpec::new(
-        LayoutSpec::Flat,
-        vec![FileRuleSpec::new(
-            SelectSpec::SingleDiscGames,
-            NamingSpec::Literal("Plugin Test.chd".to_string()),
-            ArtifactSpec::new(ContentType::Disc).with_format(Format::Chd),
-        )],
-    );
+    let presentation = disc_presentation("Plugin Test.chd", Format::Chd);
 
     let trace = run_pipeline_with_presentation_options(
         &source,
@@ -200,13 +145,13 @@ fn mount_preparation_uses_runtime_plugin_materialization() {
 
     let source = FileInputSource::new(&cue_path);
     let components = default_pipeline_components().unwrap();
-    let presenter = PluginOnlyDiscPresenter;
+    let presentation = disc_presentation("Plugin Test.chd", Format::Chd);
 
-    let session = prepare_mount_session_from_pipeline(
+    let session = prepare_mount_session_from_presentation(
         &source,
         components.identifier.as_ref(),
         components.decoder.as_ref(),
-        &presenter,
+        &presentation,
         &components.policy,
         Some(&plugin_registry),
     )
@@ -257,13 +202,13 @@ fn mount_preparation_fails_when_no_encoder_matches() {
 
     let source = FileInputSource::new(&cue_path);
     let components = default_pipeline_components().unwrap();
-    let presenter = UnmatchedDiscPresenter;
+    let presentation = disc_presentation("Unmatched.m3u", Format::M3u);
 
-    let error = prepare_mount_session_from_pipeline(
+    let error = prepare_mount_session_from_presentation(
         &source,
         components.identifier.as_ref(),
         components.decoder.as_ref(),
-        &presenter,
+        &presentation,
         &components.policy,
         Some(&plugin_registry),
     )
@@ -308,13 +253,13 @@ fn mount_preparation_fails_when_selected_plugin_materialization_fails() {
 
     let source = FileInputSource::new(&cue_path);
     let components = default_pipeline_components().unwrap();
-    let presenter = PluginOnlyDiscPresenter;
+    let presentation = disc_presentation("Plugin Test.chd", Format::Chd);
 
-    let error = prepare_mount_session_from_pipeline(
+    let error = prepare_mount_session_from_presentation(
         &source,
         components.identifier.as_ref(),
         components.decoder.as_ref(),
-        &presenter,
+        &presentation,
         &components.policy,
         Some(&plugin_registry),
     )
@@ -395,13 +340,13 @@ fn mount_preparation_fails_when_selected_plugin_returns_malformed_response() {
 
     let source = FileInputSource::new(&cue_path);
     let components = default_pipeline_components().unwrap();
-    let presenter = PluginOnlyDiscPresenter;
+    let presentation = disc_presentation("Plugin Test.chd", Format::Chd);
 
-    let error = prepare_mount_session_from_pipeline(
+    let error = prepare_mount_session_from_presentation(
         &source,
         components.identifier.as_ref(),
         components.decoder.as_ref(),
-        &presenter,
+        &presentation,
         &components.policy,
         Some(&plugin_registry),
     )

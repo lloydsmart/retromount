@@ -6,9 +6,7 @@ mod flat_parity_tests {
     };
     use retromount::core::source::SourceRef;
     use retromount::output::capabilities::{ContentType, Format};
-    use retromount::output::flat_presenter::FlatPresenter;
     use retromount::output::plan::{PlanEntry, PresentationPlan};
-    use retromount::output::present::OutputPresenter;
     use retromount::output::presentation_compile::compile_presentation_spec;
     use retromount::output::presentation_spec::{
         ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
@@ -127,7 +125,7 @@ mod flat_parity_tests {
     }
 
     #[test]
-    fn single_disc_game_matches_flat_presenter() {
+    fn single_disc_game_has_expected_flat_output() {
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("ps2:ico"),
             source: SourceRef::new("file:/roms/ico.chd"),
@@ -143,32 +141,26 @@ mod flat_parity_tests {
 
         let policy = test_policy();
 
-        // Old path
-        let presenter_plan = FlatPresenter::new().present(&content, &policy);
-
-        // New path
         let spec = flat_spec_for_single_disc();
         let compiled_plan = compile_presentation_spec(&spec, &content, &policy);
 
-        assert_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_file_names(&compiled_plan, &["ICO (Disc 1).cue"]);
     }
 
-    fn assert_plan_equivalent(expected: &PresentationPlan, actual: &PresentationPlan) {
-        assert_eq!(expected.entries.len(), actual.entries.len());
-
-        for (expected_entry, actual_entry) in expected.entries.iter().zip(actual.entries.iter()) {
-            match (expected_entry, actual_entry) {
-                (PlanEntry::File(expected_file), PlanEntry::File(actual_file)) => {
-                    assert_eq!(expected_file.name, actual_file.name);
-                    assert_eq!(expected_file.artifact, actual_file.artifact);
-                }
-                _ => panic!("expected matching file entries"),
-            }
-        }
+    fn assert_file_names(plan: &PresentationPlan, expected: &[&str]) {
+        let actual: Vec<&str> = plan
+            .entries
+            .iter()
+            .map(|entry| match entry {
+                PlanEntry::File(file) => file.name.as_str(),
+                PlanEntry::Directory(_) => panic!("flat plan should contain only files"),
+            })
+            .collect();
+        assert_eq!(actual, expected);
     }
 
     #[test]
-    fn bytes_content_matches_flat_presenter() {
+    fn bytes_content_has_expected_flat_output() {
         let content = vec![NormalizedContent::Bytes(BytesContent {
             id: ContentId::new("bytes:manual"),
             source: SourceRef::new("file:/roms/manual"),
@@ -177,16 +169,14 @@ mod flat_parity_tests {
 
         let policy = test_policy();
 
-        let presenter_plan = FlatPresenter::new().present(&content, &policy);
-
         let spec = flat_spec_for_bytes();
         let compiled_plan = compile_presentation_spec(&spec, &content, &policy);
 
-        assert_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_file_names(&compiled_plan, &["manual.bin"]);
     }
 
     #[test]
-    fn text_content_matches_flat_presenter() {
+    fn text_content_has_expected_flat_output() {
         let content = vec![NormalizedContent::Text(TextContent {
             id: ContentId::new("text:readme"),
             source: SourceRef::new("file:/roms/readme"),
@@ -195,35 +185,64 @@ mod flat_parity_tests {
 
         let policy = test_policy();
 
-        let presenter_plan = FlatPresenter::new().present(&content, &policy);
-
         let spec = flat_spec_for_text();
         let compiled_plan = compile_presentation_spec(&spec, &content, &policy);
 
-        assert_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_file_names(&compiled_plan, &["readme.txt"]);
     }
 
     #[test]
-    fn multi_disc_game_with_playlist_matches_flat_presenter() {
+    fn multi_disc_game_with_playlist_has_expected_flat_output() {
         let content = vec![multi_disc_game("ff7")];
         let policy = test_policy();
 
-        let presenter_plan = FlatPresenter::new().present(&content, &policy);
         let compiled_plan =
             compile_presentation_spec(&flat_spec_for_multi_disc(), &content, &policy);
 
-        assert_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_file_names(
+            &compiled_plan,
+            &[
+                "Final Fantasy VII (Disc 1).cue",
+                "Final Fantasy VII (Disc 2).cue",
+                "Final Fantasy VII.m3u",
+            ],
+        );
+
+        let PlanEntry::File(playlist) = &compiled_plan.entries[2] else {
+            panic!("expected playlist file");
+        };
+        let retromount::output::plan::PlannedArtifactKind::Generated(
+            retromount::output::plan::GeneratedArtifact::Playlist(playlist),
+        ) = &playlist.artifact.kind
+        else {
+            panic!("expected generated playlist artifact");
+        };
+        let references: Vec<&str> = playlist
+            .entries
+            .iter()
+            .map(|entry| entry.artifact_id.0.as_str())
+            .collect();
+        assert_eq!(references, ["game:ff7:disc:1", "game:ff7:disc:2"]);
     }
 
     #[test]
-    fn duplicate_multi_disc_games_match_flat_presenter_conflict_handling() {
+    fn duplicate_multi_disc_games_apply_flat_conflict_handling() {
         let content = vec![multi_disc_game("ff7-a"), multi_disc_game("ff7-b")];
         let policy = suffix_conflict_policy();
 
-        let presenter_plan = FlatPresenter::new().present(&content, &policy);
         let compiled_plan =
             compile_presentation_spec(&flat_spec_for_multi_disc(), &content, &policy);
 
-        assert_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_file_names(
+            &compiled_plan,
+            &[
+                "Final Fantasy VII (Disc 1).cue",
+                "Final Fantasy VII (Disc 2).cue",
+                "Final Fantasy VII.m3u",
+                "Final Fantasy VII (Disc 1).cue (1)",
+                "Final Fantasy VII (Disc 2).cue (1)",
+                "Final Fantasy VII.m3u (1)",
+            ],
+        );
     }
 }

@@ -316,43 +316,47 @@ When flat and grouped behavior are reproducible via the generic compiler:
 * remove `presenter_registry.rs`
 * remove presenter-specific bootstrap plumbing
 
+Completed in Phase 6G after the Phase 6E parity work and Phase 6F runtime
+migration established presentation specifications as the only built-in runtime
+path.
+
 ---
 
 ## Immediate Phase 6A checklist
 
 ### Design
 
-* [ ] Define minimal `PresentationSpec` Rust types
-* [ ] Keep the first model deliberately small
-* [ ] Ensure specs operate only on normalized content
-* [ ] Ensure specs compile into `PresentationPlan`
+* [x] Define minimal `PresentationSpec` Rust types
+* [x] Keep the first model deliberately small
+* [x] Ensure specs operate only on normalized content
+* [x] Ensure specs compile into `PresentationPlan`
 
 ### Extraction
 
-* [ ] Identify generic helpers that can move out of `grouped_presenter.rs`
-* [ ] Identify generic helpers that can move out of `flat_presenter.rs`
-* [ ] Separate naming conventions from mechanical plan assembly
-* [ ] Separate placement rules from tree insertion logic
+* [x] Identify generic helpers that can move out of `grouped_presenter.rs`
+* [x] Identify generic helpers that can move out of `flat_presenter.rs`
+* [x] Separate naming conventions from mechanical plan assembly
+* [x] Separate placement rules from tree insertion logic
 
 ### Compiler
 
-* [ ] Implement `compile_presentation_spec(...)`
-* [ ] Reuse existing policy conflict handling
-* [ ] Reuse existing capability requirement model
-* [ ] Keep encoder selection unchanged beneath the plan boundary
+* [x] Implement `compile_presentation_spec(...)`
+* [x] Reuse existing policy conflict handling
+* [x] Reuse existing capability requirement model
+* [x] Keep encoder selection unchanged beneath the plan boundary
 
 ### Validation
 
-* [ ] Reproduce a simple flat view through `PresentationSpec`
-* [ ] Compare generated `PresentationPlan` against current presenter behavior
-* [ ] Add tests that prove the compiler is generic rather than target-specific
-* [ ] Confirm mount/inspect paths still work through the existing downstream pipeline
+* [x] Reproduce a simple flat view through `PresentationSpec`
+* [x] Compare generated `PresentationPlan` against current presenter behavior
+* [x] Add tests that prove the compiler is generic rather than target-specific
+* [x] Confirm mount/inspect paths still work through the existing downstream pipeline
 
 ### Migration
 
-* [ ] Introduce presentation terminology alongside existing presenter terminology
-* [ ] Minimize disruption in CLI and config until the new path is proven
-* [ ] Remove legacy presenter registry only after equivalence is demonstrated
+* [x] Introduce presentation terminology alongside existing presenter terminology
+* [x] Minimize disruption in CLI and config until the new path is proven
+* [x] Remove legacy presenter registry only after equivalence is demonstrated
 
 ---
 

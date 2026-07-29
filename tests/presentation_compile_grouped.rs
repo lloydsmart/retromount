@@ -6,9 +6,7 @@ mod grouped_parity_tests {
     };
     use retromount::core::source::SourceRef;
     use retromount::output::capabilities::{ContentType, Format};
-    use retromount::output::grouped_presenter::GroupedPresenter;
-    use retromount::output::plan::{PlanDirectory, PlanEntry, PresentationPlan};
-    use retromount::output::present::OutputPresenter;
+    use retromount::output::plan::{PlanEntry, PresentationPlan};
     use retromount::output::presentation_compile::compile_presentation_spec;
     use retromount::output::presentation_spec::{
         ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
@@ -111,7 +109,7 @@ mod grouped_parity_tests {
     }
 
     #[test]
-    fn single_disc_game_matches_grouped_presenter() {
+    fn single_disc_game_has_expected_grouped_output() {
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("ps2:ico"),
             source: SourceRef::new("file:/roms/ico.chd"),
@@ -127,16 +125,17 @@ mod grouped_parity_tests {
 
         let policy = test_policy();
 
-        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
-
         let spec = grouped_spec_for_single_disc();
         let compiled_plan = compile_presentation_spec(&spec, &content, &policy);
 
-        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_plan_paths(
+            &compiled_plan,
+            &["unknown/", "unknown/ICO/", "unknown/ICO/ICO (Disc 1).cue"],
+        );
     }
 
     #[test]
-    fn multi_disc_game_with_playlist_matches_grouped_presenter() {
+    fn multi_disc_game_with_playlist_has_expected_grouped_output() {
         let content = vec![NormalizedContent::Game(GameContent {
             id: ContentId::new("ps1:final-fantasy-vii"),
             source: SourceRef::new("file:/roms/Final Fantasy VII (Disc 1).cue"),
@@ -158,15 +157,23 @@ mod grouped_parity_tests {
         })];
 
         let policy = test_policy();
-        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
         let compiled_plan =
             compile_presentation_spec(&grouped_spec_for_multi_disc(), &content, &policy);
 
-        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_plan_paths(
+            &compiled_plan,
+            &[
+                "ps1/",
+                "ps1/Final Fantasy VII/",
+                "ps1/Final Fantasy VII/Final Fantasy VII (Disc 1).cue",
+                "ps1/Final Fantasy VII/Final Fantasy VII (Disc 2).cue",
+                "ps1/Final Fantasy VII/Final Fantasy VII.m3u",
+            ],
+        );
     }
 
     #[test]
-    fn mixed_content_with_preserved_paths_matches_grouped_presenter() {
+    fn mixed_content_with_preserved_paths_has_expected_grouped_output() {
         let content = vec![
             NormalizedContent::Bytes(BytesContent {
                 id: ContentId::new(r"firmware\ps1\bios"),
@@ -203,15 +210,29 @@ mod grouped_parity_tests {
         ];
 
         let policy = test_policy();
-        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
         let compiled_plan =
             compile_presentation_spec(&grouped_spec_for_mixed_content(), &content, &policy);
 
-        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_plan_paths(
+            &compiled_plan,
+            &[
+                "firmware/",
+                "firmware/ps1/",
+                "firmware/ps1/scph1001.bin",
+                "megadrive/",
+                "megadrive/Sonic the Hedgehog/",
+                "megadrive/Sonic the Hedgehog/sonic.bin",
+                "megadrive/Streets of Rage/",
+                "megadrive/Streets of Rage/streets-of-rage.bin",
+                "docs/",
+                "docs/guides/",
+                "docs/guides/readme.txt",
+            ],
+        );
     }
 
     #[test]
-    fn duplicate_game_directories_match_grouped_presenter_conflict_handling() {
+    fn duplicate_game_directories_apply_grouped_conflict_handling() {
         let content = vec![
             NormalizedContent::Game(GameContent {
                 id: ContentId::new("ps1:duplicate-one"),
@@ -238,15 +259,23 @@ mod grouped_parity_tests {
         ];
 
         let policy = suffix_conflict_policy();
-        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
         let compiled_plan =
             compile_presentation_spec(&grouped_spec_for_mixed_content(), &content, &policy);
 
-        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_plan_paths(
+            &compiled_plan,
+            &[
+                "ps1/",
+                "ps1/Duplicate Game/",
+                "ps1/Duplicate Game/duplicate-one.bin",
+                "ps1/Duplicate Game (1)/",
+                "ps1/Duplicate Game (1)/duplicate-two.bin",
+            ],
+        );
     }
 
     #[test]
-    fn colliding_preserved_path_files_match_grouped_presenter_conflict_handling() {
+    fn colliding_preserved_path_files_apply_grouped_conflict_handling() {
         let content = vec![
             NormalizedContent::Bytes(BytesContent {
                 id: ContentId::new("firmware/primary"),
@@ -261,40 +290,35 @@ mod grouped_parity_tests {
         ];
 
         let policy = suffix_conflict_policy();
-        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
         let compiled_plan =
             compile_presentation_spec(&grouped_spec_for_mixed_content(), &content, &policy);
 
-        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+        assert_plan_paths(
+            &compiled_plan,
+            &["firmware/", "firmware/bios.bin", "firmware/bios.bin (1)"],
+        );
     }
 
-    fn assert_grouped_plan_equivalent(expected: &PresentationPlan, actual: &PresentationPlan) {
-        assert_eq!(expected.entries.len(), actual.entries.len());
-
-        for (expected_entry, actual_entry) in expected.entries.iter().zip(actual.entries.iter()) {
-            assert_entry_equivalent(expected_entry, actual_entry);
-        }
+    fn assert_plan_paths(plan: &PresentationPlan, expected: &[&str]) {
+        let mut actual = Vec::new();
+        collect_paths(&plan.entries, "", &mut actual);
+        let expected: Vec<String> = expected.iter().map(|path| path.to_string()).collect();
+        assert_eq!(actual, expected);
     }
 
-    fn assert_entry_equivalent(expected: &PlanEntry, actual: &PlanEntry) {
-        match (expected, actual) {
-            (PlanEntry::Directory(expected_dir), PlanEntry::Directory(actual_dir)) => {
-                assert_directory_equivalent(expected_dir, actual_dir);
+    fn collect_paths(entries: &[PlanEntry], parent: &str, paths: &mut Vec<String>) {
+        for entry in entries {
+            match entry {
+                PlanEntry::Directory(directory) => {
+                    let path = format!("{parent}{}/", directory.name);
+                    paths.push(path.clone());
+                    collect_paths(&directory.entries, &path, paths);
+                }
+                PlanEntry::File(file) => {
+                    let path = format!("{parent}{}", file.name);
+                    paths.push(path);
+                }
             }
-            (PlanEntry::File(expected_file), PlanEntry::File(actual_file)) => {
-                assert_eq!(expected_file.name, actual_file.name);
-                assert_eq!(expected_file.artifact, actual_file.artifact);
-            }
-            _ => panic!("expected matching entry kinds"),
-        }
-    }
-
-    fn assert_directory_equivalent(expected: &PlanDirectory, actual: &PlanDirectory) {
-        assert_eq!(expected.name, actual.name);
-        assert_eq!(expected.entries.len(), actual.entries.len());
-
-        for (expected_entry, actual_entry) in expected.entries.iter().zip(actual.entries.iter()) {
-            assert_entry_equivalent(expected_entry, actual_entry);
         }
     }
 }

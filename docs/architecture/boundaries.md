@@ -115,14 +115,15 @@ Responsible for:
 
 Key components:
 
-* `OutputPresenter`
-* `GenericPresenter`
+* `PresentationSpec`
+* `PresentationCompiler`
+* `PresentationPlan`
 
 This stage answers:
 
 > “What should the output look like?”
 
-The Presenter must **not**:
+The presentation compiler must **not**:
 
 * generate filenames or extensions
 * determine file backing (inline vs source-backed)
@@ -130,7 +131,8 @@ The Presenter must **not**:
 * perform representation-specific transformations
 * expand logical content into concrete file sets
 
-Presenters operate on logical content and define **placement only**.
+Presentation specifications operate on logical content and declare structure,
+selection, naming, and artifact requirements.
 
 Expansion of logical content into one or more output artifacts (e.g. multi-disc outputs, playlists) is an output-layer concern and occurs outside of presentation structure decisions.
 
