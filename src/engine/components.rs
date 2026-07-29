@@ -11,7 +11,7 @@ use crate::RetromountError;
 ///
 /// This provides a single composition boundary for built-in implementations,
 /// allowing application entrypoints to use a selected declarative presentation
-/// without directly constructing legacy presenter implementations.
+/// without constructing target-specific layout implementations.
 pub struct PipelineComponents {
     pub identifier: Box<dyn InputIdentifier>,
     pub decoder: Box<dyn InputDecoder>,
@@ -23,9 +23,9 @@ pub fn default_pipeline_components() -> Result<PipelineComponents, RetromountErr
     pipeline_components("grouped")
 }
 
-pub fn pipeline_components(presenter_name: &str) -> Result<PipelineComponents, RetromountError> {
+pub fn pipeline_components(presentation_name: &str) -> Result<PipelineComponents, RetromountError> {
     let presentation =
-        build_presentation_spec(presenter_name).map_err(RetromountError::LoadError)?;
+        build_presentation_spec(presentation_name).map_err(RetromountError::LoadError)?;
 
     Ok(PipelineComponents {
         identifier: Box::new(BasicInputIdentifier::new()),
@@ -35,8 +35,8 @@ pub fn pipeline_components(presenter_name: &str) -> Result<PipelineComponents, R
     })
 }
 
-pub fn pipeline_components_for_presenter(
-    presenter_name: &str,
+pub fn pipeline_components_for_presentation(
+    presentation_name: &str,
 ) -> Result<PipelineComponents, RetromountError> {
-    pipeline_components(presenter_name)
+    pipeline_components(presentation_name)
 }

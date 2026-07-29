@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::path::Path;
 
 use crate::core::content::{DecodedContent, GamePart, NormalizedContent};
-use crate::engine::components::pipeline_components_for_presenter;
+use crate::engine::components::pipeline_components_for_presentation;
 use crate::error::RetromountError;
 use crate::output::plugin_registry::PluginRegistry;
 
@@ -15,20 +15,20 @@ use super::preview::{build_input_source, write_vfs_tree};
 pub fn run_phase3_inspect(
     path: &Path,
     json: bool,
-    presenter_name: &str,
+    presentation_name: &str,
 ) -> Result<(), RetromountError> {
-    run_phase3_inspect_with_plugins(path, json, presenter_name, None)
+    run_phase3_inspect_with_plugins(path, json, presentation_name, None)
 }
 
 pub fn run_phase3_inspect_with_plugins(
     path: &Path,
     json: bool,
-    presenter_name: &str,
+    presentation_name: &str,
     plugin_registry: Option<&PluginRegistry>,
 ) -> Result<(), RetromountError> {
     let source = build_input_source(path)?;
     let kind = source.kind();
-    let components = pipeline_components_for_presenter(presenter_name)?;
+    let components = pipeline_components_for_presentation(presentation_name)?;
 
     let trace = match plugin_registry {
         Some(plugin_registry) => run_pipeline_with_presentation_options(

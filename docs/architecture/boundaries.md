@@ -190,7 +190,7 @@ Policy:
 
 * does not define structure
 * does not mutate normalized content
-* does not replace presenter or encoder responsibilities
+* does not replace presentation or encoder responsibilities
 
 Policy is applied at **output boundaries**, particularly:
 
@@ -321,7 +321,7 @@ pub enum NormalizedContent {
 
 * decoder → `Vec<DecodedContent>`
 * normalizer → `Vec<NormalizedContent>`
-* presenter → consumes `NormalizedContent`
+* presentation compiler → consumes `NormalizedContent`
 * encoder → consumes `NormalizedContent`
 
 Pre-normalized artifacts such as ROMs and discs are not visible beyond the normalization stage.
