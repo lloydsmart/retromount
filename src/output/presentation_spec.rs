@@ -49,6 +49,9 @@ pub enum SelectSpec {
     /// Match any normalized game.
     Games,
 
+    /// Match games that contain no parts.
+    GamesWithoutParts,
+
     /// Match games with exactly one disc part.
     SingleDiscGames,
 
@@ -69,6 +72,9 @@ pub enum SelectSpec {
 pub enum NamingSpec {
     /// Use the game title.
     GameTitle,
+
+    /// Use the policy-derived game name.
+    GameName,
 
     /// Use the policy-derived part name for a single-part game.
     PartName,

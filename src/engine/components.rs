@@ -1,4 +1,4 @@
-use crate::engine::bootstrap::{build_presenter, default_presenter_registry};
+use crate::engine::bootstrap::build_presentation;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
 use crate::input::decode::InputDecoder;
@@ -24,15 +24,7 @@ pub fn default_pipeline_components() -> Result<PipelineComponents, RetromountErr
 }
 
 pub fn pipeline_components(presenter_name: &str) -> Result<PipelineComponents, RetromountError> {
-    let presenter_registry = default_presenter_registry();
-    if presenter_registry.get(presenter_name).is_none() {
-        return Err(RetromountError::LoadError(format!(
-            "unsupported view '{presenter_name}'; expected one of: {}",
-            presenter_registry.names().join(", ")
-        )));
-    }
-
-    let presenter = build_presenter(presenter_name).map_err(RetromountError::LoadError)?;
+    let presenter = build_presentation(presenter_name).map_err(RetromountError::LoadError)?;
 
     Ok(PipelineComponents {
         identifier: Box::new(BasicInputIdentifier::new()),

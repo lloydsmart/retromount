@@ -114,6 +114,7 @@ fn try_compile_rule(
 
     let match_result = match rule.select {
         SelectSpec::Games => match_game(item),
+        SelectSpec::GamesWithoutParts => match_game_without_parts(item),
         SelectSpec::SingleDiscGames => match_single_disc_game(item),
         SelectSpec::MultiDiscGames => unreachable!("handled above"),
         SelectSpec::SingleRomGames => match_single_rom_game(item),
@@ -325,6 +326,17 @@ fn match_game(item: &NormalizedContent) -> Option<SourceMatch> {
     }
 }
 
+fn match_game_without_parts(item: &NormalizedContent) -> Option<SourceMatch> {
+    let NormalizedContent::Game(game) = item else {
+        return None;
+    };
+
+    game.parts.is_empty().then(|| SourceMatch {
+        source: game.source.clone(),
+        size: 0,
+    })
+}
+
 fn match_single_disc_game(item: &NormalizedContent) -> Option<SourceMatch> {
     let NormalizedContent::Game(game) = item else {
         return None;
@@ -389,10 +401,18 @@ fn build_name(
 ) -> Option<String> {
     match naming {
         NamingSpec::GameTitle => game_title(item),
+        NamingSpec::GameName => game_name(item, policy),
         NamingSpec::PartName => part_name(item, policy),
         NamingSpec::PlaylistName => playlist_name(item, policy),
         NamingSpec::SourceName => source_name(item, artifact),
         NamingSpec::Literal(value) => Some(value.clone()),
+    }
+}
+
+fn game_name(item: &NormalizedContent, policy: &PolicySet) -> Option<String> {
+    match item {
+        NormalizedContent::Game(game) => Some(policy.naming().game_name(game)),
+        _ => None,
     }
 }
 
@@ -490,6 +510,9 @@ fn extension_for_format(format: Option<Format>) -> Option<&'static str> {
 fn build_artifact_id(select: &SelectSpec, item: &NormalizedContent) -> ArtifactId {
     match (select, item) {
         (SelectSpec::Games, NormalizedContent::Game(game)) => {
+            ArtifactId::new(format!("game:{}", game.id))
+        }
+        (SelectSpec::GamesWithoutParts, NormalizedContent::Game(game)) => {
             ArtifactId::new(format!("game:{}", game.id))
         }
         (SelectSpec::SingleDiscGames, NormalizedContent::Game(game)) => {

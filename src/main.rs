@@ -6,7 +6,7 @@ use retromount::core::content::{
 };
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
-use retromount::engine::bootstrap::default_presenter_registry;
+use retromount::engine::bootstrap::{build_presentation_spec, built_in_presentation_names};
 use retromount::engine::components::pipeline_components;
 use retromount::engine::inspect::{run_phase3_inspect, run_phase3_inspect_with_plugins};
 use retromount::engine::mount::{run_mount_command, run_mount_command_with_plugins};
@@ -158,14 +158,13 @@ fn main() -> Result<(), RetromountError> {
 
 fn parse_presenter_name(value: &std::ffi::OsStr) -> Result<String, RetromountError> {
     let value = value.to_string_lossy().to_string();
-    let registry = default_presenter_registry();
 
-    if registry.get(&value).is_some() {
+    if build_presentation_spec(&value).is_ok() {
         Ok(value)
     } else {
         Err(RetromountError::LoadError(format!(
             "unsupported view '{value}'; expected one of: {}",
-            registry.names().join(", ")
+            built_in_presentation_names().join(", ")
         )))
     }
 }
