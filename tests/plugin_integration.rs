@@ -8,7 +8,7 @@ use retromount::core::content::{GamePart, NormalizedContent};
 use retromount::core::vfs::VfsNode;
 use retromount::engine::components::default_pipeline_components;
 use retromount::engine::mount::prepare_mount_session_from_pipeline;
-use retromount::engine::pipeline::{run_pipeline_with_options, PipelineOptions};
+use retromount::engine::pipeline::{run_pipeline_with_presentation_options, PipelineOptions};
 use retromount::engine::plugins::load_plugin_registry;
 use retromount::input::file_source::FileInputSource;
 use retromount::mount::session::MountNodeKind;
@@ -18,6 +18,9 @@ use retromount::output::plan::{
     SourceArtifact,
 };
 use retromount::output::present::OutputPresenter;
+use retromount::output::presentation_spec::{
+    ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
+};
 use retromount::policy::PolicySet;
 use tempfile::TempDir;
 
@@ -137,13 +140,20 @@ fn pipeline_materializes_disc_via_fixture_plugin() {
 
     let source = FileInputSource::new(&cue_path);
     let components = default_pipeline_components().unwrap();
-    let presenter = PluginOnlyDiscPresenter;
+    let presentation = PresentationSpec::new(
+        LayoutSpec::Flat,
+        vec![FileRuleSpec::new(
+            SelectSpec::SingleDiscGames,
+            NamingSpec::Literal("Plugin Test.chd".to_string()),
+            ArtifactSpec::new(ContentType::Disc).with_format(Format::Chd),
+        )],
+    );
 
-    let trace = run_pipeline_with_options(
+    let trace = run_pipeline_with_presentation_options(
         &source,
         components.identifier.as_ref(),
         components.decoder.as_ref(),
-        &presenter,
+        &presentation,
         &components.policy,
         &PipelineOptions {
             normalization: Default::default(),

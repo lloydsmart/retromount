@@ -3,7 +3,9 @@ use std::path::Path;
 
 use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::engine::components::default_pipeline_components;
-use crate::engine::pipeline::{run_pipeline, run_pipeline_with_options, PipelineOptions};
+use crate::engine::pipeline::{
+    run_pipeline_with_presentation, run_pipeline_with_presentation_options, PipelineOptions,
+};
 use crate::error::RetromountError;
 use crate::input::directory_source::DirectoryInputSource;
 use crate::input::file_source::FileInputSource;
@@ -24,11 +26,11 @@ pub fn run_phase3_preview_with_plugins(
 
     let root = match plugin_registry {
         Some(plugin_registry) => {
-            run_pipeline_with_options(
+            run_pipeline_with_presentation_options(
                 source.as_ref(),
                 components.identifier.as_ref(),
                 components.decoder.as_ref(),
-                components.presenter.as_ref(),
+                &components.presentation,
                 &components.policy,
                 &PipelineOptions {
                     normalization: Default::default(),
@@ -37,11 +39,11 @@ pub fn run_phase3_preview_with_plugins(
             )?
             .output_vfs
         }
-        None => run_pipeline(
+        None => run_pipeline_with_presentation(
             source.as_ref(),
             components.identifier.as_ref(),
             components.decoder.as_ref(),
-            components.presenter.as_ref(),
+            &components.presentation,
             &components.policy,
         )?,
     };

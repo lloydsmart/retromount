@@ -7,7 +7,8 @@ use crate::error::RetromountError;
 use crate::output::plugin_registry::PluginRegistry;
 
 use super::pipeline::{
-    run_pipeline_with_options, run_pipeline_with_trace, PipelineOptions, PipelineTrace,
+    run_pipeline_with_presentation_options, run_pipeline_with_presentation_trace, PipelineOptions,
+    PipelineTrace,
 };
 use super::preview::{build_input_source, write_vfs_tree};
 
@@ -30,22 +31,22 @@ pub fn run_phase3_inspect_with_plugins(
     let components = pipeline_components_for_presenter(presenter_name)?;
 
     let trace = match plugin_registry {
-        Some(plugin_registry) => run_pipeline_with_options(
+        Some(plugin_registry) => run_pipeline_with_presentation_options(
             source.as_ref(),
             components.identifier.as_ref(),
             components.decoder.as_ref(),
-            components.presenter.as_ref(),
+            &components.presentation,
             &components.policy,
             &PipelineOptions {
                 normalization: Default::default(),
                 plugin_registry: Some(plugin_registry),
             },
         )?,
-        None => run_pipeline_with_trace(
+        None => run_pipeline_with_presentation_trace(
             source.as_ref(),
             components.identifier.as_ref(),
             components.decoder.as_ref(),
-            components.presenter.as_ref(),
+            &components.presentation,
             &components.policy,
         )?,
     };

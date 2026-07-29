@@ -1,12 +1,7 @@
-use crate::core::content::NormalizedContent;
 use crate::output::capabilities::{ContentType, Format};
-use crate::output::plan::PresentationPlan;
-use crate::output::present::OutputPresenter;
-use crate::output::presentation_compile::compile_presentation_spec;
 use crate::output::presentation_spec::{
     ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
 };
-use crate::policy::PolicySet;
 
 const BUILT_IN_PRESENTATIONS: [&str; 2] = ["flat", "grouped"];
 
@@ -27,12 +22,6 @@ pub fn build_presentation_spec(name: &str) -> Result<PresentationSpec, String> {
     };
 
     Ok(PresentationSpec::new(layout, built_in_file_rules()))
-}
-
-pub fn build_presentation(name: &str) -> Result<Box<dyn OutputPresenter>, String> {
-    Ok(Box::new(CompiledPresentation::new(
-        build_presentation_spec(name)?,
-    )))
 }
 
 fn built_in_file_rules() -> Vec<FileRuleSpec> {
@@ -75,28 +64,16 @@ fn built_in_file_rules() -> Vec<FileRuleSpec> {
     ]
 }
 
-struct CompiledPresentation {
-    spec: PresentationSpec,
-}
-
-impl CompiledPresentation {
-    fn new(spec: PresentationSpec) -> Self {
-        Self { spec }
-    }
-}
-
-impl OutputPresenter for CompiledPresentation {
-    fn present(&self, content: &[NormalizedContent], policy: &PolicySet) -> PresentationPlan {
-        compile_presentation_spec(&self.spec, content, policy)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::content::{ContentId, DiscPart, GameContent, GamePart, Platform};
+    use crate::core::content::{
+        ContentId, DiscPart, GameContent, GamePart, NormalizedContent, Platform,
+    };
     use crate::core::source::SourceRef;
     use crate::output::plan::{GeneratedArtifact, PlanEntry, PlannedArtifactKind};
+    use crate::output::presentation_compile::compile_presentation_spec;
+    use crate::policy::PolicySet;
 
     #[test]
     fn exposes_stable_built_in_presentation_names() {
@@ -146,8 +123,8 @@ mod tests {
             consumed_sources: vec![],
         })];
 
-        let presentation = build_presentation("flat").unwrap();
-        let plan = presentation.present(&content, &PolicySet::default());
+        let presentation = build_presentation_spec("flat").unwrap();
+        let plan = compile_presentation_spec(&presentation, &content, &PolicySet::default());
 
         assert_eq!(plan.entries.len(), 3);
         let PlanEntry::File(playlist) = &plan.entries[2] else {
