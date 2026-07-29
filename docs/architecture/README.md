@@ -129,19 +129,23 @@ The output stage transforms normalized content into a virtual filesystem represe
 
 Within that stage:
 
-* the presenter determines structure, grouping, and layout
+* the presentation specification declares structure, grouping, and layout
+* the presentation compiler produces a concrete artifact plan
 * the encoder materializes individual output files
 
-Presenters and encoders are composed explicitly through the runtime composition layer.
+Presentation specifications and encoders are composed through the runtime pipeline.
 
-Built-in implementations are selected via registry-backed composition, and configured views can choose presenter and encoder combinations independently.
+Built-in flat and grouped specifications are selected through the presentation
+catalog, and configured views can choose a presentation independently of encoder
+capability resolution.
 
 Together, they produce the final VFS tree exposed to consumers.
 
 Key components:
 
-* `OutputPresenter`
-* `GenericPresenter`
+* `PresentationSpec`
+* `PresentationCompiler`
+* `PresentationPlan`
 * `BasicEncoder`
 * `VfsDirectory`
 * `VfsFile`
@@ -215,4 +219,4 @@ The architecture review work in this directory aims to:
 * improve module-level documentation
 * introduce diagrams for better visualization of the pipeline
 * refine filesystem adapter behaviour and performance (e.g. read caching)
-* add examples for alternate presenters, encoders, and adapter layers
+* add examples for alternate presentation specifications, encoders, and adapter layers

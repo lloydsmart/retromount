@@ -11,7 +11,8 @@ use crate::input::source::InputSource;
 use crate::output::materialize::{materialize_plan, materialize_plan_with_plugins};
 use crate::output::plan::PresentationPlan;
 use crate::output::plugin_registry::PluginRegistry;
-use crate::output::present::OutputPresenter;
+use crate::output::presentation_compile::compile_presentation_spec;
+use crate::output::presentation_spec::PresentationSpec;
 use crate::policy::PolicySet;
 use serde::Serialize;
 
@@ -36,49 +37,70 @@ pub struct PipelineOptions<'a> {
     pub plugin_registry: Option<&'a PluginRegistry>,
 }
 
-pub fn run_pipeline(
+pub fn run_pipeline_with_presentation(
     source: &dyn InputSource,
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
-    presenter: &dyn OutputPresenter,
+    presentation: &PresentationSpec,
     policy: &PolicySet,
 ) -> Result<VfsDirectory, io::Error> {
-    Ok(run_pipeline_with_options(
+    Ok(run_pipeline_with_presentation_options(
         source,
         identifier,
         decoder,
-        presenter,
+        presentation,
         policy,
         &PipelineOptions::default(),
     )?
     .output_vfs)
 }
 
-pub fn run_pipeline_with_trace(
+pub fn run_pipeline_with_presentation_trace(
     source: &dyn InputSource,
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
-    presenter: &dyn OutputPresenter,
+    presentation: &PresentationSpec,
     policy: &PolicySet,
 ) -> Result<PipelineTrace, io::Error> {
-    run_pipeline_with_options(
+    run_pipeline_with_presentation_options(
         source,
         identifier,
         decoder,
-        presenter,
+        presentation,
         policy,
         &PipelineOptions::default(),
     )
 }
 
-pub fn run_pipeline_with_options(
+pub fn run_pipeline_with_presentation_options(
     source: &dyn InputSource,
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
-    presenter: &dyn OutputPresenter,
+    presentation: &PresentationSpec,
     policy: &PolicySet,
     options: &PipelineOptions<'_>,
 ) -> Result<PipelineTrace, io::Error> {
+    run_pipeline_with_plan_builder(
+        source,
+        identifier,
+        decoder,
+        policy,
+        options,
+        |content, policy| compile_presentation_spec(presentation, content, policy),
+    )
+}
+
+fn run_pipeline_with_plan_builder<F>(
+    source: &dyn InputSource,
+    identifier: &dyn InputIdentifier,
+    decoder: &dyn InputDecoder,
+    policy: &PolicySet,
+    options: &PipelineOptions<'_>,
+    build_plan: F,
+) -> Result<PipelineTrace, io::Error>
+where
+    F: FnOnce(&[NormalizedContent], &PolicySet) -> PresentationPlan,
+{
     let objects = source.enumerate()?;
     let mut traced_objects = Vec::new();
     let mut all_decoded_content = Vec::new();
@@ -105,7 +127,7 @@ pub fn run_pipeline_with_options(
 
     let normalized = normalize_decoded_content(all_decoded_content, &options.normalization);
     let normalized_presentable_content = suppress_consumed_content(&normalized);
-    let presentation_plan = presenter.present(&normalized_presentable_content, policy);
+    let presentation_plan = build_plan(&normalized_presentable_content, policy);
     let output_vfs = materialize_presentation_plan(&presentation_plan, options)?;
 
     Ok(PipelineTrace {

@@ -115,14 +115,15 @@ Responsible for:
 
 Key components:
 
-* `OutputPresenter`
-* `GenericPresenter`
+* `PresentationSpec`
+* `PresentationCompiler`
+* `PresentationPlan`
 
 This stage answers:
 
 > “What should the output look like?”
 
-The Presenter must **not**:
+The presentation compiler must **not**:
 
 * generate filenames or extensions
 * determine file backing (inline vs source-backed)
@@ -130,7 +131,8 @@ The Presenter must **not**:
 * perform representation-specific transformations
 * expand logical content into concrete file sets
 
-Presenters operate on logical content and define **placement only**.
+Presentation specifications operate on logical content and declare structure,
+selection, naming, and artifact requirements.
 
 Expansion of logical content into one or more output artifacts (e.g. multi-disc outputs, playlists) is an output-layer concern and occurs outside of presentation structure decisions.
 
@@ -188,7 +190,7 @@ Policy:
 
 * does not define structure
 * does not mutate normalized content
-* does not replace presenter or encoder responsibilities
+* does not replace presentation or encoder responsibilities
 
 Policy is applied at **output boundaries**, particularly:
 
@@ -319,7 +321,7 @@ pub enum NormalizedContent {
 
 * decoder → `Vec<DecodedContent>`
 * normalizer → `Vec<NormalizedContent>`
-* presenter → consumes `NormalizedContent`
+* presentation compiler → consumes `NormalizedContent`
 * encoder → consumes `NormalizedContent`
 
 Pre-normalized artifacts such as ROMs and discs are not visible beyond the normalization stage.

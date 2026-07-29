@@ -6,11 +6,11 @@ use retromount::core::content::{
 };
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
-use retromount::engine::bootstrap::default_presenter_registry;
+use retromount::engine::bootstrap::{build_presentation_spec, built_in_presentation_names};
 use retromount::engine::components::pipeline_components;
 use retromount::engine::inspect::{run_phase3_inspect, run_phase3_inspect_with_plugins};
 use retromount::engine::mount::{run_mount_command, run_mount_command_with_plugins};
-use retromount::engine::pipeline::{run_pipeline_with_options, PipelineOptions};
+use retromount::engine::pipeline::{run_pipeline_with_presentation_options, PipelineOptions};
 use retromount::engine::plugins::load_plugin_registry;
 use retromount::engine::preview::{
     build_input_source, run_phase3_preview, run_phase3_preview_with_plugins, write_vfs_tree,
@@ -53,8 +53,8 @@ fn main() -> Result<(), RetromountError> {
             if command.to_string_lossy() == "inspect" && view_flag.to_string_lossy() == "--view" =>
         {
             let path = PathBuf::from(path);
-            let presenter_name = parse_presenter_name(view)?;
-            run_phase3_inspect(&path, false, &presenter_name)
+            let presentation_name = parse_presentation_name(view)?;
+            run_phase3_inspect(&path, false, &presentation_name)
         }
         [command, path, flag, view_flag, view]
             if command.to_string_lossy() == "inspect"
@@ -62,8 +62,8 @@ fn main() -> Result<(), RetromountError> {
                 && view_flag.to_string_lossy() == "--view" =>
         {
             let path = PathBuf::from(path);
-            let presenter_name = parse_presenter_name(view)?;
-            run_phase3_inspect(&path, true, &presenter_name)
+            let presentation_name = parse_presentation_name(view)?;
+            run_phase3_inspect(&path, true, &presentation_name)
         }
         [command, path, plugin_flag, plugin_dir]
             if command.to_string_lossy() == "inspect"
@@ -90,10 +90,10 @@ fn main() -> Result<(), RetromountError> {
                 && plugin_flag.to_string_lossy() == "--plugin-dir" =>
         {
             let path = PathBuf::from(path);
-            let presenter_name = parse_presenter_name(view)?;
+            let presentation_name = parse_presentation_name(view)?;
             let plugin_dir = PathBuf::from(plugin_dir);
             let plugin_registry = load_plugin_registry(&plugin_dir)?;
-            run_phase3_inspect_with_plugins(&path, false, &presenter_name, Some(&plugin_registry))
+            run_phase3_inspect_with_plugins(&path, false, &presentation_name, Some(&plugin_registry))
         }
         [command, path, json_flag, view_flag, view, plugin_flag, plugin_dir]
             if command.to_string_lossy() == "inspect"
@@ -102,10 +102,10 @@ fn main() -> Result<(), RetromountError> {
                 && plugin_flag.to_string_lossy() == "--plugin-dir" =>
         {
             let path = PathBuf::from(path);
-            let presenter_name = parse_presenter_name(view)?;
+            let presentation_name = parse_presentation_name(view)?;
             let plugin_dir = PathBuf::from(plugin_dir);
             let plugin_registry = load_plugin_registry(&plugin_dir)?;
-            run_phase3_inspect_with_plugins(&path, true, &presenter_name, Some(&plugin_registry))
+            run_phase3_inspect_with_plugins(&path, true, &presentation_name, Some(&plugin_registry))
         }
 
         [command, input, mountpoint] if command.to_string_lossy() == "mount" => {
@@ -118,8 +118,8 @@ fn main() -> Result<(), RetromountError> {
         {
             let input = PathBuf::from(input);
             let mountpoint = PathBuf::from(mountpoint);
-            let presenter_name = parse_presenter_name(view)?;
-            run_mount_command(&input, &mountpoint, &presenter_name)
+            let presentation_name = parse_presentation_name(view)?;
+            run_mount_command(&input, &mountpoint, &presentation_name)
         }
         [command, input, mountpoint, plugin_flag, plugin_dir]
             if command.to_string_lossy() == "mount"
@@ -138,13 +138,13 @@ fn main() -> Result<(), RetromountError> {
         {
             let input = PathBuf::from(input);
             let mountpoint = PathBuf::from(mountpoint);
-            let presenter_name = parse_presenter_name(view)?;
+            let presentation_name = parse_presentation_name(view)?;
             let plugin_dir = PathBuf::from(plugin_dir);
             let plugin_registry = load_plugin_registry(&plugin_dir)?;
             run_mount_command_with_plugins(
                 &input,
                 &mountpoint,
-                &presenter_name,
+                &presentation_name,
                 Some(&plugin_registry),
             )
         }
@@ -156,16 +156,15 @@ fn main() -> Result<(), RetromountError> {
     }
 }
 
-fn parse_presenter_name(value: &std::ffi::OsStr) -> Result<String, RetromountError> {
+fn parse_presentation_name(value: &std::ffi::OsStr) -> Result<String, RetromountError> {
     let value = value.to_string_lossy().to_string();
-    let registry = default_presenter_registry();
 
-    if registry.get(&value).is_some() {
+    if build_presentation_spec(&value).is_ok() {
         Ok(value)
     } else {
         Err(RetromountError::LoadError(format!(
             "unsupported view '{value}'; expected one of: {}",
-            registry.names().join(", ")
+            built_in_presentation_names().join(", ")
         )))
     }
 }
@@ -180,21 +179,21 @@ fn run_configured_views() -> Result<(), RetromountError> {
     info!("Loaded {} view(s) from config", config.len());
 
     for view in &config {
-        let presenter_name = view.presenter.as_deref().unwrap_or("grouped");
+        let presentation_name = view.presenter.as_deref().unwrap_or("grouped");
 
         info!("View: {}", view.name);
         info!("  Source: {}", view.source.display());
         info!("  Mount: {}", view.mount.display());
-        info!("  Presenter: {}", presenter_name);
+        info!("  Presentation: {}", presentation_name);
 
-        let components = pipeline_components(presenter_name)?;
+        let components = pipeline_components(presentation_name)?;
         let source = build_input_source(&view.source)?;
 
-        let trace = run_pipeline_with_options(
+        let trace = run_pipeline_with_presentation_options(
             source.as_ref(),
             components.identifier.as_ref(),
             components.decoder.as_ref(),
-            components.presenter.as_ref(),
+            &components.presentation,
             &components.policy,
             &pipeline_options_for_view(view),
         )

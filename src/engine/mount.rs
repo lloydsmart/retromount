@@ -2,8 +2,10 @@ use std::path::Path;
 
 use log::info;
 
-use crate::engine::components::pipeline_components_for_presenter;
-use crate::engine::pipeline::{run_pipeline, run_pipeline_with_options, PipelineOptions};
+use crate::engine::components::pipeline_components_for_presentation;
+use crate::engine::pipeline::{
+    run_pipeline_with_presentation, run_pipeline_with_presentation_options, PipelineOptions,
+};
 use crate::engine::preview::build_input_source;
 use crate::error::RetromountError;
 use crate::input::decode::InputDecoder;
@@ -11,7 +13,6 @@ use crate::input::identify::InputIdentifier;
 use crate::input::source::InputSource;
 use crate::mount::session::MountSession;
 use crate::output::plugin_registry::PluginRegistry;
-use crate::output::present::OutputPresenter;
 use crate::policy::PolicySet;
 
 #[cfg(target_os = "linux")]
@@ -22,18 +23,18 @@ use crate::mount::fuse_fs::RetromountFuseFs;
 pub fn run_mount_command(
     input: &Path,
     mountpoint: &Path,
-    presenter_name: &str,
+    presentation_name: &str,
 ) -> Result<(), RetromountError> {
-    run_mount_command_with_plugins(input, mountpoint, presenter_name, None)
+    run_mount_command_with_plugins(input, mountpoint, presentation_name, None)
 }
 
 pub fn run_mount_command_with_plugins(
     input: &Path,
     mountpoint: &Path,
-    presenter_name: &str,
+    presentation_name: &str,
     plugin_registry: Option<&PluginRegistry>,
 ) -> Result<(), RetromountError> {
-    let session = prepare_mount_session_with_plugins(input, presenter_name, plugin_registry)?;
+    let session = prepare_mount_session_with_plugins(input, presentation_name, plugin_registry)?;
     let root_children = session
         .children(session.root_inode())
         .map(|children| children.len())
@@ -41,7 +42,7 @@ pub fn run_mount_command_with_plugins(
 
     info!("Prepared mount input: {}", input.display());
     info!("Prepared mountpoint: {}", mountpoint.display());
-    info!("Presenter view: {}", presenter_name);
+    info!("Presentation view: {}", presentation_name);
     info!("Indexed VFS nodes: {}", session.node_count());
     info!("Root inode: {}", session.root_inode());
     info!("Root child entries: {}", root_children);
@@ -51,44 +52,44 @@ pub fn run_mount_command_with_plugins(
 
 pub fn prepare_mount_session(
     input: &Path,
-    presenter_name: &str,
+    presentation_name: &str,
 ) -> Result<MountSession, RetromountError> {
-    prepare_mount_session_with_plugins(input, presenter_name, None)
+    prepare_mount_session_with_plugins(input, presentation_name, None)
 }
 
 pub fn prepare_mount_session_with_plugins(
     input: &Path,
-    presenter_name: &str,
+    presentation_name: &str,
     plugin_registry: Option<&PluginRegistry>,
 ) -> Result<MountSession, RetromountError> {
     let source = build_input_source(input)?;
-    let components = pipeline_components_for_presenter(presenter_name)?;
+    let components = pipeline_components_for_presentation(presentation_name)?;
 
-    prepare_mount_session_from_pipeline(
+    prepare_mount_session_from_presentation(
         source.as_ref(),
         components.identifier.as_ref(),
         components.decoder.as_ref(),
-        components.presenter.as_ref(),
+        &components.presentation,
         &components.policy,
         plugin_registry,
     )
 }
 
-pub fn prepare_mount_session_from_pipeline(
+pub fn prepare_mount_session_from_presentation(
     source: &dyn InputSource,
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
-    presenter: &dyn OutputPresenter,
+    presentation: &crate::output::presentation_spec::PresentationSpec,
     policy: &PolicySet,
     plugin_registry: Option<&PluginRegistry>,
 ) -> Result<MountSession, RetromountError> {
     let root = match plugin_registry {
         Some(plugin_registry) => {
-            run_pipeline_with_options(
+            run_pipeline_with_presentation_options(
                 source,
                 identifier,
                 decoder,
-                presenter,
+                presentation,
                 policy,
                 &PipelineOptions {
                     normalization: Default::default(),
@@ -98,7 +99,7 @@ pub fn prepare_mount_session_from_pipeline(
             .map_err(|err| RetromountError::LoadError(err.to_string()))?
             .output_vfs
         }
-        None => run_pipeline(source, identifier, decoder, presenter, policy)
+        None => run_pipeline_with_presentation(source, identifier, decoder, presentation, policy)
             .map_err(|err| RetromountError::LoadError(err.to_string()))?,
     };
 
