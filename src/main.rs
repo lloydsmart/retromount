@@ -6,11 +6,11 @@ use retromount::core::content::{
 };
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
-use retromount::engine::bootstrap::default_presenter_registry;
+use retromount::engine::bootstrap::{build_presentation_spec, built_in_presentation_names};
 use retromount::engine::components::pipeline_components;
 use retromount::engine::inspect::{run_phase3_inspect, run_phase3_inspect_with_plugins};
 use retromount::engine::mount::{run_mount_command, run_mount_command_with_plugins};
-use retromount::engine::pipeline::{run_pipeline_with_options, PipelineOptions};
+use retromount::engine::pipeline::{run_pipeline_with_presentation_options, PipelineOptions};
 use retromount::engine::plugins::load_plugin_registry;
 use retromount::engine::preview::{
     build_input_source, run_phase3_preview, run_phase3_preview_with_plugins, write_vfs_tree,
@@ -158,14 +158,13 @@ fn main() -> Result<(), RetromountError> {
 
 fn parse_presenter_name(value: &std::ffi::OsStr) -> Result<String, RetromountError> {
     let value = value.to_string_lossy().to_string();
-    let registry = default_presenter_registry();
 
-    if registry.get(&value).is_some() {
+    if build_presentation_spec(&value).is_ok() {
         Ok(value)
     } else {
         Err(RetromountError::LoadError(format!(
             "unsupported view '{value}'; expected one of: {}",
-            registry.names().join(", ")
+            built_in_presentation_names().join(", ")
         )))
     }
 }
@@ -190,11 +189,11 @@ fn run_configured_views() -> Result<(), RetromountError> {
         let components = pipeline_components(presenter_name)?;
         let source = build_input_source(&view.source)?;
 
-        let trace = run_pipeline_with_options(
+        let trace = run_pipeline_with_presentation_options(
             source.as_ref(),
             components.identifier.as_ref(),
             components.decoder.as_ref(),
-            components.presenter.as_ref(),
+            &components.presentation,
             &components.policy,
             &pipeline_options_for_view(view),
         )

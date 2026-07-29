@@ -3,7 +3,10 @@ use std::path::Path;
 use log::info;
 
 use crate::engine::components::pipeline_components_for_presenter;
-use crate::engine::pipeline::{run_pipeline, run_pipeline_with_options, PipelineOptions};
+use crate::engine::pipeline::{
+    run_pipeline, run_pipeline_with_options, run_pipeline_with_presentation,
+    run_pipeline_with_presentation_options, PipelineOptions,
+};
 use crate::engine::preview::build_input_source;
 use crate::error::RetromountError;
 use crate::input::decode::InputDecoder;
@@ -64,14 +67,45 @@ pub fn prepare_mount_session_with_plugins(
     let source = build_input_source(input)?;
     let components = pipeline_components_for_presenter(presenter_name)?;
 
-    prepare_mount_session_from_pipeline(
+    prepare_mount_session_from_presentation(
         source.as_ref(),
         components.identifier.as_ref(),
         components.decoder.as_ref(),
-        components.presenter.as_ref(),
+        &components.presentation,
         &components.policy,
         plugin_registry,
     )
+}
+
+fn prepare_mount_session_from_presentation(
+    source: &dyn InputSource,
+    identifier: &dyn InputIdentifier,
+    decoder: &dyn InputDecoder,
+    presentation: &crate::output::presentation_spec::PresentationSpec,
+    policy: &PolicySet,
+    plugin_registry: Option<&PluginRegistry>,
+) -> Result<MountSession, RetromountError> {
+    let root = match plugin_registry {
+        Some(plugin_registry) => {
+            run_pipeline_with_presentation_options(
+                source,
+                identifier,
+                decoder,
+                presentation,
+                policy,
+                &PipelineOptions {
+                    normalization: Default::default(),
+                    plugin_registry: Some(plugin_registry),
+                },
+            )
+            .map_err(|err| RetromountError::LoadError(err.to_string()))?
+            .output_vfs
+        }
+        None => run_pipeline_with_presentation(source, identifier, decoder, presentation, policy)
+            .map_err(|err| RetromountError::LoadError(err.to_string()))?,
+    };
+
+    Ok(MountSession::from_root(&root))
 }
 
 pub fn prepare_mount_session_from_pipeline(
