@@ -167,7 +167,7 @@ Fields:
 | `source`    | Source directory, archive, or disc image                   |
 | `mount`     | Mount point for the virtual filesystem                     |
 | `platform`  | Target platform (e.g. `ps1`, `snes`, `megadrive`)          |
-| `presenter` | Presentation layout (`grouped`, `flat`) (default: `grouped`) |
+| `presenter` | Layout (`grouped`, `flat`; default: `grouped`)             |
 | `encoder`   | File representation strategy (default: `basic`)            |
 
 Platform names are **case-insensitive** and accept friendly aliases.
