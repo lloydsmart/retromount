@@ -4,8 +4,7 @@ use log::info;
 
 use crate::engine::components::pipeline_components_for_presenter;
 use crate::engine::pipeline::{
-    run_pipeline, run_pipeline_with_options, run_pipeline_with_presentation,
-    run_pipeline_with_presentation_options, PipelineOptions,
+    run_pipeline_with_presentation, run_pipeline_with_presentation_options, PipelineOptions,
 };
 use crate::engine::preview::build_input_source;
 use crate::error::RetromountError;
@@ -14,7 +13,6 @@ use crate::input::identify::InputIdentifier;
 use crate::input::source::InputSource;
 use crate::mount::session::MountSession;
 use crate::output::plugin_registry::PluginRegistry;
-use crate::output::present::OutputPresenter;
 use crate::policy::PolicySet;
 
 #[cfg(target_os = "linux")]
@@ -77,7 +75,7 @@ pub fn prepare_mount_session_with_plugins(
     )
 }
 
-fn prepare_mount_session_from_presentation(
+pub fn prepare_mount_session_from_presentation(
     source: &dyn InputSource,
     identifier: &dyn InputIdentifier,
     decoder: &dyn InputDecoder,
@@ -102,37 +100,6 @@ fn prepare_mount_session_from_presentation(
             .output_vfs
         }
         None => run_pipeline_with_presentation(source, identifier, decoder, presentation, policy)
-            .map_err(|err| RetromountError::LoadError(err.to_string()))?,
-    };
-
-    Ok(MountSession::from_root(&root))
-}
-
-pub fn prepare_mount_session_from_pipeline(
-    source: &dyn InputSource,
-    identifier: &dyn InputIdentifier,
-    decoder: &dyn InputDecoder,
-    presenter: &dyn OutputPresenter,
-    policy: &PolicySet,
-    plugin_registry: Option<&PluginRegistry>,
-) -> Result<MountSession, RetromountError> {
-    let root = match plugin_registry {
-        Some(plugin_registry) => {
-            run_pipeline_with_options(
-                source,
-                identifier,
-                decoder,
-                presenter,
-                policy,
-                &PipelineOptions {
-                    normalization: Default::default(),
-                    plugin_registry: Some(plugin_registry),
-                },
-            )
-            .map_err(|err| RetromountError::LoadError(err.to_string()))?
-            .output_vfs
-        }
-        None => run_pipeline(source, identifier, decoder, presenter, policy)
             .map_err(|err| RetromountError::LoadError(err.to_string()))?,
     };
 

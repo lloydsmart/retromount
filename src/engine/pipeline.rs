@@ -11,7 +11,6 @@ use crate::input::source::InputSource;
 use crate::output::materialize::{materialize_plan, materialize_plan_with_plugins};
 use crate::output::plan::PresentationPlan;
 use crate::output::plugin_registry::PluginRegistry;
-use crate::output::present::OutputPresenter;
 use crate::output::presentation_compile::compile_presentation_spec;
 use crate::output::presentation_spec::PresentationSpec;
 use crate::policy::PolicySet;
@@ -36,59 +35,6 @@ pub struct TracedObject {
 pub struct PipelineOptions<'a> {
     pub normalization: NormalizationOptions,
     pub plugin_registry: Option<&'a PluginRegistry>,
-}
-
-pub fn run_pipeline(
-    source: &dyn InputSource,
-    identifier: &dyn InputIdentifier,
-    decoder: &dyn InputDecoder,
-    presenter: &dyn OutputPresenter,
-    policy: &PolicySet,
-) -> Result<VfsDirectory, io::Error> {
-    Ok(run_pipeline_with_options(
-        source,
-        identifier,
-        decoder,
-        presenter,
-        policy,
-        &PipelineOptions::default(),
-    )?
-    .output_vfs)
-}
-
-pub fn run_pipeline_with_trace(
-    source: &dyn InputSource,
-    identifier: &dyn InputIdentifier,
-    decoder: &dyn InputDecoder,
-    presenter: &dyn OutputPresenter,
-    policy: &PolicySet,
-) -> Result<PipelineTrace, io::Error> {
-    run_pipeline_with_options(
-        source,
-        identifier,
-        decoder,
-        presenter,
-        policy,
-        &PipelineOptions::default(),
-    )
-}
-
-pub fn run_pipeline_with_options(
-    source: &dyn InputSource,
-    identifier: &dyn InputIdentifier,
-    decoder: &dyn InputDecoder,
-    presenter: &dyn OutputPresenter,
-    policy: &PolicySet,
-    options: &PipelineOptions<'_>,
-) -> Result<PipelineTrace, io::Error> {
-    run_pipeline_with_plan_builder(
-        source,
-        identifier,
-        decoder,
-        policy,
-        options,
-        |content, policy| presenter.present(content, policy),
-    )
 }
 
 pub fn run_pipeline_with_presentation(
