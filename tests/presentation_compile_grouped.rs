@@ -15,14 +15,41 @@ mod grouped_parity_tests {
     };
     use retromount::policy::{
         default::{DefaultConflictPolicy, DefaultFormattingPolicy, DefaultNamingPolicy},
-        PolicySet,
+        ConflictPolicy, PolicySet,
     };
+
+    struct SuffixConflictPolicy;
+
+    impl ConflictPolicy for SuffixConflictPolicy {
+        fn resolve_name_conflict(&self, proposed: &str, existing: &[String]) -> String {
+            if !existing.iter().any(|name| name == proposed) {
+                return proposed.to_string();
+            }
+
+            let mut suffix = 1;
+            loop {
+                let candidate = format!("{proposed} ({suffix})");
+                if !existing.iter().any(|name| name == &candidate) {
+                    return candidate;
+                }
+                suffix += 1;
+            }
+        }
+    }
 
     fn test_policy() -> PolicySet {
         PolicySet::new(
             Box::new(DefaultNamingPolicy),
             Box::new(DefaultFormattingPolicy),
             Box::new(DefaultConflictPolicy),
+        )
+    }
+
+    fn suffix_conflict_policy() -> PolicySet {
+        PolicySet::new(
+            Box::new(DefaultNamingPolicy),
+            Box::new(DefaultFormattingPolicy),
+            Box::new(SuffixConflictPolicy),
         )
     }
 
@@ -176,6 +203,64 @@ mod grouped_parity_tests {
         ];
 
         let policy = test_policy();
+        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
+        let compiled_plan =
+            compile_presentation_spec(&grouped_spec_for_mixed_content(), &content, &policy);
+
+        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+    }
+
+    #[test]
+    fn duplicate_game_directories_match_grouped_presenter_conflict_handling() {
+        let content = vec![
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("ps1:duplicate-one"),
+                source: SourceRef::new("file:/roms/duplicate-one.bin"),
+                title: "Duplicate Game".to_string(),
+                platform: Platform::Ps1,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("file:/roms/duplicate-one.bin"),
+                    size: 100,
+                })],
+                consumed_sources: vec![],
+            }),
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("ps1:duplicate-two"),
+                source: SourceRef::new("file:/roms/duplicate-two.bin"),
+                title: "Duplicate Game".to_string(),
+                platform: Platform::Ps1,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("file:/roms/duplicate-two.bin"),
+                    size: 200,
+                })],
+                consumed_sources: vec![],
+            }),
+        ];
+
+        let policy = suffix_conflict_policy();
+        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
+        let compiled_plan =
+            compile_presentation_spec(&grouped_spec_for_mixed_content(), &content, &policy);
+
+        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+    }
+
+    #[test]
+    fn colliding_preserved_path_files_match_grouped_presenter_conflict_handling() {
+        let content = vec![
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("firmware/primary"),
+                source: SourceRef::new("file:/roms/primary/bios"),
+                size: 512,
+            }),
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new("firmware/backup"),
+                source: SourceRef::new("file:/roms/backup/bios"),
+                size: 512,
+            }),
+        ];
+
+        let policy = suffix_conflict_policy();
         let presenter_plan = GroupedPresenter::new().present(&content, &policy);
         let compiled_plan =
             compile_presentation_spec(&grouped_spec_for_mixed_content(), &content, &policy);
