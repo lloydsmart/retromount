@@ -88,13 +88,18 @@ Retromount is under active development and progressing through a structured road
 * Phase 4B — Consumer views (multiple presenters)
 * Phase 4C — Naming and conflict resolution policies
 * Phase 4D — Extensibility and configuration layer
+* Phase 5 — Runtime encoder plugin architecture
+* Phase 6 — Declarative presentation specifications
 
 ### In Progress
 
+* First practical consumer target — PS2/OPL
+
 ### Planned
 
-* Phase 5 — Advanced encoders and external integrations (e.g. torrent compatibility)
-* Phase 6 — Performance, caching, and optimisation
+* PS2/OPL presentation backed by CHD-to-ISO
+* Advanced encoders and external integrations (e.g. torrent compatibility)
+* Phase 7 — Performance, caching, and optimisation
 
 ---
 
@@ -162,7 +167,7 @@ Fields:
 | `source`    | Source directory, archive, or disc image                   |
 | `mount`     | Mount point for the virtual filesystem                     |
 | `platform`  | Target platform (e.g. `ps1`, `snes`, `megadrive`)          |
-| `presenter` | Filesystem layout (`grouped`, `flat`) (default: `grouped`) |
+| `presenter` | Presentation layout (`grouped`, `flat`) (default: `grouped`) |
 | `encoder`   | File representation strategy (default: `basic`)            |
 
 Platform names are **case-insensitive** and accept friendly aliases.
@@ -173,12 +178,12 @@ Platform names are **case-insensitive** and accept friendly aliases.
 
 Each configured view is composed of:
 
-* a **presenter** (defines filesystem structure)
+* a **presentation specification** (defines filesystem structure and artifacts)
 * an **encoder** (defines file representation)
 
 If not specified:
 
-* `presenter` defaults to `grouped`
+* the legacy `presenter` config field selects a presentation and defaults to `grouped`
 * `encoder` defaults to `basic`
 
 This allows different views to present the same underlying data in different layouts without duplicating files.
@@ -187,25 +192,31 @@ This allows different views to present the same underlying data in different lay
 
 ## Architecture Overview
 
-The ingestion pipeline currently looks like this:
+The processing pipeline is:
 
 ```text
 Input Source
      │
      ▼
-InputHandler
+Identify
      │
      ▼
-InputRegistry
+Decode
      │
      ▼
-Loader
+Normalize
      │
- ┌───┴───────────────┐
- │                   │
- ▼                   ▼
-VirtualFile list     GameImage
-(file-oriented)      (disc-oriented)
+     ▼
+Compile PresentationSpec
+     │
+     ▼
+PresentationPlan
+     │
+     ▼
+Resolve + Materialize Encoders
+     │
+     ▼
+VFS
 ```
 
 ### Input handlers
@@ -265,9 +276,18 @@ Output-specific filtering will be implemented in the **view/output layer** in a 
 ### Phase 4 (completed)
 
 * Mountable virtual filesystem (FUSE)
-* Multiple consumer views (presenters)
+* Multiple consumer views
 * Presentation policies (naming, conflict resolution)
-* Explicit, configurable composition of presenters and encoders
+* Explicit, configurable presentation and encoder composition
+
+### Phase 6 (integration)
+
+* Declarative `PresentationSpec` model
+* Generic presentation compiler
+* Flat and grouped layout parity
+* Multi-disc playlists and preserved relative paths
+* Spec-native preview, inspect, mount, and plugin execution
+* Legacy presenter implementations retired
 
 ---
 

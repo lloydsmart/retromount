@@ -2,7 +2,7 @@ use std::path::Path;
 
 use log::info;
 
-use crate::engine::components::pipeline_components_for_presenter;
+use crate::engine::components::pipeline_components_for_presentation;
 use crate::engine::pipeline::{
     run_pipeline_with_presentation, run_pipeline_with_presentation_options, PipelineOptions,
 };
@@ -23,18 +23,18 @@ use crate::mount::fuse_fs::RetromountFuseFs;
 pub fn run_mount_command(
     input: &Path,
     mountpoint: &Path,
-    presenter_name: &str,
+    presentation_name: &str,
 ) -> Result<(), RetromountError> {
-    run_mount_command_with_plugins(input, mountpoint, presenter_name, None)
+    run_mount_command_with_plugins(input, mountpoint, presentation_name, None)
 }
 
 pub fn run_mount_command_with_plugins(
     input: &Path,
     mountpoint: &Path,
-    presenter_name: &str,
+    presentation_name: &str,
     plugin_registry: Option<&PluginRegistry>,
 ) -> Result<(), RetromountError> {
-    let session = prepare_mount_session_with_plugins(input, presenter_name, plugin_registry)?;
+    let session = prepare_mount_session_with_plugins(input, presentation_name, plugin_registry)?;
     let root_children = session
         .children(session.root_inode())
         .map(|children| children.len())
@@ -42,7 +42,7 @@ pub fn run_mount_command_with_plugins(
 
     info!("Prepared mount input: {}", input.display());
     info!("Prepared mountpoint: {}", mountpoint.display());
-    info!("Presenter view: {}", presenter_name);
+    info!("Presentation view: {}", presentation_name);
     info!("Indexed VFS nodes: {}", session.node_count());
     info!("Root inode: {}", session.root_inode());
     info!("Root child entries: {}", root_children);
@@ -52,18 +52,18 @@ pub fn run_mount_command_with_plugins(
 
 pub fn prepare_mount_session(
     input: &Path,
-    presenter_name: &str,
+    presentation_name: &str,
 ) -> Result<MountSession, RetromountError> {
-    prepare_mount_session_with_plugins(input, presenter_name, None)
+    prepare_mount_session_with_plugins(input, presentation_name, None)
 }
 
 pub fn prepare_mount_session_with_plugins(
     input: &Path,
-    presenter_name: &str,
+    presentation_name: &str,
     plugin_registry: Option<&PluginRegistry>,
 ) -> Result<MountSession, RetromountError> {
     let source = build_input_source(input)?;
-    let components = pipeline_components_for_presenter(presenter_name)?;
+    let components = pipeline_components_for_presentation(presentation_name)?;
 
     prepare_mount_session_from_presentation(
         source.as_ref(),
