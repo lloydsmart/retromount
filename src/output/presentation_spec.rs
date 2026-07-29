@@ -52,6 +52,9 @@ pub enum SelectSpec {
     /// Match games with exactly one disc part.
     SingleDiscGames,
 
+    /// Match games consisting entirely of multiple disc parts.
+    MultiDiscGames,
+
     /// Match games with exactly one ROM part.
     SingleRomGames,
 
@@ -69,6 +72,9 @@ pub enum NamingSpec {
 
     /// Use the policy-derived part name for a single-part game.
     PartName,
+
+    /// Use the policy-derived playlist name for a game.
+    PlaylistName,
 
     /// Use a source-derived/content-derived name.
     SourceName,

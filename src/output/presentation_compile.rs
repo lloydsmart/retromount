@@ -1,10 +1,11 @@
 use crate::core::content::{ContentMeta, GameContent, GamePart, NormalizedContent};
 use crate::core::source::SourceRef;
-use crate::output::capabilities::{CapabilityRequirements, Format};
+use crate::output::capabilities::{CapabilityRequirements, ContentType, Format};
 use crate::output::plan::{
-    ArtifactId, ArtifactRequest, PlanDirectory, PlanEntry, PlanFile, PlannedArtifactKind,
-    PresentationPlan, SourceArtifact,
+    ArtifactId, ArtifactReference, ArtifactRequest, GeneratedArtifact, PlanDirectory, PlanEntry,
+    PlanFile, PlannedArtifactKind, PlaylistArtifact, PresentationPlan, SourceArtifact,
 };
+use crate::output::presentation_expansion::{is_multi_disc_game, sorted_disc_parts};
 use crate::output::presentation_spec::{
     ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
 };
@@ -17,7 +18,7 @@ use crate::policy::PolicySet;
 /// - supports flat layout and a minimal grouped layout
 /// - emits files and simple directories only
 /// - supports single-source artifacts only
-/// - does not yet handle playlists or generated artifacts
+/// - supports generated playlists for multi-disc games
 pub fn compile_presentation_spec(
     spec: &PresentationSpec,
     content: &[NormalizedContent],
@@ -40,7 +41,7 @@ fn compile_flat(
     let mut root_names = Vec::new();
 
     for item in content {
-        if let Some(file) = compile_item(spec, item, policy, &mut root_names) {
+        for file in compile_item(spec, item, policy, &mut root_names) {
             entries.push(PlanEntry::File(file));
         }
     }
@@ -60,14 +61,18 @@ fn compile_grouped_by_platform_and_game(
             continue;
         };
 
-        let Some(file) = compile_item_to_file(spec, item, policy) else {
+        let files = compile_item_to_files(spec, item, policy);
+        if files.is_empty() {
             continue;
-        };
+        }
 
         let platform_name = policy.format_name(&policy.naming().platform_name(&game.platform));
         let game_dir_name = policy.format_name(&policy.naming().game_name(game));
 
-        let game_dir = PlanDirectory::new(game_dir_name, vec![PlanEntry::File(file)]);
+        let game_dir = PlanDirectory::new(
+            game_dir_name,
+            files.into_iter().map(PlanEntry::File).collect(),
+        );
         let platform_dir = PlanDirectory::new(platform_name, vec![PlanEntry::Directory(game_dir)]);
 
         root_entries.push(PlanEntry::Directory(platform_dir));
@@ -81,30 +86,23 @@ fn compile_item(
     item: &NormalizedContent,
     policy: &PolicySet,
     root_names: &mut Vec<String>,
-) -> Option<PlanFile> {
+) -> Vec<PlanFile> {
+    let mut files = Vec::new();
+
     for rule in &spec.files {
-        if let Some(file) = try_compile_rule(rule, item, policy, root_names) {
-            return Some(file);
-        }
+        files.extend(try_compile_rule(rule, item, policy, root_names));
     }
 
-    None
+    files
 }
 
-fn compile_item_to_file(
+fn compile_item_to_files(
     spec: &PresentationSpec,
     item: &NormalizedContent,
     policy: &PolicySet,
-) -> Option<PlanFile> {
+) -> Vec<PlanFile> {
     let mut names = Vec::new();
-
-    for rule in &spec.files {
-        if let Some(file) = try_compile_rule(rule, item, policy, &mut names) {
-            return Some(file);
-        }
-    }
-
-    None
+    compile_item(spec, item, policy, &mut names)
 }
 
 fn try_compile_rule(
@@ -112,16 +110,27 @@ fn try_compile_rule(
     item: &NormalizedContent,
     policy: &PolicySet,
     root_names: &mut Vec<String>,
-) -> Option<PlanFile> {
+) -> Vec<PlanFile> {
+    if rule.select == SelectSpec::MultiDiscGames {
+        return try_compile_multi_disc_rule(rule, item, policy, root_names);
+    }
+
     let match_result = match rule.select {
         SelectSpec::Games => match_game(item),
         SelectSpec::SingleDiscGames => match_single_disc_game(item),
+        SelectSpec::MultiDiscGames => unreachable!("handled above"),
         SelectSpec::SingleRomGames => match_single_rom_game(item),
         SelectSpec::Bytes => match_bytes(item),
         SelectSpec::Text => match_text(item),
-    }?;
+    };
 
-    let proposed_name = build_name(&rule.naming, item, &rule.artifact, policy)?;
+    let Some(match_result) = match_result else {
+        return Vec::new();
+    };
+
+    let Some(proposed_name) = build_name(&rule.naming, item, &rule.artifact, policy) else {
+        return Vec::new();
+    };
     let proposed_name = apply_extension(proposed_name, rule.artifact.format);
     let allocated_name = policy.resolve_name_conflict(&proposed_name, root_names);
     root_names.push(allocated_name.clone());
@@ -135,7 +144,83 @@ fn try_compile_rule(
         build_requirements(&rule.artifact),
     );
 
-    Some(PlanFile::new(allocated_name, artifact))
+    vec![PlanFile::new(allocated_name, artifact)]
+}
+
+fn try_compile_multi_disc_rule(
+    rule: &FileRuleSpec,
+    item: &NormalizedContent,
+    policy: &PolicySet,
+    names: &mut Vec<String>,
+) -> Vec<PlanFile> {
+    let NormalizedContent::Game(game) = item else {
+        return Vec::new();
+    };
+
+    if !is_multi_disc_game(game) {
+        return Vec::new();
+    }
+
+    match rule.artifact.content_type {
+        ContentType::Disc => sorted_disc_parts(game)
+            .into_iter()
+            .filter_map(|disc| {
+                let proposed_name = match &rule.naming {
+                    NamingSpec::PartName => policy
+                        .naming()
+                        .part_name(game, &GamePart::Disc(disc.clone())),
+                    _ => build_name(&rule.naming, item, &rule.artifact, policy)?,
+                };
+                let proposed_name = apply_extension(proposed_name, rule.artifact.format);
+                let allocated_name = policy.resolve_name_conflict(&proposed_name, names);
+                names.push(allocated_name.clone());
+
+                let artifact_id =
+                    ArtifactId::new(format!("game:{}:disc:{}", game.id, disc.disc_number));
+                Some(PlanFile::new(
+                    allocated_name,
+                    ArtifactRequest::new(
+                        artifact_id,
+                        PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                            disc.source.clone(),
+                            0,
+                        )),
+                        build_requirements(&rule.artifact),
+                    ),
+                ))
+            })
+            .collect(),
+        ContentType::Playlist => {
+            let Some(proposed_name) = build_name(&rule.naming, item, &rule.artifact, policy) else {
+                return Vec::new();
+            };
+            let proposed_name = apply_extension(proposed_name, rule.artifact.format);
+            let allocated_name = policy.resolve_name_conflict(&proposed_name, names);
+            names.push(allocated_name.clone());
+
+            let references = sorted_disc_parts(game)
+                .into_iter()
+                .map(|disc| {
+                    ArtifactReference::new(ArtifactId::new(format!(
+                        "game:{}:disc:{}",
+                        game.id, disc.disc_number
+                    )))
+                })
+                .collect();
+
+            vec![PlanFile::new(
+                allocated_name,
+                ArtifactRequest::new(
+                    ArtifactId::new(format!("game:{}:playlist", game.id)),
+                    PlannedArtifactKind::Generated(GeneratedArtifact::Playlist(
+                        PlaylistArtifact::new(references),
+                    )),
+                    build_requirements(&rule.artifact),
+                ),
+            )]
+        }
+        _ => Vec::new(),
+    }
 }
 
 struct SourceMatch {
@@ -218,8 +303,16 @@ fn build_name(
     match naming {
         NamingSpec::GameTitle => game_title(item),
         NamingSpec::PartName => part_name(item, policy),
+        NamingSpec::PlaylistName => playlist_name(item, policy),
         NamingSpec::SourceName => source_name(item, artifact),
         NamingSpec::Literal(value) => Some(value.clone()),
+    }
+}
+
+fn playlist_name(item: &NormalizedContent, policy: &PolicySet) -> Option<String> {
+    match item {
+        NormalizedContent::Game(game) => Some(policy.naming().playlist_name(game)),
+        _ => None,
     }
 }
 
@@ -313,10 +406,13 @@ fn build_artifact_id(select: &SelectSpec, item: &NormalizedContent) -> ArtifactI
             ArtifactId::new(format!("game:{}", game.id))
         }
         (SelectSpec::SingleDiscGames, NormalizedContent::Game(game)) => {
-            ArtifactId::new(format!("game:{}:disc", game.id))
+            ArtifactId::new(format!("game:{}", game.id))
+        }
+        (SelectSpec::MultiDiscGames, NormalizedContent::Game(game)) => {
+            ArtifactId::new(format!("game:{}", game.id))
         }
         (SelectSpec::SingleRomGames, NormalizedContent::Game(game)) => {
-            ArtifactId::new(format!("game:{}:rom", game.id))
+            ArtifactId::new(format!("game:{}", game.id))
         }
         (SelectSpec::Bytes, NormalizedContent::Bytes(bytes)) => {
             ArtifactId::new(format!("bytes:{}", bytes.id))

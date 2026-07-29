@@ -36,6 +36,24 @@ mod grouped_parity_tests {
         )
     }
 
+    fn grouped_spec_for_multi_disc() -> PresentationSpec {
+        PresentationSpec::new(
+            LayoutSpec::GroupedByPlatformAndGame,
+            vec![
+                FileRuleSpec::new(
+                    SelectSpec::MultiDiscGames,
+                    NamingSpec::PartName,
+                    ArtifactSpec::new(ContentType::Disc).with_format(Format::Bin),
+                ),
+                FileRuleSpec::new(
+                    SelectSpec::MultiDiscGames,
+                    NamingSpec::PlaylistName,
+                    ArtifactSpec::new(ContentType::Playlist).with_format(Format::M3u),
+                ),
+            ],
+        )
+    }
+
     #[test]
     fn single_disc_game_matches_grouped_presenter() {
         let content = vec![NormalizedContent::Game(GameContent {
@@ -61,6 +79,36 @@ mod grouped_parity_tests {
         assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
     }
 
+    #[test]
+    fn multi_disc_game_with_playlist_matches_grouped_presenter() {
+        let content = vec![NormalizedContent::Game(GameContent {
+            id: ContentId::new("ps1:final-fantasy-vii"),
+            source: SourceRef::new("file:/roms/Final Fantasy VII (Disc 1).cue"),
+            title: "Final Fantasy VII".to_string(),
+            platform: Platform::Ps1,
+            parts: vec![
+                GamePart::Disc(DiscPart {
+                    source: SourceRef::new("file:/roms/Final Fantasy VII (Disc 2).cue"),
+                    disc_number: 2,
+                    consumed_sources: vec![],
+                }),
+                GamePart::Disc(DiscPart {
+                    source: SourceRef::new("file:/roms/Final Fantasy VII (Disc 1).cue"),
+                    disc_number: 1,
+                    consumed_sources: vec![],
+                }),
+            ],
+            consumed_sources: vec![],
+        })];
+
+        let policy = test_policy();
+        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
+        let compiled_plan =
+            compile_presentation_spec(&grouped_spec_for_multi_disc(), &content, &policy);
+
+        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+    }
+
     fn assert_grouped_plan_equivalent(expected: &PresentationPlan, actual: &PresentationPlan) {
         assert_eq!(expected.entries.len(), actual.entries.len());
 
@@ -76,14 +124,7 @@ mod grouped_parity_tests {
             }
             (PlanEntry::File(expected_file), PlanEntry::File(actual_file)) => {
                 assert_eq!(expected_file.name, actual_file.name);
-                assert_eq!(
-                    expected_file.artifact.requirements.content_type,
-                    actual_file.artifact.requirements.content_type
-                );
-                assert_eq!(
-                    expected_file.artifact.requirements.format,
-                    actual_file.artifact.requirements.format
-                );
+                assert_eq!(expected_file.artifact, actual_file.artifact);
             }
             _ => panic!("expected matching entry kinds"),
         }
