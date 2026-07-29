@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod grouped_parity_tests {
     use retromount::core::content::{
-        ContentId, DiscPart, GameContent, GamePart, NormalizedContent, Platform,
+        BytesContent, ContentId, DiscPart, GameContent, GamePart, NormalizedContent, Platform,
+        RomPart, TextContent,
     };
     use retromount::core::source::SourceRef;
     use retromount::output::capabilities::{ContentType, Format};
@@ -49,6 +50,34 @@ mod grouped_parity_tests {
                     SelectSpec::MultiDiscGames,
                     NamingSpec::PlaylistName,
                     ArtifactSpec::new(ContentType::Playlist).with_format(Format::M3u),
+                ),
+            ],
+        )
+    }
+
+    fn grouped_spec_for_mixed_content() -> PresentationSpec {
+        PresentationSpec::new(
+            LayoutSpec::GroupedByPlatformAndGame,
+            vec![
+                FileRuleSpec::new(
+                    SelectSpec::SingleRomGames,
+                    NamingSpec::PartName,
+                    ArtifactSpec::new(ContentType::Rom).with_format(Format::Bin),
+                ),
+                FileRuleSpec::new(
+                    SelectSpec::SingleDiscGames,
+                    NamingSpec::PartName,
+                    ArtifactSpec::new(ContentType::Disc).with_format(Format::Bin),
+                ),
+                FileRuleSpec::new(
+                    SelectSpec::Bytes,
+                    NamingSpec::SourceName,
+                    ArtifactSpec::new(ContentType::Bytes).with_format(Format::Bin),
+                ),
+                FileRuleSpec::new(
+                    SelectSpec::Text,
+                    NamingSpec::SourceName,
+                    ArtifactSpec::new(ContentType::Text).with_format(Format::Text),
                 ),
             ],
         )
@@ -105,6 +134,51 @@ mod grouped_parity_tests {
         let presenter_plan = GroupedPresenter::new().present(&content, &policy);
         let compiled_plan =
             compile_presentation_spec(&grouped_spec_for_multi_disc(), &content, &policy);
+
+        assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
+    }
+
+    #[test]
+    fn mixed_content_with_preserved_paths_matches_grouped_presenter() {
+        let content = vec![
+            NormalizedContent::Bytes(BytesContent {
+                id: ContentId::new(r"firmware\ps1\bios"),
+                source: SourceRef::new("file:/roms/firmware/ps1/scph1001"),
+                size: 512,
+            }),
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("megadrive:sonic"),
+                source: SourceRef::new("file:/roms/megadrive/sonic.bin"),
+                title: "Sonic the Hedgehog".to_string(),
+                platform: Platform::Megadrive,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("file:/roms/megadrive/sonic.bin"),
+                    size: 1024,
+                })],
+                consumed_sources: vec![],
+            }),
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new("megadrive:streets-of-rage"),
+                source: SourceRef::new("file:/roms/megadrive/streets-of-rage.bin"),
+                title: "Streets of Rage".to_string(),
+                platform: Platform::Megadrive,
+                parts: vec![GamePart::Rom(RomPart {
+                    source: SourceRef::new("file:/roms/megadrive/streets-of-rage.bin"),
+                    size: 2048,
+                })],
+                consumed_sources: vec![],
+            }),
+            NormalizedContent::Text(TextContent {
+                id: ContentId::new("docs/guides/readme"),
+                source: SourceRef::new("file:/roms/docs/guides/readme"),
+                size: 64,
+            }),
+        ];
+
+        let policy = test_policy();
+        let presenter_plan = GroupedPresenter::new().present(&content, &policy);
+        let compiled_plan =
+            compile_presentation_spec(&grouped_spec_for_mixed_content(), &content, &policy);
 
         assert_grouped_plan_equivalent(&presenter_plan, &compiled_plan);
     }

@@ -54,31 +54,37 @@ fn compile_grouped_by_platform_and_game(
     content: &[NormalizedContent],
     policy: &PolicySet,
 ) -> PresentationPlan {
-    let mut root_entries = Vec::new();
+    let mut root = PlanDirectory::new("", Vec::new());
 
     for item in content {
-        let NormalizedContent::Game(game) = item else {
-            continue;
-        };
+        match item {
+            NormalizedContent::Game(game) => {
+                let platform_name =
+                    policy.format_name(&policy.naming().platform_name(&game.platform));
+                let game_dir_name = policy.format_name(&policy.naming().game_name(game));
 
-        let files = compile_item_to_files(spec, item, policy);
-        if files.is_empty() {
-            continue;
+                let platform_dir = ensure_directory(&mut root, &[platform_name], policy);
+                let game_dir =
+                    ensure_distinct_child_directory(platform_dir, &game_dir_name, policy);
+                let mut names = child_names(game_dir);
+
+                for file in compile_item(spec, item, policy, &mut names) {
+                    game_dir.entries.push(PlanEntry::File(file));
+                }
+            }
+            NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
+                let (parents, _) = split_parent_dirs(&item.id().to_string());
+                let directory = ensure_directory(&mut root, &parents, policy);
+                let mut names = child_names(directory);
+
+                for file in compile_item(spec, item, policy, &mut names) {
+                    directory.entries.push(PlanEntry::File(file));
+                }
+            }
         }
-
-        let platform_name = policy.format_name(&policy.naming().platform_name(&game.platform));
-        let game_dir_name = policy.format_name(&policy.naming().game_name(game));
-
-        let game_dir = PlanDirectory::new(
-            game_dir_name,
-            files.into_iter().map(PlanEntry::File).collect(),
-        );
-        let platform_dir = PlanDirectory::new(platform_name, vec![PlanEntry::Directory(game_dir)]);
-
-        root_entries.push(PlanEntry::Directory(platform_dir));
     }
 
-    PresentationPlan::new(root_entries)
+    PresentationPlan::new(root.entries)
 }
 
 fn compile_item(
@@ -94,15 +100,6 @@ fn compile_item(
     }
 
     files
-}
-
-fn compile_item_to_files(
-    spec: &PresentationSpec,
-    item: &NormalizedContent,
-    policy: &PolicySet,
-) -> Vec<PlanFile> {
-    let mut names = Vec::new();
-    compile_item(spec, item, policy, &mut names)
 }
 
 fn try_compile_rule(
@@ -221,6 +218,96 @@ fn try_compile_multi_disc_rule(
         }
         _ => Vec::new(),
     }
+}
+
+fn normalize_path(path: &str) -> String {
+    path.replace('\\', "/").trim_matches('/').to_string()
+}
+
+fn split_parent_dirs(path: &str) -> (Vec<String>, String) {
+    let normalized = normalize_path(path);
+
+    match normalized.rsplit_once('/') {
+        Some((parent, file_name)) => (
+            parent
+                .split('/')
+                .filter(|segment| !segment.is_empty())
+                .map(str::to_string)
+                .collect(),
+            file_name.to_string(),
+        ),
+        None => (Vec::new(), normalized),
+    }
+}
+
+fn ensure_directory<'a>(
+    root: &'a mut PlanDirectory,
+    parents: &[String],
+    policy: &PolicySet,
+) -> &'a mut PlanDirectory {
+    let mut current = root;
+
+    for segment in parents {
+        let existing_index = current
+            .entries
+            .iter()
+            .position(|entry| matches!(entry, PlanEntry::Directory(dir) if dir.name == *segment));
+
+        let index = match existing_index {
+            Some(index) => index,
+            None => {
+                let resolved_name = policy.resolve_name_conflict(segment, &child_names(current));
+                current
+                    .entries
+                    .push(PlanEntry::Directory(PlanDirectory::new(
+                        &resolved_name,
+                        Vec::new(),
+                    )));
+                current
+                    .entries
+                    .iter()
+                    .position(
+                        |entry| matches!(entry, PlanEntry::Directory(dir) if dir.name == resolved_name),
+                    )
+                    .expect("inserted directory should be present")
+            }
+        };
+
+        current = match current.entries.get_mut(index) {
+            Some(PlanEntry::Directory(directory)) => directory,
+            _ => unreachable!("directory entry should be a directory"),
+        };
+    }
+
+    current
+}
+
+fn ensure_distinct_child_directory<'a>(
+    parent: &'a mut PlanDirectory,
+    proposed: &str,
+    policy: &PolicySet,
+) -> &'a mut PlanDirectory {
+    let resolved_name = policy.resolve_name_conflict(proposed, &child_names(parent));
+    parent.entries.push(PlanEntry::Directory(PlanDirectory::new(
+        &resolved_name,
+        Vec::new(),
+    )));
+
+    match parent.entries.last_mut() {
+        Some(PlanEntry::Directory(directory)) => directory,
+        _ => unreachable!("inserted child should be a directory"),
+    }
+}
+
+fn child_names(directory: &PlanDirectory) -> Vec<String> {
+    directory
+        .entries
+        .iter()
+        .map(|entry| match entry {
+            PlanEntry::Directory(directory) => directory.name.clone(),
+            PlanEntry::File(file) => file.name.clone(),
+        })
+        .collect()
 }
 
 struct SourceMatch {
