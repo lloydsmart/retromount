@@ -300,6 +300,25 @@ output artifact:
 
 It must never contain or grow into a complete ISO representation.
 
+## CHD implementation dependency
+
+The initial reader implementation should use the pure-Rust
+[`chd` crate](https://docs.rs/crate/chd/latest) from chd-rs.
+
+The selection is based on the requirements of this design:
+
+* direct indexed hunk access rather than whole-image extraction;
+* CHD v5 codec coverage;
+* metadata iteration for detecting DVD media;
+* no subprocess or C/C++ toolchain requirement;
+* caller-owned decompressed and temporary buffers, allowing RetroMount to
+  enforce bounded memory use.
+
+The dependency is provisional until a synthetic DVD fixture proves metadata
+detection, logical sizing, hunk-boundary reads, and exact byte equivalence. The
+reader should use the direct hunk API rather than the crate's extraction command
+or whole-file adapters.
+
 ## Existing capability assessment
 
 ### What already fits

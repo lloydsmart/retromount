@@ -7,6 +7,7 @@ pub enum InputIdentity {
     Directory,
     Archive,
     DiscImage,
+    ChdDisc,
     Text,
     Unknown,
 }
