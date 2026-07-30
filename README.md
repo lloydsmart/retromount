@@ -90,17 +90,21 @@ Retromount is under active development and progressing through a structured road
 * Phase 4D — Extensibility and configuration layer
 * Phase 5 — Runtime encoder plugin architecture
 * Phase 6 — Declarative presentation specifications
+* First practical consumer target — live PS2 DVD CHD to OPL-compatible ISO
+  presentation
 
 ### In Progress
 
-* First practical consumer target — PS2/OPL; the live CHD-to-logical-ISO path
-  and automated mount-preparation coverage are implemented, with real-image
-  and OPL/SMB validation remaining
+* Optical-media capability expansion — filesystem ISO input is the next
+  vertical slice, followed by revised ZIP input, PS2 CD, and a named PS1
+  presentation
 
 ### Planned
 
+* Additional optical-disc inputs and consumer presentations
+* Performance, caching, and optimisation after representative input and media
+  workloads are available
 * Advanced encoders and external integrations (e.g. torrent compatibility)
-* Phase 7 — Performance, caching, and optimisation
 
 ---
 
