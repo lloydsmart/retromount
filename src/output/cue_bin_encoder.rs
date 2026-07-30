@@ -85,7 +85,7 @@ impl OutputEncoder for CueBinEncoder {
         }
 
         let mut cue = String::new();
-        let mut members = Vec::with_capacity(disc.tracks.len() + 1);
+        let mut members = Vec::with_capacity(disc.tracks.len() + 2);
         for track in &disc.tracks {
             validate_track(track)?;
             let bin_name = format!("{artifact_name} (Track {:02}).bin", track.number);
@@ -131,6 +131,15 @@ impl OutputEncoder for CueBinEncoder {
                 MaterializedArtifact::Inline(cue.into_bytes()),
             ),
         );
+        if let Some(sbi) = &disc.sbi {
+            members.push(MaterializedNamedArtifact::new(
+                format!("{artifact_name}.sbi"),
+                MaterializedArtifact::ReaderBacked {
+                    handle: sbi.content.clone(),
+                    size: sbi.size,
+                },
+            ));
+        }
         Ok(members)
     }
 }

@@ -230,7 +230,7 @@ subchannel-capable output must be specified before this case can be presented.
 
 #### PS1-3: SBI sidecars
 
-**Status:** Planned
+**Status:** Implemented
 
 Resolve and preserve optional source-backed SBI sidecars. Couple the output
 basename to the presented disc basename and reject ambiguous or mismatched
@@ -239,6 +239,13 @@ sidecars.
 Acceptance requires filesystem and supported ZIP-backed sidecars, byte-exact
 live reads, and a DuckStation layout in which the SBI is adjacent to its disc
 entry with the same basename.
+
+The implementation discovers one case-insensitive, same-stem `.sbi` sibling
+for CUE or CHD input, validates its `SBI\0` header and complete type-1 SubQ
+records, and attaches its live content to the canonical CD. Multiple matching
+siblings fail as ambiguous. The DuckStation CUE/BIN artifact set emits the
+sidecar adjacent to the generated CUE using the generated disc basename, and
+the original SBI source is suppressed as consumed input.
 
 #### PS1-4: Multi-disc M3U
 
@@ -320,7 +327,7 @@ presentation.
   or naming cannot be represented.
 * PS2 and unknown CDs do not match the DuckStation rule.
 * Multi-disc support remains deferred from this first implementation.
-* PS1-3 through PS1-7 remain visible as planned work after PS1-2 merges.
+* PS1-4 through PS1-7 remain visible as planned work after PS1-3 merges.
 
 ## Milestone 5: Performance, caching, and optimization
 

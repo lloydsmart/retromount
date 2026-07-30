@@ -8,5 +8,6 @@ pub mod directory_source;
 pub mod file_source;
 pub mod identify;
 pub mod iso_disc_decoder;
+pub mod sbi_sidecar;
 pub mod source;
 pub mod zip_source;

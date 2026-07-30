@@ -23,6 +23,13 @@ pub enum CdSubchannelFormat {
     Raw,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CdSbi {
+    pub source: SourceRef,
+    pub size: u64,
+    pub content: ReaderHandle,
+}
+
 impl CdSectorFormat {
     pub fn encoded_sector_size(self) -> u32 {
         match self {
@@ -86,6 +93,7 @@ impl CdTrack {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CdDisc {
     pub tracks: Vec<CdTrack>,
+    pub sbi: Option<CdSbi>,
 }
 
 impl CdDisc {
@@ -140,16 +148,23 @@ mod tests {
         };
 
         assert!(CdDisc {
-            tracks: vec![data.clone()]
+            tracks: vec![data.clone()],
+            sbi: None,
         }
         .opl_logical_track()
         .is_some());
         assert!(CdDisc {
-            tracks: vec![data.clone(), audio]
+            tracks: vec![data.clone(), audio],
+            sbi: None,
         }
         .opl_logical_track()
         .is_none());
-        assert!(CdDisc { tracks: vec![] }.opl_logical_track().is_none());
+        assert!(CdDisc {
+            tracks: vec![],
+            sbi: None,
+        }
+        .opl_logical_track()
+        .is_none());
     }
 
     #[test]

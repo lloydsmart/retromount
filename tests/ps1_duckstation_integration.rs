@@ -17,6 +17,13 @@ fn mode1_sector(fill: u8) -> Vec<u8> {
     sector
 }
 
+fn sbi_fixture(fill: u8) -> Vec<u8> {
+    let mut sbi = b"SBI\0".to_vec();
+    sbi.extend_from_slice(&[0x00, 0x02, 0x00, 0x01]);
+    sbi.extend_from_slice(&[fill; 10]);
+    sbi
+}
+
 fn read_file(session: &retromount::mount::session::MountSession, inode: u64) -> Vec<u8> {
     let file = session.file(inode).expect("mounted file");
     let mut reader = open_vfs_file(file).unwrap();
@@ -58,6 +65,8 @@ fn presents_mixed_mode_ps1_as_generated_cue_and_live_track_bins() {
     source.extend_from_slice(&file_backed_pregap);
     source.extend_from_slice(&audio);
     fs::write(directory.path().join("Game.bin"), source).unwrap();
+    let sbi_bytes = sbi_fixture(0x64);
+    fs::write(directory.path().join("Game.sbi"), &sbi_bytes).unwrap();
 
     let session = prepare_mount_session(&cue_path, "duckstation").unwrap();
     let ps1 = session
@@ -75,11 +84,15 @@ fn presents_mixed_mode_ps1_as_generated_cue_and_live_track_bins() {
     let track2 = session
         .lookup_child(game.inode, "Game (Disc 1) (Track 02).bin")
         .expect("audio track BIN");
+    let sbi = session
+        .lookup_child(game.inode, "Game (Disc 1).sbi")
+        .expect("renamed SBI sidecar");
 
     assert_eq!(read_file(&session, track1.inode), data);
     let mut expected_track2 = file_backed_pregap;
     expected_track2.extend_from_slice(&audio);
     assert_eq!(read_file(&session, track2.inode), expected_track2);
+    assert_eq!(read_file(&session, sbi.inode), sbi_bytes);
     assert_eq!(
         String::from_utf8(read_file(&session, cue.inode)).unwrap(),
         concat!(
@@ -99,6 +112,7 @@ fn presents_mixed_mode_ps1_as_generated_cue_and_live_track_bins() {
 fn presents_stored_zip_cue_bin_through_the_same_duckstation_path() {
     let archive = tempfile::NamedTempFile::new().unwrap();
     let sector = mode1_sector(0x67);
+    let sbi_bytes = sbi_fixture(0x76);
     {
         let mut zip = zip::ZipWriter::new(archive.reopen().unwrap());
         let stored =
@@ -110,6 +124,8 @@ fn presents_stored_zip_cue_bin_through_the_same_duckstation_path() {
         .unwrap();
         zip.start_file("Zip Game.bin", stored).unwrap();
         zip.write_all(&sector).unwrap();
+        zip.start_file("Zip Game.sbi", stored).unwrap();
+        zip.write_all(&sbi_bytes).unwrap();
         zip.finish().unwrap();
     }
     let zip_path = archive.path().with_extension("zip");
@@ -125,8 +141,55 @@ fn presents_stored_zip_cue_bin_through_the_same_duckstation_path() {
     let track = session
         .lookup_child(game.inode, "Zip Game (Disc 1) (Track 01).bin")
         .expect("stored ZIP track BIN");
+    let sbi = session
+        .lookup_child(game.inode, "Zip Game (Disc 1).sbi")
+        .expect("stored ZIP SBI");
 
     assert_eq!(read_file(&session, track.inode), sector);
+    assert_eq!(read_file(&session, sbi.inode), sbi_bytes);
+}
+
+#[test]
+fn rejects_ambiguous_case_insensitive_sbi_sidecars() {
+    let archive = tempfile::NamedTempFile::new().unwrap();
+    {
+        let mut zip = zip::ZipWriter::new(archive.reopen().unwrap());
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("Game.cue", stored).unwrap();
+        zip.write_all(b"FILE \"Game.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n")
+            .unwrap();
+        zip.start_file("Game.bin", stored).unwrap();
+        zip.write_all(&mode1_sector(0x32)).unwrap();
+        zip.start_file("Game.sbi", stored).unwrap();
+        zip.write_all(&sbi_fixture(0x41)).unwrap();
+        zip.start_file("game.SBI", stored).unwrap();
+        zip.write_all(&sbi_fixture(0x42)).unwrap();
+        zip.finish().unwrap();
+    }
+    let zip_path = archive.path().with_extension("zip");
+    fs::copy(archive.path(), &zip_path).unwrap();
+
+    let error = prepare_mount_session(&zip_path, "duckstation").unwrap_err();
+
+    assert!(error.to_string().contains("multiple matching SBI"));
+}
+
+#[test]
+fn rejects_malformed_sbi_sidecars() {
+    let directory = tempfile::tempdir().unwrap();
+    let cue_path = directory.path().join("Game.cue");
+    fs::write(
+        &cue_path,
+        "FILE \"Game.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n",
+    )
+    .unwrap();
+    fs::write(directory.path().join("Game.bin"), mode1_sector(0x32)).unwrap();
+    fs::write(directory.path().join("Game.sbi"), b"NOT-SBI").unwrap();
+
+    let error = prepare_mount_session(&cue_path, "duckstation").unwrap_err();
+
+    assert!(error.to_string().contains("SBI sidecar"));
 }
 
 #[test]
@@ -134,6 +197,8 @@ fn presents_a_mixed_mode_ps1_chd_through_the_duckstation_cue_bin_view() {
     let directory = tempfile::tempdir().unwrap();
     let chd_path = directory.path().join("CHD Game.chd");
     fs::write(&chd_path, cd_chd_fixture(false)).unwrap();
+    let sbi_bytes = sbi_fixture(0x58);
+    fs::write(directory.path().join("CHD Game.sbi"), &sbi_bytes).unwrap();
 
     let session = prepare_mount_session(&chd_path, "duckstation").unwrap();
     let ps1 = session
@@ -148,6 +213,9 @@ fn presents_a_mixed_mode_ps1_chd_through_the_duckstation_cue_bin_view() {
     let track2 = session
         .lookup_child(game.inode, "CHD Game (Disc 1) (Track 02).bin")
         .expect("CHD audio track");
+    let sbi = session
+        .lookup_child(game.inode, "CHD Game (Disc 1).sbi")
+        .expect("CHD-adjacent SBI");
 
     assert_eq!(
         read_file(&session, track1.inode),
@@ -157,6 +225,7 @@ fn presents_a_mixed_mode_ps1_chd_through_the_duckstation_cue_bin_view() {
         read_file(&session, track2.inode),
         expected_chd_track_bytes(4, 4)
     );
+    assert_eq!(read_file(&session, sbi.inode), sbi_bytes);
 }
 
 #[test]

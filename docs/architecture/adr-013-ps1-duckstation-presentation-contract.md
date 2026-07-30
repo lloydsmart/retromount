@@ -4,7 +4,7 @@
 
 Accepted
 
-PS1-1 and PS1-2 implemented
+PS1-1 through PS1-3 implemented
 
 ## Context
 
@@ -304,6 +304,21 @@ The CUE/BIN output encoder deliberately rejects any track carrying subchannel
 content. This keeps PS1-2 lossless at the canonical boundary without pretending
 that CUE/BIN can represent LibCrypt or other subchannel information. SBI
 sidecar presentation remains PS1-3.
+
+## PS1-3 implementation note
+
+SBI is modeled as optional disc-level auxiliary content. CUE and CHD decoders
+look only for a sibling whose stem matches the disc input case-insensitively;
+unrelated SBI files are not claimed, and multiple matching names are rejected
+as ambiguous. The selected sidecar is validated as an `SBI\0` header followed
+by complete 14-byte type-1 SubQ records, then retained through a live reader
+handle and marked as consumed input.
+
+The CUE/BIN encoder includes that reader in the same atomic artifact set as the
+generated CUE and track BINs. Its output name is derived from the artifact
+basename rather than copied from the source, guaranteeing the adjacency and
+same-basename convention expected by DuckStation for both filesystem and
+stored-ZIP sources.
 
 ## Consequences
 
