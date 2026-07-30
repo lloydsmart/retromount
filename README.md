@@ -97,7 +97,8 @@ Retromount is under active development and progressing through a structured road
 
 ### Planned
 
-* PS2/OPL presentation backed by CHD-to-ISO
+* PS2/OPL presentation backed by live random-access CHD decoding and an
+  ISO-compatible logical-disc view
 * Advanced encoders and external integrations (e.g. torrent compatibility)
 * Phase 7 — Performance, caching, and optimisation
 
