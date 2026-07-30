@@ -20,6 +20,7 @@ log = "0.4"
 env_logger = "0.11.10"
 thiserror = "2.0"                                        # For custom error types
 zip = "8"
+chd = "0.3.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 fuser = "0.18"
@@ -55,9 +56,6 @@ assets = [
 
 [features]
 default = []
-
-# Placeholder for future translator dependencies
-# chd_to_iso = ["dep:some_crate"]
 
 [profile.release]
 lto = true
