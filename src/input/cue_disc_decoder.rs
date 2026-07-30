@@ -8,6 +8,7 @@ use crate::core::input_content::InputContent;
 use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::{SourceObject, SourceRef};
 use crate::core::source_resolver::resolve_source_ref;
+use crate::input::basic_decoder::parse_disc_info_from_name;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentity;
 use crate::input::sbi_sidecar::discover_sbi_sidecar;
@@ -126,11 +127,12 @@ impl InputDecoder for CueDiscDecoder {
                 "CUE/BIN disc contains mixed-mode, audio, Form 2, or multiple-track content that OPL cannot represent as a 2048-byte ISO",
             ));
         }
-        let title = Path::new(&object.name)
+        let raw_title = Path::new(&object.name)
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or(&object.name)
             .to_string();
+        let (title, disc_number) = parse_disc_info_from_name(&raw_title);
         let mut consumed_sources = unique_track_sources(&cd_disc);
         if let Some(sbi) = &cd_disc.sbi {
             consumed_sources.push(sbi.source.clone());
@@ -140,7 +142,7 @@ impl InputDecoder for CueDiscDecoder {
             id: ContentId::new(object.name.clone()),
             source: object.source.clone(),
             title,
-            disc_number: 1,
+            disc_number,
             consumed_sources,
             cd_disc: Some(cd_disc),
             logical_disc,

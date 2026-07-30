@@ -186,7 +186,12 @@ It supports single-disc CUE/BIN and CHD input. CHD tracks are projected live
 from their interleaved sectors; CHDs containing subchannel data fail closed
 because CUE/BIN cannot preserve it. A valid same-stem SBI sibling is preserved
 live beside the generated CUE under the generated basename. The roadmap tracks
-multi-disc M3U, cooked ISO, and native CHD output separately.
+cooked ISO and native CHD output separately.
+
+Multi-disc PS1 games are allocated as one game directory containing an ordered
+CUE/BIN subdirectory for each disc and a sibling M3U playlist. Playlist entries
+use portable relative paths to the generated CUE files, so conflict-renamed
+game directories remain internally coherent.
 
 The PS1 roadmap also commits to extending the existing `opl` presentation with
 POPS support. The resulting PS2 library view will retain PS2 games below

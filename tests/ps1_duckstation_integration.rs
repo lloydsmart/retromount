@@ -193,6 +193,88 @@ fn rejects_malformed_sbi_sidecars() {
 }
 
 #[test]
+fn presents_multi_disc_ps1_as_ordered_cue_bin_sets_and_relative_m3u() {
+    let directory = tempfile::tempdir().unwrap();
+    for (disc, fill) in [(2, 0x72), (1, 0x61)] {
+        let cue_name = format!("Multi Game (Disc {disc}).cue");
+        let bin_name = format!("Multi Game (Disc {disc}).bin");
+        fs::write(
+            directory.path().join(&cue_name),
+            format!("FILE \"{bin_name}\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n"),
+        )
+        .unwrap();
+        fs::write(directory.path().join(bin_name), mode1_sector(fill)).unwrap();
+    }
+
+    let session = prepare_mount_session(directory.path(), "duckstation").unwrap();
+    let ps1 = session
+        .lookup_child(session.root_inode(), "PS1")
+        .expect("PS1 presentation root");
+    let game = session
+        .lookup_child(ps1.inode, "Multi Game")
+        .expect("atomic multi-disc game directory");
+    let disc1 = session
+        .lookup_child(game.inode, "Multi Game (Disc 1)")
+        .expect("disc 1 artifact set");
+    let disc2 = session
+        .lookup_child(game.inode, "Multi Game (Disc 2)")
+        .expect("disc 2 artifact set");
+    let playlist = session
+        .lookup_child(game.inode, "Multi Game.m3u")
+        .expect("multi-disc playlist");
+    let disc1_track = session
+        .lookup_child(disc1.inode, "Multi Game (Disc 1) (Track 01).bin")
+        .expect("disc 1 track");
+    let disc2_track = session
+        .lookup_child(disc2.inode, "Multi Game (Disc 2) (Track 01).bin")
+        .expect("disc 2 track");
+
+    assert_eq!(read_file(&session, disc1_track.inode), mode1_sector(0x61));
+    assert_eq!(read_file(&session, disc2_track.inode), mode1_sector(0x72));
+    assert_eq!(
+        String::from_utf8(read_file(&session, playlist.inode)).unwrap(),
+        concat!(
+            "Multi Game (Disc 1)/Multi Game (Disc 1).cue\n",
+            "Multi Game (Disc 2)/Multi Game (Disc 2).cue\n",
+        )
+    );
+}
+
+#[test]
+fn presents_multi_disc_chds_through_the_same_relative_m3u_contract() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("CHD Multi (Disc 2).chd"),
+        cd_chd_fixture(false),
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("CHD Multi (Disc 1).chd"),
+        cd_chd_fixture(false),
+    )
+    .unwrap();
+
+    let session = prepare_mount_session(directory.path(), "duckstation").unwrap();
+    let ps1 = session
+        .lookup_child(session.root_inode(), "PS1")
+        .expect("PS1 presentation root");
+    let game = session
+        .lookup_child(ps1.inode, "CHD Multi")
+        .expect("CHD multi-disc game");
+    let playlist = session
+        .lookup_child(game.inode, "CHD Multi.m3u")
+        .expect("CHD multi-disc playlist");
+
+    assert_eq!(
+        String::from_utf8(read_file(&session, playlist.inode)).unwrap(),
+        concat!(
+            "CHD Multi (Disc 1)/CHD Multi (Disc 1).cue\n",
+            "CHD Multi (Disc 2)/CHD Multi (Disc 2).cue\n",
+        )
+    );
+}
+
+#[test]
 fn presents_a_mixed_mode_ps1_chd_through_the_duckstation_cue_bin_view() {
     let directory = tempfile::tempdir().unwrap();
     let chd_path = directory.path().join("CHD Game.chd");

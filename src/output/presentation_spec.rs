@@ -76,6 +76,9 @@ pub enum SelectSpec {
     /// Match games consisting entirely of multiple disc parts.
     MultiDiscGames,
 
+    /// Match multi-disc games for a specific platform.
+    MultiDiscGamesByPlatform { platform: Platform },
+
     /// Match games with exactly one ROM part.
     SingleRomGames,
 
