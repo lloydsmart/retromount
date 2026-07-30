@@ -337,23 +337,18 @@ The current architecture has several correct foundations:
 These are the pieces to extend. They should not be replaced by an extraction
 workflow.
 
-### Blocking gaps
+### Implementation status
 
-| Area | Current behavior | Required change |
+| Area | Implemented behavior | Remaining validation |
 | --- | --- | --- |
-| CHD input | No CHD reader or decoder exists. | Add a random-access CHD reader that exposes logical disc bytes and media metadata. |
-| Input identification | Only `.cue` is identified as a disc image; `.chd` becomes generic bytes. | Identify CHD as a disc container and route it to the CHD decoder. |
-| Decoded content | `DecodedDiscContent` retains source metadata but no live decoded-content handle or geometry. | Carry a reusable canonical logical-disc handle, media kind, sector size, and sector count. |
-| Normalized content | `DiscPart` retains only source, disc number, and consumed sources. | Preserve the canonical representation and content handle through normalization. |
-| Platform model | The active normalized `Platform` enum has no PS2 variant. | Add PS2 and derive it from an explicit hint or reliable identification. |
-| Presentation placement | Layouts are only flat or grouped by platform/game. | Express literal `DVD/` placement declaratively. |
-| Presentation selection | Rules cannot filter by platform, media, or representation. | Add declarative filters needed by the OPL rule. |
-| Naming | `PartName` produces `.cue`, and the compiler preserves existing extensions. | Make output-format extension replacement explicit. |
-| Capability model | Capabilities match output content type and format, but not canonical input representation or media. | Match encoders against normalized representation and media, not source container extension. |
-| Materialized output | Artifacts can only be inline or source-path-backed. | Add a reader-backed artifact and mount-session lifetime owner. |
-| VFS model | `VfsFile` derives serializable/value equality over path or bytes. | Separate inspectable file metadata from non-serializable runtime backing handles. |
-| Plugin protocol | The subprocess model is one request/one response and can return only bytes or a path. | Do not force live readers through protocol v1; design a persistent/random-read plugin contract later if external reader plugins are required. |
-| Validation | No synthetic PS2 DVD CHD fixture or live-read test exists. | Verify geometry, exact length, unaligned reads, hunk-boundary reads, repeated reads, and final OPL path. |
+| CHD input | `.chd` is identified separately and routed through a dedicated DVD decoder and bounded random-access hunk reader. | Exercise the supported codecs with a representative `chdman`-created PS2 DVD CHD. |
+| Canonical content | Decode and normalization retain DVD media, 2048-byte sector geometry, and an opaque live reader handle. | Validate the geometry against a representative real image. |
+| Platform model | PS2 is supported; the OPL composition supplies an explicit PS2 normalization hint. | None for the first target. |
+| Presentation | The declarative OPL rule selects one PS2 DVD and emits `DVD/<title>.iso`. | Validate the resulting share with OPL. |
+| Capability model | The logical-DVD ISO encoder is selected from canonical media and representation requirements, independently of CHD. | None for the first target. |
+| Materialized output | Reader-backed artifacts flow through the VFS and mount session without creating an ISO-sized intermediate. | Observe behavior under a representative full-size image workload. |
+| Plugin protocol | Protocol v1 explicitly rejects live content-backed artifacts; the built-in reader remains an in-process capability. | A persistent random-read plugin contract remains deferred. |
+| Automated validation | A generated CHD v5 fixture proves identification through mount preparation, exact size, unaligned/repeated/out-of-order reads, hunk boundaries, EOF behavior, and unsupported inputs. | Add a real compressed-image compatibility test when a redistributable fixture is available. |
 
 ## Plugin boundary conclusion
 
@@ -376,6 +371,9 @@ problem and should not be hidden inside a PS2-specific encoder.
 
 ## Recommended implementation order
 
+Items 1–7 are implemented and covered by automated tests. Item 8 remains an
+external acceptance step.
+
 1. Define the canonical logical-disc representation and opaque content-handle
    lifetime.
 2. Add reader-backed materialized artifacts and mount-session resource
@@ -388,6 +386,20 @@ problem and should not be hidden inside a PS2-specific encoder.
 7. Prove one synthetic DVD CHD end to end through inspect, mount preparation,
    unaligned reads, hunk-boundary reads, and reads near end-of-file.
 8. Validate the mounted share with a current OPL build over SMB.
+
+## Remaining validation
+
+The generated fixture is a small, uncompressed CHD v5 image. It deliberately
+keeps the repository and test suite independent of `chdman`, while exercising
+the real CHD parser, metadata iterator, hunk map, decode/normalize/encode
+contracts, VFS backing, and mount-session preparation.
+
+Before calling the consumer spike complete:
+
+1. Test a representative, `chdman`-created and compressed PS2 DVD CHD to
+   confirm codec and real-world metadata compatibility.
+2. Mount the resulting `DVD/<title>.iso` view, export it over SMB, and confirm a
+   current OPL build can list and launch it.
 
 ## Acceptance criteria for the first target
 

@@ -93,12 +93,12 @@ Retromount is under active development and progressing through a structured road
 
 ### In Progress
 
-* First practical consumer target — PS2/OPL
+* First practical consumer target — PS2/OPL; the live CHD-to-logical-ISO path
+  and automated mount-preparation coverage are implemented, with real-image
+  and OPL/SMB validation remaining
 
 ### Planned
 
-* PS2/OPL presentation backed by live random-access CHD decoding and an
-  ISO-compatible logical-disc view
 * Advanced encoders and external integrations (e.g. torrent compatibility)
 * Phase 7 — Performance, caching, and optimisation
 
@@ -110,6 +110,7 @@ RetroMount can expose a collection as a read-only filesystem using FUSE.
 
 ```bash
 retromount mount <input> <mountpoint>
+retromount mount "/roms/ps2/Test Game.chd" /mnt/retromount/ps2 --view opl
 ```
 
 ### Example
@@ -148,6 +149,12 @@ Create a file called `retromount.yaml`:
   presenter: grouped
   encoder: basic
 
+- name: ps2-opl
+  source: /roms/ps2/Test Game.chd
+  mount: /mnt/retromount/ps2
+  platform: ps2
+  presenter: opl
+
 - name: snes
   source: /roms/snes
   mount: /mnt/retromount/snes
@@ -167,8 +174,8 @@ Fields:
 | `name`      | Logical name for the mounted view                          |
 | `source`    | Source directory, archive, or disc image                   |
 | `mount`     | Mount point for the virtual filesystem                     |
-| `platform`  | Target platform (e.g. `ps1`, `snes`, `megadrive`)          |
-| `presenter` | Layout (`grouped`, `flat`; default: `grouped`)             |
+| `platform`  | Target platform (e.g. `ps1`, `ps2`, `snes`, `megadrive`)   |
+| `presenter` | Layout (`grouped`, `flat`, `opl`; default: `grouped`)       |
 | `encoder`   | File representation strategy (default: `basic`)            |
 
 Platform names are **case-insensitive** and accept friendly aliases.
