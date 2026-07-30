@@ -57,6 +57,7 @@ impl InputDecoder for BasicInputDecoder {
                     title,
                     disc_number,
                     consumed_sources: consumed_sources_for_disc_image(object)?,
+                    logical_disc: None,
                 })
             }
             InputIdentity::File => {

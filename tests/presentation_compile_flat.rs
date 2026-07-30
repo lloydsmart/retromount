@@ -113,11 +113,13 @@ mod flat_parity_tests {
                     source: SourceRef::new(format!("file:/roms/{id}-disc2.cue")),
                     disc_number: 2,
                     consumed_sources: vec![],
+                    logical_disc: None,
                 }),
                 GamePart::Disc(DiscPart {
                     source: SourceRef::new(format!("file:/roms/{id}-disc1.cue")),
                     disc_number: 1,
                     consumed_sources: vec![],
+                    logical_disc: None,
                 }),
             ],
             consumed_sources: vec![],
@@ -135,6 +137,7 @@ mod flat_parity_tests {
                 source: SourceRef::new("file:/roms/ico.chd"),
                 disc_number: 1,
                 consumed_sources: vec![],
+                logical_disc: None,
             })],
             consumed_sources: vec![],
         })];

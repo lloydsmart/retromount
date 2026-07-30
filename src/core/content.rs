@@ -2,7 +2,28 @@ use serde::Serialize;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::SourceRef;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum DiscMedia {
+    Cd,
+    Dvd,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LogicalDisc {
+    pub media: DiscMedia,
+    pub sector_size: u32,
+    pub sector_count: u64,
+    pub content: ReaderHandle,
+}
+
+impl LogicalDisc {
+    pub fn byte_len(&self) -> Option<u64> {
+        u64::from(self.sector_size).checked_mul(self.sector_count)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum DecodedContentKind {
@@ -172,6 +193,7 @@ pub struct DecodedDiscContent {
     pub title: String,
     pub disc_number: u32,
     pub consumed_sources: Vec<SourceRef>,
+    pub logical_disc: Option<LogicalDisc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -201,6 +223,7 @@ pub struct DiscPart {
     pub source: SourceRef,
     pub disc_number: u32,
     pub consumed_sources: Vec<SourceRef>,
+    pub logical_disc: Option<LogicalDisc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -263,6 +286,7 @@ mod tests {
             title: "Game".to_string(),
             disc_number: 1,
             consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+            logical_disc: None,
         });
 
         assert_eq!(content.id().to_string(), "disc-1");
@@ -281,6 +305,7 @@ mod tests {
                 source: SourceRef::new("cue:/roms/game-disc1.cue"),
                 disc_number: 1,
                 consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+                logical_disc: None,
             })],
             consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
         });

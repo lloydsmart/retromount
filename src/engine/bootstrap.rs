@@ -113,11 +113,13 @@ mod tests {
                     source: SourceRef::new("file:/roms/ff7-disc2.cue"),
                     disc_number: 2,
                     consumed_sources: vec![],
+                    logical_disc: None,
                 }),
                 GamePart::Disc(DiscPart {
                     source: SourceRef::new("file:/roms/ff7-disc1.cue"),
                     disc_number: 1,
                     consumed_sources: vec![],
+                    logical_disc: None,
                 }),
             ],
             consumed_sources: vec![],

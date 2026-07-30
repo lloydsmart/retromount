@@ -69,6 +69,7 @@ mod tests {
             source: SourceRef::new("cue:/roms/ff7-disc2.cue"),
             disc_number: 2,
             consumed_sources: vec![SourceRef::new("cue:/roms/ff7-disc2.bin")],
+            logical_disc: None,
         });
 
         let policy = DefaultNamingPolicy;

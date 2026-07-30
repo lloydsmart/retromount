@@ -596,6 +596,7 @@ mod tests {
                 source: SourceRef::new("file:/roms/Shadow of the Colossus.chd"),
                 disc_number: 1,
                 consumed_sources: vec![],
+                logical_disc: None,
             })],
             consumed_sources: vec![],
         })];

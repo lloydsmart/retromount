@@ -36,6 +36,7 @@ mod tests {
             source: SourceRef::new(format!("file:/roms/disc{number}.cue")),
             disc_number: number,
             consumed_sources: vec![SourceRef::new(format!("file:/roms/disc{number}.bin"))],
+            logical_disc: None,
         })
     }
 

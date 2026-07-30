@@ -198,6 +198,7 @@ fn normalize_disc_group(
                 source: disc.source.clone(),
                 disc_number: disc.disc_number,
                 consumed_sources: disc.consumed_sources.clone(),
+                logical_disc: disc.logical_disc.clone(),
             })
         })
         .collect();
@@ -259,9 +260,11 @@ mod tests {
     use super::*;
     use crate::core::content::{
         ContentId, DecodedContent, DecodedContentKind, DecodedDiscContent, DecodedRomContent,
-        GamePart, NormalizedContent, NormalizedContentKind, TextContent,
+        DiscMedia, GamePart, LogicalDisc, NormalizedContent, NormalizedContentKind, TextContent,
     };
+    use crate::core::reader_handle::ReaderHandle;
     use crate::core::source::SourceRef;
+    use crate::readers::inline_reader::InlineReader;
 
     #[test]
     fn normalizes_rom_to_game() {
@@ -303,6 +306,7 @@ mod tests {
                     title: "Final Fantasy VII".to_string(),
                     disc_number: 2,
                     consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc2.bin")],
+                    logical_disc: None,
                 }),
                 DecodedContent::Disc(DecodedDiscContent {
                     id: ContentId::new("ps1/ff7-disc1"),
@@ -310,6 +314,7 @@ mod tests {
                     title: "Final Fantasy VII".to_string(),
                     disc_number: 1,
                     consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc1.bin")],
+                    logical_disc: None,
                 }),
             ],
             &NormalizationOptions::default(),
@@ -354,6 +359,7 @@ mod tests {
                     consumed_sources: vec![SourceRef::new(
                         "file:/roms/discs/ps1_multi/game_disc1.bin",
                     )],
+                    logical_disc: None,
                 }),
             ],
             &NormalizationOptions::default(),
@@ -385,6 +391,7 @@ mod tests {
                     title: "game".to_string(),
                     disc_number: 1,
                     consumed_sources: vec![SourceRef::new("file:/roms/ps1_multi/game_disc1.bin")],
+                    logical_disc: None,
                 }),
                 DecodedContent::Disc(DecodedDiscContent {
                     id: ContentId::new("ps1_single/game.cue"),
@@ -392,6 +399,7 @@ mod tests {
                     title: "game".to_string(),
                     disc_number: 1,
                     consumed_sources: vec![SourceRef::new("file:/roms/ps1_single/game.bin")],
+                    logical_disc: None,
                 }),
             ],
             &NormalizationOptions::default(),
@@ -468,5 +476,37 @@ mod tests {
         });
 
         assert_eq!(content.kind(), NormalizedContentKind::Text);
+    }
+
+    #[test]
+    fn preserves_logical_disc_through_normalization() {
+        let decoded = DecodedContent::Disc(DecodedDiscContent {
+            id: ContentId::new("ps2/game.chd"),
+            source: SourceRef::new("file:/roms/ps2/game.chd"),
+            title: "Game".to_string(),
+            disc_number: 1,
+            consumed_sources: vec![],
+            logical_disc: Some(LogicalDisc {
+                media: DiscMedia::Dvd,
+                sector_size: 2048,
+                sector_count: 2,
+                content: ReaderHandle::new("test:ps2-dvd", || {
+                    Ok(Box::new(InlineReader::new(vec![0; 4096])))
+                }),
+            }),
+        });
+
+        let normalized = normalize_decoded_content(vec![decoded], &NormalizationOptions::default());
+        let NormalizedContent::Game(game) = &normalized[0] else {
+            panic!("expected normalized game");
+        };
+        let GamePart::Disc(disc) = &game.parts[0] else {
+            panic!("expected normalized disc");
+        };
+        let logical_disc = disc.logical_disc.as_ref().expect("logical disc");
+
+        assert_eq!(logical_disc.media, DiscMedia::Dvd);
+        assert_eq!(logical_disc.byte_len(), Some(4096));
+        assert_eq!(logical_disc.content.id(), "test:ps2-dvd");
     }
 }
