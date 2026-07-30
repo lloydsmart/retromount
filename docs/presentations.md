@@ -169,6 +169,23 @@ reliably identify its original carrier. Track-aware CUE/BIN inputs provide CD
 media semantics directly, but mixed-mode, audio, and other layouts without a
 safe 2048-byte logical projection are rejected by the OPL composition.
 
+The next built-in presentation is the accepted `duckstation` contract defined
+by
+[ADR-013](architecture/adr-013-ps1-duckstation-presentation-contract.md).
+Unlike OPL, it will consume the complete track-aware PS1 CD and produce one
+coherent artifact set containing a generated CUE and live per-track BIN files.
+That implementation requires a schema extension for multi-file artifacts; it
+is documented here as planned behavior and is not yet available in the
+built-in catalog.
+
+The PS1 roadmap also commits to extending the existing `opl` presentation with
+POPS support. The resulting PS2 library view will retain PS2 games below
+`DVD/` and `CD/` and add PS1 VCD content below `POPS/`; there will not be a
+standalone POPS presentation. VCD conversion is still a separate encoder
+capability and does not reuse DuckStation's CUE/BIN artifact contract. The
+exact OPL, POPStarter, or POPSLoader compatibility target and storage backend
+require a dedicated research ADR before the new OPL rule is fixed.
+
 ## Scope and extension
 
 Schema version 1 intentionally exposes only concepts supported by the current
