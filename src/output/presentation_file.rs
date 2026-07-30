@@ -89,9 +89,8 @@ impl TryFrom<SerializedPresentation> for PresentationDocument {
             .into_iter()
             .enumerate()
             .map(|(index, rule)| {
-                rule.into_rule().map_err(|message| {
-                    PresentationFileError::Invalid(format!("files[{}]: {message}", index))
-                })
+                rule.into_rule()
+                    .map_err(|message| invalid_file_rule(index, message))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -100,6 +99,10 @@ impl TryFrom<SerializedPresentation> for PresentationDocument {
             spec: PresentationSpec::new(layout, files),
         })
     }
+}
+
+fn invalid_file_rule(index: usize, message: String) -> PresentationFileError {
+    PresentationFileError::Invalid(format!("files[{index}]: {message}"))
 }
 
 #[derive(Debug, Deserialize)]
