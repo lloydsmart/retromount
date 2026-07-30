@@ -33,11 +33,12 @@ jobs:
         with:
           shared-key: "retromount-release"
 
-      - name: Ensure sccache is installed
-        run: |
-          if ! command -v sccache >/dev/null 2>&1; then
-            cargo install sccache
-          fi
+      - name: Install sccache
+        uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
+        with:
+          crate: sccache
+          version: "0.17.0"
+          locked: false
 
       - name: Configure sccache
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -73,4 +74,3 @@ jobs:
       - name: sccache stats
         if: always()
         run: sccache --show-stats
-        
