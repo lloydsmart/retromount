@@ -182,8 +182,10 @@ The `duckstation` contract is defined by
 [ADR-013](architecture/adr-013-ps1-duckstation-presentation-contract.md).
 Unlike OPL, it consumes the complete track-aware PS1 CD and produces one
 coherent artifact set containing a generated CUE and live per-track BIN files.
-The first implementation supports single-disc CUE/BIN input; the roadmap
-tracks CHD, SBI, multi-disc M3U, cooked ISO, and native CHD output separately.
+It supports single-disc CUE/BIN and CHD input. CHD tracks are projected live
+from their interleaved sectors; CHDs containing subchannel data fail closed
+because CUE/BIN cannot preserve it. The roadmap tracks SBI, multi-disc M3U,
+cooked ISO, and native CHD output separately.
 
 The PS1 roadmap also commits to extending the existing `opl` presentation with
 POPS support. The resulting PS2 library view will retain PS2 games below

@@ -4,6 +4,8 @@
 
 Accepted
 
+PS1-1 and PS1-2 implemented
+
 ## Context
 
 The PlayStation 2 CD milestone introduced a live, track-aware `CdDisc` model
@@ -290,6 +292,18 @@ The first implementation does not add:
 
 These are deferred capabilities, not reasons to weaken the canonical CD model
 or the first CUE/BIN contract.
+
+## PS1-2 implementation note
+
+CHD CD metadata is now decoded into the same `CdDisc` contract as CUE/BIN.
+Each 2448-byte CHD CD frame is exposed as a live main-sector view plus, when
+declared, a separate 96-byte subchannel view. CHD-only four-frame track padding
+is excluded, while physical and synthetic pregaps remain distinct.
+
+The CUE/BIN output encoder deliberately rejects any track carrying subchannel
+content. This keeps PS1-2 lossless at the canonical boundary without pretending
+that CUE/BIN can represent LibCrypt or other subchannel information. SBI
+sidecar presentation remains PS1-3.
 
 ## Consequences
 
