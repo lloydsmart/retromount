@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::SourceRef;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -126,6 +127,7 @@ impl VfsDirectory {
 pub enum FileBacking {
     Source(SourceRef),
     Inline(Vec<u8>),
+    Reader(ReaderHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -153,6 +155,14 @@ impl VfsFile {
             name: name.into(),
             size: contents.len() as u64,
             backing: FileBacking::Inline(contents),
+        }
+    }
+
+    pub fn reader_backed(name: impl Into<String>, size: u64, handle: ReaderHandle) -> Self {
+        Self {
+            name: name.into(),
+            size,
+            backing: FileBacking::Reader(handle),
         }
     }
 }

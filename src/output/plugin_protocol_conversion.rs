@@ -428,8 +428,10 @@ pub fn to_artifact_request(
     Ok((logical_name, artifact, selected_capability_id, context))
 }
 
-pub fn to_protocol_response(artifact: MaterializedArtifact) -> MaterializationResponse {
-    match artifact {
+pub fn to_protocol_response(
+    artifact: MaterializedArtifact,
+) -> Result<MaterializationResponse, ProtocolError> {
+    let response = match artifact {
         MaterializedArtifact::SourceBacked { source, size } => {
             MaterializationResponse::SourceBacked(ProtocolMaterializedSourceFile {
                 source: source.0.as_ref().to_string(),
@@ -439,7 +441,14 @@ pub fn to_protocol_response(artifact: MaterializedArtifact) -> MaterializationRe
         MaterializedArtifact::Inline(bytes) => {
             MaterializationResponse::Inline(ProtocolInlineFile { bytes })
         }
-    }
+        MaterializedArtifact::ReaderBacked { .. } => {
+            return Err(ProtocolError::UnsupportedArtifactKind {
+                message: "protocol v1 cannot transport reader-backed artifacts".to_string(),
+            });
+        }
+    };
+
+    Ok(response)
 }
 
 pub fn to_encoder_capability(
