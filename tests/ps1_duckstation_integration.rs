@@ -151,18 +151,26 @@ fn presents_stored_zip_cue_bin_through_the_same_duckstation_path() {
 
 #[test]
 fn rejects_ambiguous_case_insensitive_sbi_sidecars() {
-    let directory = tempfile::tempdir().unwrap();
-    let cue_path = directory.path().join("Game.cue");
-    fs::write(
-        &cue_path,
-        "FILE \"Game.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n",
-    )
-    .unwrap();
-    fs::write(directory.path().join("Game.bin"), mode1_sector(0x32)).unwrap();
-    fs::write(directory.path().join("Game.sbi"), sbi_fixture(0x41)).unwrap();
-    fs::write(directory.path().join("game.SBI"), sbi_fixture(0x42)).unwrap();
+    let archive = tempfile::NamedTempFile::new().unwrap();
+    {
+        let mut zip = zip::ZipWriter::new(archive.reopen().unwrap());
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("Game.cue", stored).unwrap();
+        zip.write_all(b"FILE \"Game.bin\" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n")
+            .unwrap();
+        zip.start_file("Game.bin", stored).unwrap();
+        zip.write_all(&mode1_sector(0x32)).unwrap();
+        zip.start_file("Game.sbi", stored).unwrap();
+        zip.write_all(&sbi_fixture(0x41)).unwrap();
+        zip.start_file("game.SBI", stored).unwrap();
+        zip.write_all(&sbi_fixture(0x42)).unwrap();
+        zip.finish().unwrap();
+    }
+    let zip_path = archive.path().with_extension("zip");
+    fs::copy(archive.path(), &zip_path).unwrap();
 
-    let error = prepare_mount_session(&cue_path, "duckstation").unwrap_err();
+    let error = prepare_mount_session(&zip_path, "duckstation").unwrap_err();
 
     assert!(error.to_string().contains("multiple matching SBI"));
 }
