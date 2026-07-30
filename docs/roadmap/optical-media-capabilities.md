@@ -131,10 +131,16 @@ entries seekable without introducing a converted output image.
 
 ## Milestone 3: PS2 CD through OPL
 
+**Status:** Contract accepted
+
 ### Milestone 3 purpose
 
 Extend the existing consumer presentation to PS2 games distributed on CD
 media.
+
+[ADR-012](../architecture/adr-012-ps2-cd-opl-contract.md) defines the first
+cooked 2048-byte ISO input, explicit media context, live ISO output, and
+declarative sibling `CD/` and `DVD/` presentation directories.
 
 ### Milestone 3 required spike
 
