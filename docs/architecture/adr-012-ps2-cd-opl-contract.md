@@ -297,6 +297,30 @@ CD-based presentations. It does not assume those consumers want OPL's
     * explicit OPL rejection of non-projectable layouts;
     * stored ZIP parity and compressed ZIP rejection.
 
+## Implementation status
+
+Implemented by the PlayStation 2 CD milestone.
+
+The implementation includes:
+
+* validated per-rule presentation destination directories;
+* declarative sibling `DVD/` and `CD/` OPL rules;
+* explicit `media: cd` or `media: dvd` configuration for ISO input;
+* live `CdDisc` and `CdTrack` models replacing the old path-only track model;
+* checked CUE parsing for BINARY files, tracks, indexes, and pregaps;
+* single-file and multi-file CUE/BIN source-range calculation;
+* preserved data and audio tracks;
+* live MODE1/2352 and MODE2/2352 Form 1 logical-sector readers;
+* cooked MODE1/2048 identity ranges;
+* preservation and OPL rejection of MODE2 Form 2, mixed-mode, audio, and
+  multi-track layouts;
+* filesystem and stored-ZIP CUE/BIN integration;
+* early rejection of compressed ZIP track sources requiring random access.
+
+The implementation remains reader-backed and creates no converted whole-disc
+intermediate. SMB and physical-console OPL loading remain outside the validation
+scope.
+
 [opl-readme]: https://github.com/ps2homebrew/Open-PS2-Loader#how-to-use
 [opl-usb]: https://github.com/ps2homebrew/Open-PS2-Loader/wiki/usb-mode#installing-ps2-games
 [opl-supportbase]: https://github.com/ps2homebrew/Open-PS2-Loader/blob/master/src/supportbase.c

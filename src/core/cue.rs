@@ -1,11 +1,10 @@
-use std::path::{Path, PathBuf};
-
-use crate::core::disc::Disc;
-use crate::core::track::{Track, TrackSource, TrackType};
+use std::io;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CueFileEntry {
     pub path: PathBuf,
+    pub file_type: String,
     pub tracks: Vec<CueTrackEntry>,
 }
 
@@ -13,32 +12,62 @@ pub struct CueFileEntry {
 pub struct CueTrackEntry {
     pub number: u8,
     pub mode: String,
+    pub indexes: Vec<CueIndexEntry>,
+    pub pregap_sectors: Option<u64>,
 }
 
-pub fn parse_cue(cue_text: &str) -> Vec<CueFileEntry> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CueIndexEntry {
+    pub number: u8,
+    pub sector: u64,
+}
+
+pub fn parse_cue(cue_text: &str) -> io::Result<Vec<CueFileEntry>> {
     let mut files = Vec::new();
     let mut current_file: Option<CueFileEntry> = None;
 
-    for line in cue_text.lines() {
+    for (line_index, line) in cue_text.lines().enumerate() {
         let trimmed = line.trim_start();
 
-        if let Some(path) = parse_file_line(trimmed) {
+        if starts_with_keyword(trimmed, "FILE") {
+            let (path, file_type) = parse_file_line(trimmed)
+                .ok_or_else(|| cue_error(line_index, "invalid FILE directive"))?;
             if let Some(file) = current_file.take() {
                 files.push(file);
             }
 
             current_file = Some(CueFileEntry {
                 path: PathBuf::from(path),
+                file_type,
                 tracks: Vec::new(),
             });
 
             continue;
         }
 
-        if let Some(track) = parse_track_line(trimmed) {
-            if let Some(file) = current_file.as_mut() {
-                file.tracks.push(track);
-            }
+        if starts_with_keyword(trimmed, "TRACK") {
+            let track = parse_track_line(trimmed)
+                .ok_or_else(|| cue_error(line_index, "invalid TRACK directive"))?;
+            let file = current_file
+                .as_mut()
+                .ok_or_else(|| cue_error(line_index, "TRACK appears before FILE"))?;
+            file.tracks.push(track);
+            continue;
+        }
+
+        if starts_with_keyword(trimmed, "INDEX") {
+            let index = parse_index_line(trimmed)
+                .ok_or_else(|| cue_error(line_index, "invalid INDEX directive"))?;
+            current_track_mut(&mut current_file, line_index)?
+                .indexes
+                .push(index);
+            continue;
+        }
+
+        if starts_with_keyword(trimmed, "PREGAP") {
+            let pregap = parse_pregap_line(trimmed)
+                .ok_or_else(|| cue_error(line_index, "invalid PREGAP directive"))?;
+            current_track_mut(&mut current_file, line_index)?.pregap_sectors = Some(pregap);
         }
     }
 
@@ -46,65 +75,28 @@ pub fn parse_cue(cue_text: &str) -> Vec<CueFileEntry> {
         files.push(file);
     }
 
-    files
+    if files.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "CUE contains no FILE directives",
+        ));
+    }
+
+    Ok(files)
 }
 
-pub fn cue_to_disc(cue_text: &str, cue_dir: &Path, disc_number: u32) -> Disc {
-    let parsed = parse_cue(cue_text);
-    let mut tracks = Vec::new();
-
-    for file_entry in parsed {
-        let source_path = cue_dir.join(&file_entry.path);
-
-        for track_entry in file_entry.tracks {
-            let (kind, sector_size) = cue_track_mode_to_model(&track_entry.mode);
-
-            tracks.push(Track {
-                number: u32::from(track_entry.number),
-                kind,
-                size: 0,
-                sector_size,
-                source: TrackSource::File(source_path.clone()),
-            });
-        }
-    }
-
-    Disc {
-        number: disc_number,
-        tracks,
-    }
-}
-
-fn cue_track_mode_to_model(mode: &str) -> (TrackType, u32) {
-    let upper = mode.to_ascii_uppercase();
-
-    if upper == "AUDIO" {
-        return (TrackType::Audio, 2352);
-    }
-
-    if let Some(sector_size) = upper.split('/').nth(1).and_then(|s| s.parse::<u32>().ok()) {
-        return (TrackType::Data, sector_size);
-    }
-
-    (TrackType::Data, 2048)
-}
-
-fn parse_file_line(line: &str) -> Option<String> {
-    if !line
-        .get(0..4)
-        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("FILE"))
-    {
-        return None;
-    }
-
+fn parse_file_line(line: &str) -> Option<(String, String)> {
     let rest = line.get(4..)?.trim_start();
 
     if let Some(quoted) = rest.strip_prefix('"') {
         let end = quoted.find('"')?;
-        return Some(quoted[..end].to_string());
+        let path = quoted[..end].to_string();
+        let file_type = quoted[end + 1..].split_whitespace().next()?.to_string();
+        return Some((path, file_type));
     }
 
-    Some(rest.split_whitespace().next()?.to_string())
+    let mut parts = rest.split_whitespace();
+    Some((parts.next()?.to_string(), parts.next()?.to_string()))
 }
 
 fn parse_track_line(line: &str) -> Option<CueTrackEntry> {
@@ -120,7 +112,68 @@ fn parse_track_line(line: &str) -> Option<CueTrackEntry> {
     let number = parts.next()?.parse::<u8>().ok()?;
     let mode = parts.next()?.to_string();
 
-    Some(CueTrackEntry { number, mode })
+    Some(CueTrackEntry {
+        number,
+        mode,
+        indexes: Vec::new(),
+        pregap_sectors: None,
+    })
+}
+
+fn parse_index_line(line: &str) -> Option<CueIndexEntry> {
+    let mut parts = line.split_whitespace();
+    let _index_kw = parts.next()?;
+    let number = parts.next()?.parse::<u8>().ok()?;
+    let sector = parse_msf(parts.next()?)?;
+    Some(CueIndexEntry { number, sector })
+}
+
+fn parse_pregap_line(line: &str) -> Option<u64> {
+    let mut parts = line.split_whitespace();
+    let _pregap_kw = parts.next()?;
+    parse_msf(parts.next()?)
+}
+
+fn parse_msf(value: &str) -> Option<u64> {
+    let mut parts = value.split(':');
+    let minutes = parts.next()?.parse::<u64>().ok()?;
+    let seconds = parts.next()?.parse::<u64>().ok()?;
+    let frames = parts.next()?.parse::<u64>().ok()?;
+
+    if parts.next().is_some() || seconds >= 60 || frames >= 75 {
+        return None;
+    }
+
+    minutes
+        .checked_mul(60)?
+        .checked_add(seconds)?
+        .checked_mul(75)?
+        .checked_add(frames)
+}
+
+fn starts_with_keyword(line: &str, keyword: &str) -> bool {
+    line.get(..keyword.len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(keyword))
+        && line
+            .get(keyword.len()..)
+            .is_some_and(|rest| rest.starts_with(char::is_whitespace))
+}
+
+fn current_track_mut(
+    current_file: &mut Option<CueFileEntry>,
+    line_index: usize,
+) -> io::Result<&mut CueTrackEntry> {
+    current_file
+        .as_mut()
+        .and_then(|file| file.tracks.last_mut())
+        .ok_or_else(|| cue_error(line_index, "track directive appears before TRACK"))
+}
+
+fn cue_error(line_index: usize, message: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        format!("CUE line {}: {message}", line_index + 1),
+    )
 }
 
 #[cfg(test)]
@@ -138,14 +191,22 @@ FILE "track02.bin" BINARY
     INDEX 01 00:00:00
 "#;
 
-        let parsed = parse_cue(cue);
+        let parsed = parse_cue(cue).unwrap();
 
         assert_eq!(parsed.len(), 2);
 
         assert_eq!(parsed[0].path, PathBuf::from("track01.bin"));
+        assert_eq!(parsed[0].file_type, "BINARY");
         assert_eq!(parsed[0].tracks.len(), 1);
         assert_eq!(parsed[0].tracks[0].number, 1);
         assert_eq!(parsed[0].tracks[0].mode, "MODE1/2352");
+        assert_eq!(
+            parsed[0].tracks[0].indexes,
+            [CueIndexEntry {
+                number: 1,
+                sector: 0
+            }]
+        );
 
         assert_eq!(parsed[1].path, PathBuf::from("track02.bin"));
         assert_eq!(parsed[1].tracks.len(), 1);
@@ -154,50 +215,34 @@ FILE "track02.bin" BINARY
     }
 
     #[test]
-    fn converts_cue_to_disc_model() {
+    fn parses_indexes_and_pregaps_as_sectors() {
         let cue = r#"
-FILE "track01.bin" BINARY
+FILE "game.bin" BINARY
   TRACK 01 MODE1/2352
-    INDEX 01 00:00:00
-FILE "track02.bin" BINARY
+    INDEX 00 00:00:00
+    INDEX 01 00:02:00
   TRACK 02 AUDIO
-    INDEX 01 00:00:00
+    PREGAP 00:01:00
+    INDEX 01 10:00:00
 "#;
 
-        let disc = cue_to_disc(cue, Path::new("/roms/ps1/game"), 1);
+        let parsed = parse_cue(cue).unwrap();
 
-        assert_eq!(disc.number, 1);
-        assert_eq!(disc.tracks.len(), 2);
-
-        assert_eq!(disc.tracks[0].number, 1);
-        assert_eq!(disc.tracks[0].kind, TrackType::Data);
-        assert_eq!(disc.tracks[0].sector_size, 2352);
-        assert_eq!(
-            disc.tracks[0].source,
-            TrackSource::File(PathBuf::from("/roms/ps1/game/track01.bin"))
-        );
-
-        assert_eq!(disc.tracks[1].number, 2);
-        assert_eq!(disc.tracks[1].kind, TrackType::Audio);
-        assert_eq!(disc.tracks[1].sector_size, 2352);
-        assert_eq!(
-            disc.tracks[1].source,
-            TrackSource::File(PathBuf::from("/roms/ps1/game/track02.bin"))
-        );
+        assert_eq!(parsed[0].tracks[0].indexes[1].sector, 150);
+        assert_eq!(parsed[0].tracks[1].pregap_sectors, Some(75));
+        assert_eq!(parsed[0].tracks[1].indexes[0].sector, 45_000);
     }
 
     #[test]
-    fn defaults_unknown_data_mode_to_2048_sector_size() {
-        let cue = r#"
-FILE "track01.bin" BINARY
-  TRACK 01 MODE1
-    INDEX 01 00:00:00
-"#;
+    fn rejects_malformed_layout_directives() {
+        let error = parse_cue("TRACK 01 AUDIO").unwrap_err();
+        assert!(error.to_string().contains("before FILE"));
 
-        let disc = cue_to_disc(cue, Path::new("."), 1);
+        let error = parse_cue("FILE \"game.bin\" BINARY\n INDEX 01 00:00:00").unwrap_err();
+        assert!(error.to_string().contains("before TRACK"));
 
-        assert_eq!(disc.tracks.len(), 1);
-        assert_eq!(disc.tracks[0].kind, TrackType::Data);
-        assert_eq!(disc.tracks[0].sector_size, 2048);
+        let error =
+            parse_cue("FILE \"game.bin\" BINARY\n TRACK 01 AUDIO\n INDEX 01 00:99:00").unwrap_err();
+        assert!(error.to_string().contains("invalid INDEX"));
     }
 }

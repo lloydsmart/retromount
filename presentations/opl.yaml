@@ -2,14 +2,28 @@ version: 1
 name: opl
 
 layout:
-  type: literal_root
-  path: DVD
+  type: flat
 
 files:
-  - select:
+  - directory: DVD
+    select:
       type: single_disc_games_by_platform_and_media
       platform: ps2
       media: dvd
+    naming:
+      type: game_title
+    artifact:
+      content_type: disc
+      format: iso
+      required_features:
+        - random_access
+        - lossless
+
+  - directory: CD
+    select:
+      type: single_disc_games_by_platform_and_media
+      platform: ps2
+      media: cd
     naming:
       type: game_title
     artifact:

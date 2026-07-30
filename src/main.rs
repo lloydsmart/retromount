@@ -7,7 +7,7 @@ use retromount::core::content::{
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
 use retromount::engine::bootstrap::load_presentation;
-use retromount::engine::components::pipeline_components;
+use retromount::engine::components::pipeline_components_with_media;
 use retromount::engine::inspect::{run_phase3_inspect, run_phase3_inspect_with_plugins};
 use retromount::engine::mount::{run_mount_command, run_mount_command_with_plugins};
 use retromount::engine::pipeline::{run_pipeline_with_presentation_options, PipelineOptions};
@@ -188,7 +188,7 @@ fn run_configured_views() -> Result<(), RetromountError> {
         info!("  Mount: {}", view.mount.display());
         info!("  Presentation: {}", presentation_name);
 
-        let components = pipeline_components(presentation_name)?;
+        let components = pipeline_components_with_media(presentation_name, view.media)?;
         let source = build_input_source(&view.source)?;
 
         let trace = run_pipeline_with_presentation_options(
@@ -292,6 +292,7 @@ name: test
 source: /roms
 mount: /mnt/roms
 platform: ps2
+media: dvd
 {}{}
 "#,
             presentation

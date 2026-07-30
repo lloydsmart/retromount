@@ -129,7 +129,7 @@ mod tests {
         );
         assert_eq!(
             build_presentation_spec("opl").unwrap().layout,
-            LayoutSpec::LiteralRoot("DVD".to_string())
+            LayoutSpec::Flat
         );
     }
 
@@ -190,12 +190,14 @@ files:
                     source: SourceRef::new("file:/roms/ff7-disc2.cue"),
                     disc_number: 2,
                     consumed_sources: vec![],
+                    cd_disc: None,
                     logical_disc: None,
                 }),
                 GamePart::Disc(DiscPart {
                     source: SourceRef::new("file:/roms/ff7-disc1.cue"),
                     disc_number: 1,
                     consumed_sources: vec![],
+                    cd_disc: None,
                     logical_disc: None,
                 }),
             ],
@@ -228,6 +230,7 @@ files:
                 source: SourceRef::new("file:/roms/ps2/Game.chd"),
                 disc_number: 1,
                 consumed_sources: vec![],
+                cd_disc: None,
                 logical_disc: Some(LogicalDisc {
                     media: DiscMedia::Dvd,
                     sector_size: 2048,
@@ -250,5 +253,48 @@ files:
         assert_eq!(file.size, 4096);
         reader.read_at(2044, &mut bytes).unwrap();
         assert_eq!(&bytes, &[0x5a; 8]);
+    }
+
+    #[test]
+    fn opl_presentation_separates_media_and_excludes_non_ps2_cds() {
+        fn game(title: &str, platform: Platform, media: DiscMedia) -> NormalizedContent {
+            let handle_id = format!("test:{title}");
+            NormalizedContent::Game(GameContent {
+                id: ContentId::new(format!("{platform}:{title}")),
+                source: SourceRef::new(format!("file:/roms/{title}.iso")),
+                title: title.to_string(),
+                platform,
+                parts: vec![GamePart::Disc(DiscPart {
+                    source: SourceRef::new(format!("file:/roms/{title}.iso")),
+                    disc_number: 1,
+                    consumed_sources: vec![],
+                    cd_disc: None,
+                    logical_disc: Some(LogicalDisc {
+                        media,
+                        sector_size: 2048,
+                        sector_count: 1,
+                        content: ReaderHandle::new(handle_id, || {
+                            Ok(Box::new(InlineReader::new(vec![0; 2048])))
+                        }),
+                    }),
+                })],
+                consumed_sources: vec![],
+            })
+        }
+
+        let content = vec![
+            game("PS2 DVD", Platform::Ps2, DiscMedia::Dvd),
+            game("PS2 CD", Platform::Ps2, DiscMedia::Cd),
+            game("PS1 CD", Platform::Ps1, DiscMedia::Cd),
+            game("Unknown CD", Platform::Unknown, DiscMedia::Cd),
+        ];
+        let presentation = build_presentation_spec("opl").unwrap();
+        let plan = compile_presentation_spec(&presentation, &content, &PolicySet::default());
+        let root = materialize_plan(&plan).unwrap();
+
+        assert!(root.find_file("DVD/PS2 DVD.iso").is_some());
+        assert!(root.find_file("CD/PS2 CD.iso").is_some());
+        assert!(root.find_file("CD/PS1 CD.iso").is_none());
+        assert!(root.find_file("CD/Unknown CD.iso").is_none());
     }
 }

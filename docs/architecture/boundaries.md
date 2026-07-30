@@ -89,6 +89,15 @@ Key components:
 
 * `InputDecoder`
 * `BasicInputDecoder`
+* `CueDiscDecoder`
+* live `InputContent` and `ReaderHandle` capabilities
+
+Key optical-media types:
+
+* `CdDisc` and `CdTrack` preserve track layout, sector encoding, indexes,
+  pregaps, source ranges, and audio tracks
+* `LogicalDisc` exposes a contiguous consumer-ready 2048-byte view only when
+  that projection is safe
 
 This stage answers:
 

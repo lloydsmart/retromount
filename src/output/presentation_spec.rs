@@ -31,6 +31,7 @@ pub enum LayoutSpec {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileRuleSpec {
+    pub directory: Vec<String>,
     pub select: SelectSpec,
     pub naming: NamingSpec,
     pub artifact: ArtifactSpec,
@@ -39,10 +40,16 @@ pub struct FileRuleSpec {
 impl FileRuleSpec {
     pub fn new(select: SelectSpec, naming: NamingSpec, artifact: ArtifactSpec) -> Self {
         Self {
+            directory: Vec::new(),
             select,
             naming,
             artifact,
         }
+    }
+
+    pub fn in_directory(mut self, directory: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.directory = directory.into_iter().map(Into::into).collect();
+        self
     }
 }
 
@@ -155,6 +162,7 @@ mod tests {
 
         assert_eq!(spec.layout, LayoutSpec::Flat);
         assert_eq!(spec.files.len(), 1);
+        assert!(spec.files[0].directory.is_empty());
         assert_eq!(spec.files[0].select, SelectSpec::SingleDiscGames);
         assert_eq!(spec.files[0].naming, NamingSpec::PartName);
         assert_eq!(spec.files[0].artifact.content_type, ContentType::Disc);
@@ -194,5 +202,17 @@ mod tests {
         assert_eq!(rule.naming, NamingSpec::Literal("readme.txt".to_string()));
         assert_eq!(rule.artifact.content_type, ContentType::Text);
         assert_eq!(rule.artifact.format, Some(Format::Text));
+    }
+
+    #[test]
+    fn supports_rule_destination_directories() {
+        let rule = FileRuleSpec::new(
+            SelectSpec::Text,
+            NamingSpec::Literal("readme.txt".to_string()),
+            ArtifactSpec::new(ContentType::Text).with_format(Format::Text),
+        )
+        .in_directory(["docs", "manual"]);
+
+        assert_eq!(rule.directory, ["docs", "manual"]);
     }
 }

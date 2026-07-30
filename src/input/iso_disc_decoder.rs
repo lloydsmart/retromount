@@ -78,6 +78,7 @@ impl InputDecoder for IsoDiscDecoder {
             title,
             disc_number: 1,
             consumed_sources: Vec::new(),
+            cd_disc: None,
             logical_disc: Some(logical_disc),
         })])
     }

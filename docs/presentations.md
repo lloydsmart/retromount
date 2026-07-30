@@ -59,11 +59,11 @@ version: 1
 name: opl
 
 layout:
-  type: literal_root
-  path: DVD
+  type: flat
 
 files:
-  - select:
+  - directory: DVD
+    select:
       type: single_disc_games_by_platform_and_media
       platform: ps2
       media: dvd
@@ -87,6 +87,29 @@ Supported `layout.type` values:
 * `flat`
 * `grouped_by_platform_and_game`
 * `literal_root`, with a non-empty `path`
+
+## Rule destination directories
+
+A file rule may declare an optional relative virtual `directory`. The compiler
+creates that directory below the selected layout location:
+
+```yaml
+files:
+  - directory: CD
+    select:
+      type: single_disc_games_by_platform_and_media
+      platform: ps2
+      media: cd
+    naming:
+      type: game_title
+    artifact:
+      content_type: disc
+      format: iso
+```
+
+Nested directories use `/` separators. Absolute paths, drive prefixes, empty
+segments, `.`, and `..` segments are rejected. Backslashes are normalized as
+virtual separators when a presentation is loaded.
 
 ## Selection rules
 
@@ -139,6 +162,12 @@ The built-in catalog currently contains:
 OPL is loaded from an embedded copy of `presentations/opl.yaml`. Flat and
 grouped remain code-constructed declarative values until their shared rule set
 is migrated without unnecessary duplication.
+
+The OPL presentation declares sibling `DVD/` and `CD/` rules. ISO inputs need
+an explicit `media: dvd` or `media: cd` composition hint because ISO does not
+reliably identify its original carrier. Track-aware CUE/BIN inputs provide CD
+media semantics directly, but mixed-mode, audio, and other layouts without a
+safe 2048-byte logical projection are rejected by the OPL composition.
 
 ## Scope and extension
 

@@ -199,6 +199,7 @@ fn normalize_disc_group(
                 source: disc.source.clone(),
                 disc_number: disc.disc_number,
                 consumed_sources: disc.consumed_sources.clone(),
+                cd_disc: disc.cd_disc.clone(),
                 logical_disc: disc.logical_disc.clone(),
             })
         })
@@ -306,6 +307,7 @@ mod tests {
                     title: "Final Fantasy VII".to_string(),
                     disc_number: 2,
                     consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc2.bin")],
+                    cd_disc: None,
                     logical_disc: None,
                 }),
                 DecodedContent::Disc(DecodedDiscContent {
@@ -314,6 +316,7 @@ mod tests {
                     title: "Final Fantasy VII".to_string(),
                     disc_number: 1,
                     consumed_sources: vec![SourceRef::new("cue:/roms/ps1/ff7-disc1.bin")],
+                    cd_disc: None,
                     logical_disc: None,
                 }),
             ],
@@ -359,6 +362,7 @@ mod tests {
                     consumed_sources: vec![SourceRef::new(
                         "file:/roms/discs/ps1_multi/game_disc1.bin",
                     )],
+                    cd_disc: None,
                     logical_disc: None,
                 }),
             ],
@@ -391,6 +395,7 @@ mod tests {
                     title: "game".to_string(),
                     disc_number: 1,
                     consumed_sources: vec![SourceRef::new("file:/roms/ps1_multi/game_disc1.bin")],
+                    cd_disc: None,
                     logical_disc: None,
                 }),
                 DecodedContent::Disc(DecodedDiscContent {
@@ -399,6 +404,7 @@ mod tests {
                     title: "game".to_string(),
                     disc_number: 1,
                     consumed_sources: vec![SourceRef::new("file:/roms/ps1_single/game.bin")],
+                    cd_disc: None,
                     logical_disc: None,
                 }),
             ],
@@ -488,6 +494,7 @@ mod tests {
             title: "Game".to_string(),
             disc_number: 1,
             consumed_sources: vec![],
+            cd_disc: None,
             logical_disc: Some(LogicalDisc {
                 media: DiscMedia::Dvd,
                 sector_size: 2048,

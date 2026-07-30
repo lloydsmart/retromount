@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use std::path::PathBuf;
 
+use crate::core::content::DiscMedia;
 use crate::core::platform::Platform;
 
 pub mod core;
@@ -20,6 +21,9 @@ pub struct ViewConfig {
     pub source: PathBuf,
     pub mount: PathBuf,
     pub platform: Platform,
+
+    #[serde(default)]
+    pub media: Option<DiscMedia>,
 
     #[serde(default)]
     pub presentation: Option<String>,

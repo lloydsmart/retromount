@@ -131,7 +131,7 @@ entries seekable without introducing a converted output image.
 
 ## Milestone 3: PS2 CD through OPL
 
-**Status:** Contract accepted
+**Status:** Implemented
 
 ### Milestone 3 purpose
 

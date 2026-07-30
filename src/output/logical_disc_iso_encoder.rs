@@ -1,6 +1,5 @@
 use std::io;
 
-use crate::core::content::DiscMedia;
 use crate::output::capabilities::{CapabilityFeature, ContentType, EncoderCapability, Format};
 use crate::output::encode::{MaterializationContext, MaterializedArtifact, OutputEncoder};
 use crate::output::plan::{ArtifactRequest, PlannedArtifactKind};
@@ -26,7 +25,7 @@ impl OutputEncoder for LogicalDiscIsoEncoder {
 
     fn capabilities(&self) -> Vec<EncoderCapability> {
         vec![
-            EncoderCapability::new(self.plugin_id(), "disc.logical-dvd.iso", ContentType::Disc)
+            EncoderCapability::new(self.plugin_id(), "disc.logical.iso", ContentType::Disc)
                 .supports_format(Format::Iso)
                 .with_feature(CapabilityFeature::RandomAccess)
                 .with_feature(CapabilityFeature::Lossless),
@@ -40,7 +39,7 @@ impl OutputEncoder for LogicalDiscIsoEncoder {
         selected_capability_id: &str,
         _context: &MaterializationContext,
     ) -> Result<MaterializedArtifact, io::Error> {
-        if selected_capability_id != "disc.logical-dvd.iso" {
+        if selected_capability_id != "disc.logical.iso" {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("unsupported capability '{selected_capability_id}'"),
@@ -50,15 +49,15 @@ impl OutputEncoder for LogicalDiscIsoEncoder {
         let PlannedArtifactKind::ContentBacked(content) = &artifact.kind else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "logical DVD ISO encoding requires a content-backed artifact",
+                "logical ISO encoding requires a content-backed artifact",
             ));
         };
         let disc = &content.logical_disc;
 
-        if disc.media != DiscMedia::Dvd || disc.sector_size != 2048 {
+        if disc.sector_size != 2048 {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
-                "ISO output requires DVD media with 2048-byte logical sectors",
+                "ISO output requires 2048-byte logical sectors",
             ));
         }
 

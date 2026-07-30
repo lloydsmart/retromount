@@ -32,7 +32,14 @@ fn write_test_disc(dir: &Path) -> PathBuf {
     let bin_path = dir.join("Crash Bandicoot.bin");
     let cue_path = dir.join("Crash Bandicoot.cue");
 
-    fs::write(&bin_path, b"fake-disc-bytes").unwrap();
+    let mut sector = vec![0; 2352];
+    sector[..12].copy_from_slice(&[
+        0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00,
+    ]);
+    sector[15] = 2;
+    sector[16..20].copy_from_slice(&[1, 2, 0x20, 4]);
+    sector[20..24].copy_from_slice(&[1, 2, 0x20, 4]);
+    fs::write(&bin_path, sector).unwrap();
     fs::write(
         &cue_path,
         concat!(
