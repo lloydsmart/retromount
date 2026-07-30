@@ -15,7 +15,7 @@ impl BasicInputIdentifier {
 
 impl InputIdentifier for BasicInputIdentifier {
     fn identify(&self, object: &SourceObject) -> Result<InputIdentity, io::Error> {
-        let path = Path::new(object.source.0.as_ref());
+        let path = Path::new(&object.name);
 
         if path.is_dir() {
             return Ok(InputIdentity::Directory);
@@ -43,15 +43,30 @@ impl InputIdentifier for BasicInputIdentifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::source::{SourceObject, SourceRef};
+    use crate::core::input_content::{InputAccess, InputContent};
+    use crate::core::reader_handle::ReaderHandle;
+    use crate::core::source::{SourceObject, SourceOrigin, SourceRef};
+    use crate::readers::inline_reader::InlineReader;
+
+    fn object(name: &str) -> SourceObject {
+        SourceObject {
+            source: SourceRef::new(format!("/tmp/{name}")),
+            name: name.to_string(),
+            origin: SourceOrigin::Filesystem(format!("/tmp/{name}").into()),
+            content: InputContent::new(
+                0,
+                InputAccess::RandomAccess,
+                ReaderHandle::new(format!("test:{name}"), || {
+                    Ok(Box::new(InlineReader::new(Vec::new())))
+                }),
+            ),
+        }
+    }
 
     #[test]
     fn identifies_text_file() {
         let identifier = BasicInputIdentifier::new();
-        let object = SourceObject {
-            source: SourceRef::new("/tmp/readme.txt"),
-            name: "readme.txt".to_string(),
-        };
+        let object = object("readme.txt");
 
         let identity = identifier.identify(&object).unwrap();
         assert_eq!(identity, InputIdentity::Text);
@@ -60,10 +75,7 @@ mod tests {
     #[test]
     fn identifies_disc_image() {
         let identifier = BasicInputIdentifier::new();
-        let object = SourceObject {
-            source: SourceRef::new("/tmp/game.cue"),
-            name: "game.cue".to_string(),
-        };
+        let object = object("game.cue");
 
         let identity = identifier.identify(&object).unwrap();
         assert_eq!(identity, InputIdentity::DiscImage);
@@ -72,10 +84,7 @@ mod tests {
     #[test]
     fn identifies_chd_as_distinct_disc_container() {
         let identifier = BasicInputIdentifier::new();
-        let object = SourceObject {
-            source: SourceRef::new("/tmp/game.CHD"),
-            name: "game.CHD".to_string(),
-        };
+        let object = object("game.CHD");
 
         assert_eq!(
             identifier.identify(&object).unwrap(),
@@ -86,10 +95,7 @@ mod tests {
     #[test]
     fn identifies_iso_as_a_distinct_disc_format() {
         let identifier = BasicInputIdentifier::new();
-        let object = SourceObject {
-            source: SourceRef::new("/tmp/game.ISO"),
-            name: "game.ISO".to_string(),
-        };
+        let object = object("game.ISO");
 
         assert_eq!(
             identifier.identify(&object).unwrap(),

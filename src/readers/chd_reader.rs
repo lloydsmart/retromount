@@ -1,11 +1,11 @@
 use std::collections::VecDeque;
-use std::fs::File;
 use std::io;
-use std::path::Path;
 
 use chd::Chd;
 
 use crate::core::reader::Reader;
+use crate::core::reader_cursor::ReaderCursor;
+use crate::core::reader_handle::ReaderHandle;
 
 const DEFAULT_CACHE_HUNKS: usize = 4;
 
@@ -16,7 +16,7 @@ trait HunkSource: Send + Sync {
 }
 
 struct ChdHunkSource {
-    chd: Chd<File>,
+    chd: Chd<ReaderCursor>,
     compressed: Vec<u8>,
 }
 
@@ -48,9 +48,9 @@ pub struct ChdReader {
 }
 
 impl ChdReader {
-    pub fn open(path: &Path) -> io::Result<Self> {
-        let file = File::open(path)?;
-        let chd = Chd::open(file, None)
+    pub fn open(handle: &ReaderHandle) -> io::Result<Self> {
+        let cursor = ReaderCursor::new(handle.open()?);
+        let chd = Chd::open(cursor, None)
             .map_err(|error| io::Error::other(format!("failed to open CHD: {error}")))?;
 
         Self::from_source(

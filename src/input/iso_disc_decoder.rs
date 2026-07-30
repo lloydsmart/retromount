@@ -1,17 +1,15 @@
-use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::core::content::{ContentId, DecodedContent, DecodedDiscContent, DiscMedia, LogicalDisc};
-use crate::core::reader_handle::ReaderHandle;
+use crate::core::input_content::InputContent;
 use crate::core::source::SourceObject;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentity;
-use crate::readers::dir_reader::DirReader;
 
 const ISO_SECTOR_SIZE: u32 = 2048;
 
-/// Decodes a filesystem ISO using an explicit media hint supplied by the
+/// Decodes a random-access ISO using an explicit media hint supplied by the
 /// application composition.
 ///
 /// ISO contains a logical filesystem image, but does not reliably identify the
@@ -27,8 +25,9 @@ impl IsoDiscDecoder {
         Self { media }
     }
 
-    fn logical_disc(path: PathBuf, media: DiscMedia) -> io::Result<LogicalDisc> {
-        let logical_bytes = fs::metadata(&path)?.len();
+    fn logical_disc(content: &InputContent, media: DiscMedia) -> io::Result<LogicalDisc> {
+        content.open_random_access()?;
+        let logical_bytes = content.size;
 
         if logical_bytes == 0 {
             return Err(io::Error::new(
@@ -43,16 +42,11 @@ impl IsoDiscDecoder {
             ));
         }
 
-        let reader_path = path.clone();
-        let handle_id = format!("iso:{}", path.to_string_lossy());
-
         Ok(LogicalDisc {
             media,
             sector_size: ISO_SECTOR_SIZE,
             sector_count: logical_bytes / u64::from(ISO_SECTOR_SIZE),
-            content: ReaderHandle::new(handle_id, move || {
-                Ok(Box::new(DirReader::open(&reader_path)?))
-            }),
+            content: content.handle.clone(),
         })
     }
 }
@@ -71,8 +65,7 @@ impl InputDecoder for IsoDiscDecoder {
             return Ok(Vec::new());
         }
 
-        let path = PathBuf::from(object.source.0.as_ref());
-        let logical_disc = Self::logical_disc(path.clone(), self.media)?;
+        let logical_disc = Self::logical_disc(&object.content, self.media)?;
         let title = Path::new(&object.name)
             .file_stem()
             .and_then(|stem| stem.to_str())
@@ -93,20 +86,30 @@ impl InputDecoder for IsoDiscDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::source::SourceRef;
+    use std::fs;
+
+    use crate::input::file_source::FileInputSource;
+    use crate::input::source::InputSource;
+
+    fn object_for(path: &Path, name: &str) -> SourceObject {
+        let mut object = FileInputSource::new(path).enumerate().unwrap().remove(0);
+        object.name = name.to_string();
+        object
+    }
 
     #[test]
     fn builds_a_live_logical_disc_from_valid_iso_geometry() {
         let file = tempfile::NamedTempFile::new().unwrap();
         fs::write(file.path(), vec![0; ISO_SECTOR_SIZE as usize * 3]).unwrap();
 
-        let disc = IsoDiscDecoder::logical_disc(file.path().to_path_buf(), DiscMedia::Dvd).unwrap();
+        let object = object_for(file.path(), "Game.iso");
+        let disc = IsoDiscDecoder::logical_disc(&object.content, DiscMedia::Dvd).unwrap();
 
         assert_eq!(disc.media, DiscMedia::Dvd);
         assert_eq!(disc.sector_size, ISO_SECTOR_SIZE);
         assert_eq!(disc.sector_count, 3);
         assert_eq!(disc.byte_len(), Some(6144));
-        assert!(disc.content.id().starts_with("iso:"));
+        assert!(disc.content.id().starts_with("file:"));
     }
 
     #[test]
@@ -116,15 +119,21 @@ mod tests {
         fs::write(partial.path(), vec![0; ISO_SECTOR_SIZE as usize + 1]).unwrap();
 
         assert_eq!(
-            IsoDiscDecoder::logical_disc(empty.path().to_path_buf(), DiscMedia::Dvd)
-                .unwrap_err()
-                .kind(),
+            IsoDiscDecoder::logical_disc(
+                &object_for(empty.path(), "Empty.iso").content,
+                DiscMedia::Dvd
+            )
+            .unwrap_err()
+            .kind(),
             io::ErrorKind::InvalidData
         );
         assert_eq!(
-            IsoDiscDecoder::logical_disc(partial.path().to_path_buf(), DiscMedia::Dvd)
-                .unwrap_err()
-                .kind(),
+            IsoDiscDecoder::logical_disc(
+                &object_for(partial.path(), "Partial.iso").content,
+                DiscMedia::Dvd,
+            )
+            .unwrap_err()
+            .kind(),
             io::ErrorKind::InvalidData
         );
     }
@@ -133,10 +142,7 @@ mod tests {
     fn decodes_with_the_explicit_media_hint() {
         let file = tempfile::NamedTempFile::new().unwrap();
         fs::write(file.path(), vec![0; ISO_SECTOR_SIZE as usize]).unwrap();
-        let object = SourceObject {
-            source: SourceRef::new(file.path().to_string_lossy().into_owned()),
-            name: "Game.iso".to_string(),
-        };
+        let object = object_for(file.path(), "Game.iso");
 
         let decoded = IsoDiscDecoder::new(DiscMedia::Dvd)
             .decode(&object, &InputIdentity::IsoDisc)

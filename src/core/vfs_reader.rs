@@ -1,12 +1,9 @@
 use std::io;
-use std::path::Path;
 
 use crate::core::reader::Reader;
-use crate::core::source::SourceRef;
+use crate::core::source_resolver::open_source_ref;
 use crate::core::vfs::{FileBacking, VfsFile};
-use crate::readers::dir_reader::DirReader;
 use crate::readers::inline_reader::InlineReader;
-use crate::readers::zip_reader::ZipReader;
 
 pub fn open_vfs_file(file: &VfsFile) -> Result<Box<dyn Reader>, io::Error> {
     match &file.backing {
@@ -16,38 +13,11 @@ pub fn open_vfs_file(file: &VfsFile) -> Result<Box<dyn Reader>, io::Error> {
     }
 }
 
-fn open_source_ref(source: &SourceRef) -> Result<Box<dyn Reader>, io::Error> {
-    let source = source.0.as_ref();
-
-    if let Some(remainder) = source.strip_prefix("zip:") {
-        let (archive_path, entry_name) = remainder.split_once('#').ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("invalid ZIP source ref: {source}"),
-            )
-        })?;
-
-        return Ok(Box::new(ZipReader::open(
-            Path::new(archive_path),
-            entry_name,
-        )?));
-    }
-
-    let path = if let Some(path) = source.strip_prefix("file:") {
-        path
-    } else if let Some(path) = source.strip_prefix("cue:") {
-        path
-    } else {
-        source
-    };
-
-    Ok(Box::new(DirReader::open(Path::new(path))?))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::reader_handle::ReaderHandle;
+    use crate::core::source::SourceRef;
     use crate::core::vfs::VfsFile;
     use std::fs;
     use std::io::Write;

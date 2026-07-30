@@ -1,17 +1,13 @@
-use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::core::content::{
     BytesContent, ContentId, DecodedContent, DecodedDiscContent, DecodedRomContent, TextContent,
 };
 use crate::core::cue::parse_cue;
-use crate::core::reader::Reader;
 use crate::core::source::{SourceObject, SourceRef};
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentity;
-use crate::readers::dir_reader::DirReader;
-use crate::readers::zip_reader::ZipReader;
 
 #[derive(Debug, Default)]
 pub struct BasicInputDecoder;
@@ -93,21 +89,7 @@ impl InputDecoder for BasicInputDecoder {
 }
 
 fn content_size_for(object: &SourceObject) -> Result<u64, io::Error> {
-    if let Some((archive_path, entry_name)) = parse_zip_source(object) {
-        let reader = ZipReader::open(Path::new(&archive_path), &entry_name)?;
-        return Ok(reader.len());
-    }
-
-    let path = Path::new(object.source.0.as_ref());
-    Ok(fs::metadata(path)?.len())
-}
-
-fn parse_zip_source(object: &SourceObject) -> Option<(String, String)> {
-    let source = object.source.0.as_ref();
-    let remainder = source.strip_prefix("zip:")?;
-    let (archive_path, entry_name) = remainder.split_once('#')?;
-
-    Some((archive_path.to_string(), entry_name.to_string()))
+    Ok(object.content.size)
 }
 
 fn consumed_sources_for_disc_image(object: &SourceObject) -> Result<Vec<SourceRef>, io::Error> {
@@ -125,18 +107,7 @@ fn consumed_sources_for_disc_image(object: &SourceObject) -> Result<Vec<SourceRe
 }
 
 fn read_text_from_source(object: &SourceObject) -> Result<String, io::Error> {
-    if let Some((archive_path, entry_name)) = parse_zip_source(object) {
-        let mut reader = ZipReader::open(Path::new(&archive_path), &entry_name)?;
-        let mut bytes = vec![0; reader.len() as usize];
-        let bytes_read = reader.read_at(0, &mut bytes)?;
-        bytes.truncate(bytes_read);
-
-        return String::from_utf8(bytes)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err));
-    }
-
-    let path = Path::new(object.source.0.as_ref());
-    let mut reader = DirReader::open(path)?;
+    let mut reader = object.content.open()?;
     let mut bytes = vec![0; reader.len() as usize];
     let bytes_read = reader.read_at(0, &mut bytes)?;
     bytes.truncate(bytes_read);
@@ -145,26 +116,7 @@ fn read_text_from_source(object: &SourceObject) -> Result<String, io::Error> {
 }
 
 fn resolve_relative_source(object: &SourceObject, referenced_path: &Path) -> SourceRef {
-    if let Some((archive_path, entry_name)) = parse_zip_source(object) {
-        let entry_path = Path::new(&entry_name);
-        let base_dir = entry_path.parent().unwrap_or_else(|| Path::new(""));
-        let resolved = normalize_virtual_path(base_dir.join(referenced_path));
-
-        return SourceRef::new(format!("zip:{archive_path}#{resolved}"));
-    }
-
-    let cue_path = Path::new(object.source.0.as_ref());
-    let base_dir = cue_path.parent().unwrap_or_else(|| Path::new("."));
-    let resolved = base_dir.join(referenced_path);
-
-    SourceRef::new(resolved.to_string_lossy().into_owned())
-}
-
-fn normalize_virtual_path(path: PathBuf) -> String {
-    path.components()
-        .map(|component| component.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
+    object.resolve_relative(referenced_path)
 }
 
 fn looks_like_rom_name(name: &str) -> bool {
@@ -249,7 +201,16 @@ mod tests {
     use super::*;
     use std::fs;
 
-    use crate::core::source::{SourceObject, SourceRef};
+    use crate::core::source::SourceObject;
+    use crate::input::file_source::FileInputSource;
+    use crate::input::source::InputSource;
+    use crate::input::zip_source::ZipInputSource;
+
+    fn filesystem_object(path: &Path, name: &str) -> SourceObject {
+        let mut object = FileInputSource::new(path).enumerate().unwrap().remove(0);
+        object.name = name.to_string();
+        object
+    }
 
     #[test]
     fn decodes_text_file_as_text_content() {
@@ -258,10 +219,7 @@ mod tests {
         fs::write(&path, b"hello").unwrap();
 
         let decoder = BasicInputDecoder::new();
-        let object = SourceObject {
-            source: SourceRef::new(path.to_string_lossy().into_owned()),
-            name: "readme.txt".to_string(),
-        };
+        let object = filesystem_object(&path, "readme.txt");
 
         let content = decoder.decode(&object, &InputIdentity::Text).unwrap();
         assert_eq!(content.len(), 1);
@@ -275,10 +233,7 @@ mod tests {
         fs::write(&path, b"romdata").unwrap();
 
         let decoder = BasicInputDecoder::new();
-        let object = SourceObject {
-            source: SourceRef::new(path.to_string_lossy().into_owned()),
-            name: "game.sfc".to_string(),
-        };
+        let object = filesystem_object(&path, "game.sfc");
 
         let content = decoder.decode(&object, &InputIdentity::File).unwrap();
         assert_eq!(content.len(), 1);
@@ -311,10 +266,10 @@ mod tests {
         }
 
         let decoder = BasicInputDecoder::new();
-        let object = SourceObject {
-            source: SourceRef::new(format!("zip:{}#roms/sonic.bin", zip_path.to_string_lossy())),
-            name: "sonic.bin".to_string(),
-        };
+        let object = ZipInputSource::new(&zip_path)
+            .enumerate()
+            .unwrap()
+            .remove(0);
 
         let content = decoder.decode(&object, &InputIdentity::File).unwrap();
         assert_eq!(content.len(), 1);
@@ -343,10 +298,7 @@ FILE "game.bin" BINARY
         .unwrap();
 
         let decoder = BasicInputDecoder::new();
-        let object = SourceObject {
-            source: SourceRef::new(cue_path.to_string_lossy().into_owned()),
-            name: "game.cue".to_string(),
-        };
+        let object = filesystem_object(&cue_path, "game.cue");
 
         let content = decoder.decode(&object, &InputIdentity::DiscImage).unwrap();
         assert_eq!(content.len(), 1);
@@ -393,10 +345,12 @@ FILE "game.bin" BINARY
         }
 
         let decoder = BasicInputDecoder::new();
-        let object = SourceObject {
-            source: SourceRef::new(format!("zip:{}#ps1/game.cue", zip_path.to_string_lossy())),
-            name: "ps1/game.cue".to_string(),
-        };
+        let object = ZipInputSource::new(&zip_path)
+            .enumerate()
+            .unwrap()
+            .into_iter()
+            .find(|object| object.name == "ps1/game.cue")
+            .unwrap();
 
         let content = decoder.decode(&object, &InputIdentity::DiscImage).unwrap();
         assert_eq!(content.len(), 1);
@@ -453,10 +407,7 @@ FILE "game.bin" BINARY
         fs::write(&path, b"hello").unwrap();
 
         let decoder = BasicInputDecoder::new();
-        let object = SourceObject {
-            source: SourceRef::new(path.to_string_lossy().into_owned()),
-            name: "mixed/notes.txt".to_string(),
-        };
+        let object = filesystem_object(&path, "mixed/notes.txt");
 
         let content = decoder.decode(&object, &InputIdentity::Text).unwrap();
 
@@ -473,10 +424,7 @@ FILE "game.bin" BINARY
         fs::write(&path, b"hello").unwrap();
 
         let decoder = BasicInputDecoder::new();
-        let object = SourceObject {
-            source: SourceRef::new(path.to_string_lossy().into_owned()),
-            name: "roms/snes/game.nfo".to_string(),
-        };
+        let object = filesystem_object(&path, "roms/snes/game.nfo");
 
         let content = decoder.decode(&object, &InputIdentity::Text).unwrap();
 

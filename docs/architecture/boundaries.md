@@ -38,6 +38,21 @@ Key components:
 * `InputSource`
 * `DirectoryInputSource`
 * `ZipInputSource`
+* `InputContent`
+* `SourceOrigin`
+* `source_resolver`
+
+Each enumerated `SourceObject` carries:
+
+* a stable `SourceRef` identity;
+* a structured source origin for relative resolution;
+* an opaque live reader handle;
+* its encoded byte length;
+* a declared sequential or random-access capability.
+
+Filesystem and container addressing is resolved at this boundary. Identifiers
+and decoders must not parse encoded ZIP source strings or reopen filesystem
+paths independently.
 
 This stage answers:
 

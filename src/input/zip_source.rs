@@ -2,7 +2,9 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::core::source::{SourceObject, SourceRef};
+use crate::core::input_content::InputAccess;
+use crate::core::source::{SourceObject, SourceOrigin, SourceRef};
+use crate::core::source_resolver::zip_entry_content;
 use crate::input::source::{InputSource, InputSourceKind};
 
 #[derive(Debug, Clone)]
@@ -44,21 +46,29 @@ impl InputSource for ZipInputSource {
             }
 
             let entry_name = entry.name().to_string();
-            let display_name = Path::new(&entry_name)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or(&entry_name)
-                .to_string();
+            let display_name = entry_name.clone();
+            let size = entry.size();
+            let access = if entry.compression() == zip::CompressionMethod::Stored {
+                InputAccess::RandomAccess
+            } else {
+                InputAccess::Sequential
+            };
 
             let source = SourceRef::new(format!(
                 "zip:{}#{}",
                 self.archive_path.to_string_lossy(),
                 entry_name
             ));
+            let content = zip_entry_content(&self.archive_path, &entry_name, size, access);
 
             objects.push(SourceObject {
                 source,
                 name: display_name,
+                origin: SourceOrigin::ZipEntry {
+                    archive_path: self.archive_path.clone(),
+                    entry_name,
+                },
+                content,
             });
         }
 
@@ -70,6 +80,7 @@ impl InputSource for ZipInputSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::input_content::InputAccess;
     use std::fs::File;
     use std::io::Write;
 
@@ -110,9 +121,12 @@ mod tests {
         let objects = source.enumerate().unwrap();
 
         let names: Vec<&str> = objects.iter().map(|o| o.name.as_str()).collect();
-        assert_eq!(names, vec!["readme.txt", "sonic.bin"]);
+        assert_eq!(names, vec!["docs/readme.txt", "roms/sonic.bin"]);
 
         assert!(objects[0].source.0.starts_with("zip:"));
         assert!(objects[1].source.0.starts_with("zip:"));
+        assert!(objects
+            .iter()
+            .all(|object| object.content.access == InputAccess::Sequential));
     }
 }

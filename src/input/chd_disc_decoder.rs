@@ -1,12 +1,11 @@
-use std::fs::File;
 use std::io;
-use std::path::{Path, PathBuf};
 
 use chd::metadata::MetadataTag;
 use chd::{Chd, Error as ChdError};
 
 use crate::core::content::{ContentId, DecodedContent, DecodedDiscContent, DiscMedia, LogicalDisc};
-use crate::core::reader_handle::ReaderHandle;
+use crate::core::input_content::InputContent;
+use crate::core::reader_cursor::ReaderCursor;
 use crate::core::source::SourceObject;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentity;
@@ -31,9 +30,9 @@ impl ChdDiscDecoder {
         Self
     }
 
-    fn inspect(path: &Path) -> io::Result<ChdDiscInfo> {
-        let file = File::open(path)?;
-        let mut chd = Chd::open(file, None).map_err(map_chd_open_error)?;
+    fn inspect(content: &InputContent) -> io::Result<ChdDiscInfo> {
+        let cursor = ReaderCursor::new(content.open_random_access()?);
+        let mut chd = Chd::open(cursor, None).map_err(map_chd_open_error)?;
         let header = chd.header();
         let has_parent = header.has_parent();
         let unit_bytes = header.unit_bytes();
@@ -50,7 +49,7 @@ impl ChdDiscDecoder {
         })
     }
 
-    fn logical_disc(path: PathBuf, info: ChdDiscInfo) -> io::Result<LogicalDisc> {
+    fn logical_disc(content: &InputContent, info: ChdDiscInfo) -> io::Result<LogicalDisc> {
         if info.has_parent {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
@@ -79,15 +78,15 @@ impl ChdDiscDecoder {
             ));
         }
 
-        let reader_path = path.clone();
-        let handle_id = format!("chd:{}", path.to_string_lossy());
+        let handle = content.handle.clone();
         Ok(LogicalDisc {
             media: DiscMedia::Dvd,
             sector_size: DVD_SECTOR_SIZE,
             sector_count: info.logical_bytes / u64::from(DVD_SECTOR_SIZE),
-            content: ReaderHandle::new(handle_id, move || {
-                Ok(Box::new(ChdReader::open(&reader_path)?))
-            }),
+            content: crate::core::reader_handle::ReaderHandle::new(
+                format!("chd:{}", content.handle.id()),
+                move || Ok(Box::new(ChdReader::open(&handle)?)),
+            ),
         })
     }
 }
@@ -123,9 +122,8 @@ impl InputDecoder for ChdDiscDecoder {
             return Ok(Vec::new());
         }
 
-        let path = PathBuf::from(object.source.0.as_ref());
-        let logical_disc = Self::logical_disc(path.clone(), Self::inspect(&path)?)?;
-        let title = path
+        let logical_disc = Self::logical_disc(&object.content, Self::inspect(&object.content)?)?;
+        let title = std::path::Path::new(&object.name)
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or(&object.name)
@@ -145,6 +143,17 @@ impl InputDecoder for ChdDiscDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::input_content::{InputAccess, InputContent};
+    use crate::core::reader_handle::ReaderHandle;
+    use crate::readers::inline_reader::InlineReader;
+
+    fn test_content() -> InputContent {
+        InputContent::new(
+            1,
+            InputAccess::RandomAccess,
+            ReaderHandle::new("test:chd", || Ok(Box::new(InlineReader::new(vec![0])))),
+        )
+    }
 
     fn valid_info() -> ChdDiscInfo {
         ChdDiscInfo {
@@ -157,14 +166,13 @@ mod tests {
 
     #[test]
     fn builds_a_live_logical_dvd_from_valid_geometry() {
-        let disc =
-            ChdDiscDecoder::logical_disc(PathBuf::from("/tmp/game.chd"), valid_info()).unwrap();
+        let disc = ChdDiscDecoder::logical_disc(&test_content(), valid_info()).unwrap();
 
         assert_eq!(disc.media, DiscMedia::Dvd);
         assert_eq!(disc.sector_size, DVD_SECTOR_SIZE);
         assert_eq!(disc.sector_count, 3);
         assert_eq!(disc.byte_len(), Some(6144));
-        assert_eq!(disc.content.id(), "chd:/tmp/game.chd");
+        assert_eq!(disc.content.id(), "chd:test:chd");
     }
 
     #[test]
@@ -179,13 +187,13 @@ mod tests {
         };
 
         assert_eq!(
-            ChdDiscDecoder::logical_disc(PathBuf::from("/tmp/game.chd"), parent)
+            ChdDiscDecoder::logical_disc(&test_content(), parent)
                 .unwrap_err()
                 .kind(),
             io::ErrorKind::Unsupported
         );
         assert_eq!(
-            ChdDiscDecoder::logical_disc(PathBuf::from("/tmp/game.chd"), non_dvd)
+            ChdDiscDecoder::logical_disc(&test_content(), non_dvd)
                 .unwrap_err()
                 .kind(),
             io::ErrorKind::Unsupported
@@ -204,13 +212,13 @@ mod tests {
         };
 
         assert_eq!(
-            ChdDiscDecoder::logical_disc(PathBuf::from("/tmp/game.chd"), wrong_unit)
+            ChdDiscDecoder::logical_disc(&test_content(), wrong_unit)
                 .unwrap_err()
                 .kind(),
             io::ErrorKind::InvalidData
         );
         assert_eq!(
-            ChdDiscDecoder::logical_disc(PathBuf::from("/tmp/game.chd"), partial_sector)
+            ChdDiscDecoder::logical_disc(&test_content(), partial_sector)
                 .unwrap_err()
                 .kind(),
             io::ErrorKind::InvalidData
