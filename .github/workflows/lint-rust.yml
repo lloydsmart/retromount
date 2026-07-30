@@ -58,7 +58,7 @@ jobs:
         uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3.4.0
         with:
           crate: sccache
-          version: "0.14.0"
+          version: "0.17.0"
           locked: false
 
       - name: Configure sccache
