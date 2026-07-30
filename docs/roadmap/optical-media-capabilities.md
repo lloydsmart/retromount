@@ -249,7 +249,7 @@ the original SBI source is suppressed as consumed input.
 
 #### PS1-4: Multi-disc M3U
 
-**Status:** Planned
+**Status:** Implemented
 
 Present every disc in a normalized multi-disc PS1 game and generate an M3U
 whose relative entries reference the planned CUE or CHD artifacts.
@@ -257,6 +257,12 @@ whose relative entries reference the planned CUE or CHD artifacts.
 Acceptance requires deterministic disc ordering, atomic conflict resolution
 for the complete game artifact set, relative portable paths, and DuckStation
 validation of disc switching and game grouping.
+
+The implementation allocates one game directory before expanding its ordered
+disc parts. Each disc is a nested atomic CUE/BIN artifact set, and the sibling
+M3U references its generated CUE through a forward-slash relative path.
+Dedicated CUE and CHD decoders share the existing `(Disc N)` filename parsing
+so normalization can group and order both input formats consistently.
 
 #### PS1-5: Cooked ISO input
 
@@ -327,7 +333,7 @@ presentation.
   or naming cannot be represented.
 * PS2 and unknown CDs do not match the DuckStation rule.
 * Multi-disc support remains deferred from this first implementation.
-* PS1-4 through PS1-7 remain visible as planned work after PS1-3 merges.
+* PS1-5 through PS1-7 remain visible as planned work after PS1-4 merges.
 
 ## Milestone 5: Performance, caching, and optimization
 

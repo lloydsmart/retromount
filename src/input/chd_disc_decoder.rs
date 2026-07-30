@@ -9,6 +9,7 @@ use crate::core::input_content::InputContent;
 use crate::core::reader_cursor::ReaderCursor;
 use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::SourceObject;
+use crate::input::basic_decoder::parse_disc_info_from_name;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentity;
 use crate::input::sbi_sidecar::discover_sbi_sidecar;
@@ -449,11 +450,12 @@ impl InputDecoder for ChdDiscDecoder {
         if let Some(cd_disc) = &mut cd_disc {
             cd_disc.sbi = discover_sbi_sidecar(object)?;
         }
-        let title = std::path::Path::new(&object.name)
+        let raw_title = std::path::Path::new(&object.name)
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or(&object.name)
             .to_string();
+        let (title, disc_number) = parse_disc_info_from_name(&raw_title);
 
         let consumed_sources = cd_disc
             .as_ref()
@@ -465,7 +467,7 @@ impl InputDecoder for ChdDiscDecoder {
             id: ContentId::new(object.name.clone()),
             source: object.source.clone(),
             title,
-            disc_number: 1,
+            disc_number,
             consumed_sources,
             cd_disc,
             logical_disc,

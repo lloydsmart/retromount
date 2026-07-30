@@ -202,6 +202,9 @@ enum SerializedSelect {
         media: SerializedDiscMedia,
     },
     MultiDiscGames,
+    MultiDiscGamesByPlatform {
+        platform: SerializedPlatform,
+    },
     SingleRomGames,
     Bytes,
     Text,
@@ -223,6 +226,9 @@ impl SerializedSelect {
                 }
             }
             Self::MultiDiscGames => SelectSpec::MultiDiscGames,
+            Self::MultiDiscGamesByPlatform { platform } => SelectSpec::MultiDiscGamesByPlatform {
+                platform: platform.into(),
+            },
             Self::SingleRomGames => SelectSpec::SingleRomGames,
             Self::Bytes => SelectSpec::Bytes,
             Self::Text => SelectSpec::Text,

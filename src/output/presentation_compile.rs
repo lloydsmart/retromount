@@ -115,6 +115,9 @@ fn try_compile_rule(
     if rule.select == SelectSpec::MultiDiscGames {
         return try_compile_multi_disc_rule(rule, item, policy, root_names);
     }
+    if matches!(rule.select, SelectSpec::MultiDiscGamesByPlatform { .. }) {
+        return try_compile_multi_disc_cue_bin_game(rule, item, policy, root_names);
+    }
 
     let match_result = match rule.select {
         SelectSpec::Games => match_game(item),
@@ -127,6 +130,7 @@ fn try_compile_rule(
             match_single_disc_game_by_platform_and_media(item, platform, media)
         }
         SelectSpec::MultiDiscGames => unreachable!("handled above"),
+        SelectSpec::MultiDiscGamesByPlatform { .. } => unreachable!("handled above"),
         SelectSpec::SingleRomGames => match_single_rom_game(item),
         SelectSpec::Bytes => match_bytes(item),
         SelectSpec::Text => match_text(item),
@@ -181,6 +185,76 @@ fn try_compile_rule(
     );
 
     vec![PlanEntry::File(PlanFile::new(allocated_name, artifact))]
+}
+
+fn try_compile_multi_disc_cue_bin_game(
+    rule: &FileRuleSpec,
+    item: &NormalizedContent,
+    policy: &PolicySet,
+    names: &mut Vec<String>,
+) -> Vec<PlanEntry> {
+    let NormalizedContent::Game(game) = item else {
+        return Vec::new();
+    };
+    let SelectSpec::MultiDiscGamesByPlatform { platform } = rule.select else {
+        return Vec::new();
+    };
+    if game.platform != platform
+        || !is_multi_disc_game(game)
+        || rule.artifact.content_type != ContentType::Game
+        || rule.artifact.format != Some(Format::CueBin)
+    {
+        return Vec::new();
+    }
+
+    let directory_name = policy.resolve_name_conflict(&policy.naming().game_name(game), names);
+    names.push(directory_name.clone());
+
+    let mut entries = Vec::with_capacity(game.parts.len() + 1);
+    let mut child_names = Vec::new();
+    let mut references = Vec::new();
+    for disc in sorted_disc_parts(game) {
+        let Some(cd_disc) = &disc.cd_disc else {
+            return Vec::new();
+        };
+        let part_name = policy
+            .naming()
+            .part_name(game, &GamePart::Disc(disc.clone()));
+        let artifact_name = strip_known_extension(&part_name, Some(Format::CueBin));
+        let disc_directory_name = policy.resolve_name_conflict(&artifact_name, &child_names);
+        child_names.push(disc_directory_name.clone());
+        let artifact_id = ArtifactId::new(format!("game:{}:disc:{}", game.id, disc.disc_number));
+        references.push(ArtifactReference::new(artifact_id.clone()));
+
+        let mut disc_spec = rule.artifact.clone();
+        disc_spec.content_type = ContentType::Disc;
+        entries.push(PlanEntry::ArtifactSet(PlanArtifactSet::new(
+            disc_directory_name,
+            artifact_name,
+            ArtifactRequest::new(
+                artifact_id,
+                PlannedArtifactKind::ContentBacked(ContentArtifact::cd_disc(cd_disc.clone())),
+                build_requirements(&disc_spec),
+            ),
+        )));
+    }
+
+    let playlist_name = policy.naming().playlist_name(game);
+    entries.push(PlanEntry::File(PlanFile::new(
+        playlist_name,
+        ArtifactRequest::new(
+            ArtifactId::new(format!("game:{}:playlist", game.id)),
+            PlannedArtifactKind::Generated(GeneratedArtifact::Playlist(PlaylistArtifact::new(
+                references,
+            ))),
+            CapabilityRequirements::new(ContentType::Playlist).with_format(Format::M3u),
+        ),
+    )));
+
+    vec![PlanEntry::Directory(PlanDirectory::new(
+        directory_name,
+        entries,
+    ))]
 }
 
 fn try_compile_multi_disc_rule(
@@ -610,6 +684,9 @@ fn build_artifact_id(select: &SelectSpec, item: &NormalizedContent) -> ArtifactI
             ArtifactId::new(format!("game:{}", game.id))
         }
         (SelectSpec::MultiDiscGames, NormalizedContent::Game(game)) => {
+            ArtifactId::new(format!("game:{}", game.id))
+        }
+        (SelectSpec::MultiDiscGamesByPlatform { .. }, NormalizedContent::Game(game)) => {
             ArtifactId::new(format!("game:{}", game.id))
         }
         (SelectSpec::SingleRomGames, NormalizedContent::Game(game)) => {

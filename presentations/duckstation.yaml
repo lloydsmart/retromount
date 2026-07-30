@@ -18,3 +18,16 @@ files:
         - lossless
         - random_access
         - multi_file
+
+  - select:
+      type: multi_disc_games_by_platform
+      platform: ps1
+    naming:
+      type: game_name
+    artifact:
+      content_type: game
+      format: cue_bin
+      required_features:
+        - lossless
+        - random_access
+        - multi_file

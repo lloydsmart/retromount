@@ -4,7 +4,7 @@
 
 Accepted
 
-PS1-1 through PS1-3 implemented
+PS1-1 through PS1-4 implemented
 
 ## Context
 
@@ -319,6 +319,19 @@ generated CUE and track BINs. Its output name is derived from the artifact
 basename rather than copied from the source, guaranteeing the adjacency and
 same-basename convention expected by DuckStation for both filesystem and
 stored-ZIP sources.
+
+## PS1-4 implementation note
+
+Multi-disc expansion is selected declaratively by platform, but compiled as
+one atomic game directory rather than unrelated per-disc rules. Disc numbers
+parsed by the dedicated CUE and CHD decoders feed normalization and stable
+ordering. Each part then reuses the existing CUE/BIN artifact-set encoder in a
+nested directory.
+
+The generated M3U is a sibling of those disc directories and references the
+planned CUE member of each set with a forward-slash relative path. The outer
+game name is conflict-resolved once before any children are planned, keeping
+the complete set coherent if another game requests the same presentation name.
 
 ## Consequences
 

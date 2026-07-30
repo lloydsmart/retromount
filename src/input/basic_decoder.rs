@@ -166,7 +166,7 @@ fn path_without_extension(name: &str) -> String {
     }
 }
 
-fn parse_disc_info_from_name(name: &str) -> (String, u32) {
+pub(crate) fn parse_disc_info_from_name(name: &str) -> (String, u32) {
     let lower = name.to_lowercase();
 
     let patterns = ["disc", "cd", "disk", "vol"];
