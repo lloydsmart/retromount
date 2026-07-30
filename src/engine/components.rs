@@ -1,7 +1,9 @@
 use crate::engine::bootstrap::build_presentation_spec;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
+use crate::input::chd_disc_decoder::ChdDiscDecoder;
 use crate::input::decode::InputDecoder;
+use crate::input::decoder_registry::DecoderRegistry;
 use crate::input::identify::InputIdentifier;
 use crate::output::presentation_spec::PresentationSpec;
 use crate::policy::PolicySet;
@@ -27,9 +29,13 @@ pub fn pipeline_components(presentation_name: &str) -> Result<PipelineComponents
     let presentation =
         build_presentation_spec(presentation_name).map_err(RetromountError::LoadError)?;
 
+    let mut decoder = DecoderRegistry::new();
+    decoder.register(ChdDiscDecoder::new());
+    decoder.register(BasicInputDecoder::new());
+
     Ok(PipelineComponents {
         identifier: Box::new(BasicInputIdentifier::new()),
-        decoder: Box::new(BasicInputDecoder::new()),
+        decoder: Box::new(decoder),
         presentation,
         policy: PolicySet::default(),
     })

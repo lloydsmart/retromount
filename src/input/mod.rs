@@ -1,6 +1,8 @@
 pub mod basic_decoder;
 pub mod basic_identifier;
+pub mod chd_disc_decoder;
 pub mod decode;
+pub mod decoder_registry;
 pub mod directory_source;
 pub mod file_source;
 pub mod identify;
