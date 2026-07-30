@@ -6,10 +6,7 @@ use crate::engine::components::pipeline_components_for_presentation;
 use crate::error::RetromountError;
 use crate::output::plugin_registry::PluginRegistry;
 
-use super::pipeline::{
-    run_pipeline_with_presentation_options, run_pipeline_with_presentation_trace, PipelineOptions,
-    PipelineTrace,
-};
+use super::pipeline::{run_pipeline_with_presentation_options, PipelineOptions, PipelineTrace};
 use super::preview::{build_input_source, write_vfs_tree};
 
 pub fn run_phase3_inspect(
@@ -30,26 +27,17 @@ pub fn run_phase3_inspect_with_plugins(
     let kind = source.kind();
     let components = pipeline_components_for_presentation(presentation_name)?;
 
-    let trace = match plugin_registry {
-        Some(plugin_registry) => run_pipeline_with_presentation_options(
-            source.as_ref(),
-            components.identifier.as_ref(),
-            components.decoder.as_ref(),
-            &components.presentation,
-            &components.policy,
-            &PipelineOptions {
-                normalization: Default::default(),
-                plugin_registry: Some(plugin_registry),
-            },
-        )?,
-        None => run_pipeline_with_presentation_trace(
-            source.as_ref(),
-            components.identifier.as_ref(),
-            components.decoder.as_ref(),
-            &components.presentation,
-            &components.policy,
-        )?,
-    };
+    let trace = run_pipeline_with_presentation_options(
+        source.as_ref(),
+        components.identifier.as_ref(),
+        components.decoder.as_ref(),
+        &components.presentation,
+        &components.policy,
+        &PipelineOptions {
+            normalization: components.normalization.clone(),
+            plugin_registry,
+        },
+    )?;
 
     if json {
         let output = serde_json::to_string_pretty(&trace)

@@ -208,4 +208,34 @@ mod tests {
         assert_eq!(reads.load(Ordering::SeqCst), 3);
         assert_eq!(reader.cache.len(), 1);
     }
+
+    #[test]
+    fn propagates_hunk_decode_failures_without_partial_success() {
+        struct FailingHunkSource;
+
+        impl HunkSource for FailingHunkSource {
+            fn hunk_size(&self) -> u32 {
+                8
+            }
+
+            fn logical_bytes(&self) -> u64 {
+                8
+            }
+
+            fn read_hunk(&mut self, index: u32, _output: &mut [u8]) -> io::Result<()> {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("failed to decompress CHD hunk {index}"),
+                ))
+            }
+        }
+
+        let mut reader = ChdReader::from_source(Box::new(FailingHunkSource), 1).unwrap();
+        let mut output = [0; 4];
+        let error = reader.read_at(0, &mut output).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+        assert!(error.to_string().contains("decompress"));
+        assert!(reader.cache.is_empty());
+    }
 }

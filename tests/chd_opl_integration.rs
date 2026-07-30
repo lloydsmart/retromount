@@ -4,8 +4,10 @@ use retromount::core::content::{DecodedContent, GamePart, NormalizedContent, Pla
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::vfs_resolver::open_file;
 use retromount::engine::components::pipeline_components;
+use retromount::engine::mount::prepare_mount_session;
 use retromount::engine::pipeline::{run_pipeline_with_presentation_options, PipelineOptions};
 use retromount::input::file_source::FileInputSource;
+use retromount::mount::session::MountNodeKind;
 
 const HEADER_SIZE: usize = 124;
 const HUNK_SIZE: usize = 4096;
@@ -107,6 +109,28 @@ fn presents_a_dvd_chd_as_a_live_opl_iso() {
             .unwrap(),
         0
     );
+}
+
+#[test]
+fn prepares_a_mount_session_with_the_opl_platform_context() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let chd_path = temp_dir.path().join("Test Game.chd");
+    fs::write(&chd_path, dvd_chd_fixture()).unwrap();
+
+    let session = prepare_mount_session(&chd_path, "opl").unwrap();
+    let dvd = session
+        .lookup_child(session.root_inode(), "DVD")
+        .expect("mount root should contain the OPL DVD directory");
+    let iso = session
+        .lookup_child(dvd.inode, "Test Game.iso")
+        .expect("DVD directory should contain the live ISO");
+    let MountNodeKind::File { file } = &iso.kind else {
+        panic!("OPL entry should be a file");
+    };
+
+    assert_eq!(file.size, LOGICAL_SIZE as u64);
+    let mut reader = retromount::core::vfs_reader::open_vfs_file(file).unwrap();
+    assert_read(&mut *reader, HUNK_SIZE - 3, 11);
 }
 
 #[test]
