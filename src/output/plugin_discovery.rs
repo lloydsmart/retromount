@@ -116,7 +116,7 @@ pub fn build_registry_from_discovery(
     Ok(registry)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use std::fs;
 
