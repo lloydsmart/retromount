@@ -233,6 +233,8 @@ fn build_track(
         source_offset,
         encoded_content: content.handle,
         logical_content,
+        subchannel_content: None,
+        subchannel_format: None,
         indexes: entry
             .indexes
             .iter()

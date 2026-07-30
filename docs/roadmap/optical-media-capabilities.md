@@ -210,7 +210,7 @@ Implement the first slice described above.
 
 #### PS1-2: CHD input
 
-**Status:** Planned
+**Status:** Implemented
 
 Decode CHD metadata, tracks, sectors, audio, pregaps, and available subchannel
 information into the canonical `CdDisc`. Present the result through the
@@ -218,6 +218,15 @@ DuckStation CUE/BIN view without flattening it to `LogicalDisc`.
 
 Acceptance requires mixed-mode and audio fixtures, bounded random access, and
 equivalent canonical semantics for matching CHD and CUE/BIN images.
+
+The implementation reads CD frames live through the existing bounded CHD hunk
+reader, removes CHD's 96-byte interleaved subchannel area and per-track
+four-frame padding from the main track views, and preserves declared versus
+file-backed pregaps. Available `RW` and `RW_RAW` subchannel bytes are retained
+as separate canonical track content. Because CUE/BIN cannot carry those bytes,
+the DuckStation CUE/BIN encoder fails closed for such a CHD. PS1-3 adds
+source-backed SBI sidecars separately; embedded CHD subchannel conversion or a
+subchannel-capable output must be specified before this case can be presented.
 
 #### PS1-3: SBI sidecars
 
@@ -311,7 +320,7 @@ presentation.
   or naming cannot be represented.
 * PS2 and unknown CDs do not match the DuckStation rule.
 * Multi-disc support remains deferred from this first implementation.
-* PS1-2 through PS1-7 remain visible as planned work after PS1-1 merges.
+* PS1-3 through PS1-7 remain visible as planned work after PS1-2 merges.
 
 ## Milestone 5: Performance, caching, and optimization
 

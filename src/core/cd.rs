@@ -17,6 +17,12 @@ pub enum CdSectorFormat {
     Audio2352,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum CdSubchannelFormat {
+    Normal,
+    Raw,
+}
+
 impl CdSectorFormat {
     pub fn encoded_sector_size(self) -> u32 {
         match self {
@@ -45,6 +51,8 @@ pub struct CdTrack {
     pub source_offset: u64,
     pub encoded_content: ReaderHandle,
     pub logical_content: Option<ReaderHandle>,
+    pub subchannel_content: Option<ReaderHandle>,
+    pub subchannel_format: Option<CdSubchannelFormat>,
     /// Index positions relative to the beginning of the preserved extent.
     pub indexes: Vec<CdIndex>,
     /// File-backed sectors between INDEX 00 and INDEX 01.
@@ -112,6 +120,8 @@ mod tests {
             source_offset: 0,
             encoded_content: handle("encoded"),
             logical_content: Some(handle("logical")),
+            subchannel_content: None,
+            subchannel_format: None,
             indexes: vec![CdIndex {
                 number: 1,
                 sector: 0,
@@ -124,6 +134,8 @@ mod tests {
             kind: CdTrackKind::Audio,
             sector_format: CdSectorFormat::Audio2352,
             logical_content: None,
+            subchannel_content: None,
+            subchannel_format: None,
             ..data.clone()
         };
 
@@ -151,6 +163,8 @@ mod tests {
             source_offset: 2352,
             encoded_content: handle("encoded"),
             logical_content: None,
+            subchannel_content: None,
+            subchannel_format: None,
             indexes: vec![
                 CdIndex {
                     number: 0,

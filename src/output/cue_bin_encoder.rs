@@ -136,6 +136,15 @@ impl OutputEncoder for CueBinEncoder {
 }
 
 fn validate_track(track: &CdTrack) -> io::Result<()> {
+    if track.subchannel_content.is_some() {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            format!(
+                "CD track {:02} contains subchannel data that CUE/BIN output cannot preserve",
+                track.number
+            ),
+        ));
+    }
     let index_one = track.index_one_sector().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidData,

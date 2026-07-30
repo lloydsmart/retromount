@@ -128,3 +128,124 @@ fn presents_stored_zip_cue_bin_through_the_same_duckstation_path() {
 
     assert_eq!(read_file(&session, track.inode), sector);
 }
+
+#[test]
+fn presents_a_mixed_mode_ps1_chd_through_the_duckstation_cue_bin_view() {
+    let directory = tempfile::tempdir().unwrap();
+    let chd_path = directory.path().join("CHD Game.chd");
+    fs::write(&chd_path, cd_chd_fixture(false)).unwrap();
+
+    let session = prepare_mount_session(&chd_path, "duckstation").unwrap();
+    let ps1 = session
+        .lookup_child(session.root_inode(), "PS1")
+        .expect("PS1 presentation root");
+    let game = session
+        .lookup_child(ps1.inode, "CHD Game")
+        .expect("CHD game directory");
+    let track1 = session
+        .lookup_child(game.inode, "CHD Game (Disc 1) (Track 01).bin")
+        .expect("CHD data track");
+    let track2 = session
+        .lookup_child(game.inode, "CHD Game (Disc 1) (Track 02).bin")
+        .expect("CHD audio track");
+
+    assert_eq!(
+        read_file(&session, track1.inode),
+        expected_chd_track_bytes(0, 4)
+    );
+    assert_eq!(
+        read_file(&session, track2.inode),
+        expected_chd_track_bytes(4, 4)
+    );
+}
+
+#[test]
+fn rejects_chd_subchannel_data_that_cue_bin_cannot_preserve() {
+    let directory = tempfile::tempdir().unwrap();
+    let chd_path = directory.path().join("Protected.chd");
+    fs::write(&chd_path, cd_chd_fixture(true)).unwrap();
+
+    let error = prepare_mount_session(&chd_path, "duckstation").unwrap_err();
+
+    assert!(error.to_string().contains("subchannel data"));
+}
+
+fn cd_chd_fixture(with_subchannel: bool) -> Vec<u8> {
+    const HEADER_SIZE: usize = 124;
+    const FRAME_SIZE: usize = 2448;
+    const FRAMES_PER_HUNK: usize = 4;
+    const HUNK_SIZE: usize = FRAME_SIZE * FRAMES_PER_HUNK;
+    const HUNK_COUNT: usize = 2;
+    const MAP_OFFSET: usize = HEADER_SIZE;
+    const METADATA_OFFSET: usize = MAP_OFFSET + HUNK_COUNT * 4;
+    const DATA_OFFSET: usize = HUNK_SIZE;
+
+    let subtype = if with_subchannel { "RW_RAW" } else { "NONE" };
+    let metadata = [
+        format!(
+            "TRACK:1 TYPE:MODE2_RAW SUBTYPE:{subtype} FRAMES:4 PREGAP:0 PGTYPE:MODE1 PGSUB:NONE POSTGAP:0\0"
+        )
+        .into_bytes(),
+        b"TRACK:2 TYPE:AUDIO SUBTYPE:NONE FRAMES:4 PREGAP:1 PGTYPE:VAUDIO PGSUB:NONE POSTGAP:0\0"
+            .to_vec(),
+    ];
+    let first_next = METADATA_OFFSET + 16 + metadata[0].len();
+
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"MComprHD");
+    push_u32(&mut bytes, HEADER_SIZE as u32);
+    push_u32(&mut bytes, 5);
+    for _ in 0..4 {
+        push_u32(&mut bytes, 0);
+    }
+    push_u64(&mut bytes, (HUNK_SIZE * HUNK_COUNT) as u64);
+    push_u64(&mut bytes, MAP_OFFSET as u64);
+    push_u64(&mut bytes, METADATA_OFFSET as u64);
+    push_u32(&mut bytes, HUNK_SIZE as u32);
+    push_u32(&mut bytes, FRAME_SIZE as u32);
+    bytes.resize(HEADER_SIZE, 0);
+
+    for hunk in 0..HUNK_COUNT {
+        push_u32(&mut bytes, (DATA_OFFSET / HUNK_SIZE + hunk) as u32);
+    }
+    push_metadata(&mut bytes, *b"CHT2", &metadata[0], first_next as u64);
+    push_metadata(&mut bytes, *b"CHT2", &metadata[1], 0);
+    bytes.resize(DATA_OFFSET, 0);
+
+    for frame in 0..HUNK_COUNT * FRAMES_PER_HUNK {
+        bytes.extend((0..2352).map(|offset| chd_sector_byte(frame, offset)));
+        bytes.extend((0..96).map(|offset| {
+            if with_subchannel && frame < 4 {
+                (offset as u8).wrapping_add(1)
+            } else {
+                0
+            }
+        }));
+    }
+    bytes
+}
+
+fn expected_chd_track_bytes(start_frame: usize, frames: usize) -> Vec<u8> {
+    (start_frame..start_frame + frames)
+        .flat_map(|frame| (0..2352).map(move |offset| chd_sector_byte(frame, offset)))
+        .collect()
+}
+
+fn chd_sector_byte(frame: usize, offset: usize) -> u8 {
+    ((frame * 13 + offset * 7 + 5) % 251) as u8
+}
+
+fn push_metadata(bytes: &mut Vec<u8>, tag: [u8; 4], value: &[u8], next: u64) {
+    bytes.extend_from_slice(&tag);
+    push_u32(bytes, value.len() as u32);
+    push_u64(bytes, next);
+    bytes.extend_from_slice(value);
+}
+
+fn push_u32(bytes: &mut Vec<u8>, value: u32) {
+    bytes.extend_from_slice(&value.to_be_bytes());
+}
+
+fn push_u64(bytes: &mut Vec<u8>, value: u64) {
+    bytes.extend_from_slice(&value.to_be_bytes());
+}
