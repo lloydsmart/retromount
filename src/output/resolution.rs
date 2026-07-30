@@ -193,6 +193,7 @@ impl CapabilityResolver {
                 }
             }
             PlannedArtifactKind::Generated(_) => {}
+            PlannedArtifactKind::ContentBacked(_) => {}
         }
 
         reasons

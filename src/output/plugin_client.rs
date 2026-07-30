@@ -27,7 +27,7 @@ pub fn materialize_via_plugin(
     let manifest = client.manifest()?;
     validate_manifest(&manifest)?;
 
-    let request = to_materialization_request(file_name, artifact, selected_capability_id, context);
+    let request = to_materialization_request(file_name, artifact, selected_capability_id, context)?;
 
     validate_materialization_request(&request, &manifest)?;
 

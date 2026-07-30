@@ -1,3 +1,4 @@
+use crate::core::content::LogicalDisc;
 use crate::core::source::SourceRef;
 use crate::output::capabilities::CapabilityRequirements;
 
@@ -87,7 +88,19 @@ impl ArtifactRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlannedArtifactKind {
     SourceBacked(SourceArtifact),
+    ContentBacked(ContentArtifact),
     Generated(GeneratedArtifact),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentArtifact {
+    pub logical_disc: LogicalDisc,
+}
+
+impl ContentArtifact {
+    pub fn logical_disc(logical_disc: LogicalDisc) -> Self {
+        Self { logical_disc }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

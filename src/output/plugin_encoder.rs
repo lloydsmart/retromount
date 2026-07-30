@@ -63,7 +63,8 @@ impl OutputEncoder for PluginBackedEncoder {
         capability_id: &str,
         context: &MaterializationContext,
     ) -> Result<MaterializedArtifact, std::io::Error> {
-        let request = to_materialization_request(file_name, artifact, capability_id, context);
+        let request = to_materialization_request(file_name, artifact, capability_id, context)
+            .map_err(to_io_error)?;
 
         let response = self.client.materialize(&request).map_err(to_io_error)?;
 
