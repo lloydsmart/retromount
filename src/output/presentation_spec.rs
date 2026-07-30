@@ -64,6 +64,9 @@ pub enum SelectSpec {
     /// Match games with exactly one disc part.
     SingleDiscGames,
 
+    /// Match a single-disc game for a specific platform.
+    SingleDiscGamesByPlatform { platform: Platform },
+
     /// Match a single-disc game for a specific platform and media kind.
     SingleDiscGamesByPlatformAndMedia {
         platform: Platform,

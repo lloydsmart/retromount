@@ -1,3 +1,4 @@
+use crate::core::cd::CdDisc;
 use crate::core::content::LogicalDisc;
 use crate::core::source::SourceRef;
 use crate::output::capabilities::CapabilityRequirements;
@@ -23,6 +24,28 @@ impl PresentationPlan {
 pub enum PlanEntry {
     Directory(PlanDirectory),
     File(PlanFile),
+    ArtifactSet(PlanArtifactSet),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanArtifactSet {
+    pub directory_name: String,
+    pub artifact_name: String,
+    pub artifact: ArtifactRequest,
+}
+
+impl PlanArtifactSet {
+    pub fn new(
+        directory_name: impl Into<String>,
+        artifact_name: impl Into<String>,
+        artifact: ArtifactRequest,
+    ) -> Self {
+        Self {
+            directory_name: directory_name.into(),
+            artifact_name: artifact_name.into(),
+            artifact,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,13 +116,18 @@ pub enum PlannedArtifactKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContentArtifact {
-    pub logical_disc: LogicalDisc,
+pub enum ContentArtifact {
+    LogicalDisc(LogicalDisc),
+    CdDisc(CdDisc),
 }
 
 impl ContentArtifact {
     pub fn logical_disc(logical_disc: LogicalDisc) -> Self {
-        Self { logical_disc }
+        Self::LogicalDisc(logical_disc)
+    }
+
+    pub fn cd_disc(cd_disc: CdDisc) -> Self {
+        Self::CdDisc(cd_disc)
     }
 }
 

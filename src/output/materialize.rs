@@ -5,7 +5,7 @@ use crate::core::vfs::{VfsDirectory, VfsNode};
 use crate::output::capabilities::EncoderCapability;
 use crate::output::encode::{MaterializationContext, OutputEncoder};
 use crate::output::encoder_registry::default_encoder_registry;
-use crate::output::plan::{ArtifactId, PlanEntry, PlanFile, PresentationPlan};
+use crate::output::plan::{ArtifactId, PlanArtifactSet, PlanEntry, PlanFile, PresentationPlan};
 use crate::output::plugin_registry::PluginRegistry;
 use crate::output::resolution::{CapabilityResolver, ResolutionResult};
 
@@ -60,6 +60,9 @@ fn collect_artifact_names_recursive(
             PlanEntry::File(file) => {
                 names.insert(file.artifact.id.clone(), file.name.clone());
             }
+            PlanEntry::ArtifactSet(set) => {
+                names.insert(set.artifact.id.clone(), set.directory_name.clone());
+            }
         }
     }
 }
@@ -87,10 +90,82 @@ fn materialize_entries(
                     encoders,
                 )?));
             }
+            PlanEntry::ArtifactSet(set) => {
+                children.push(VfsNode::Directory(materialize_artifact_set(
+                    set,
+                    artifact_names,
+                    encoders,
+                )?));
+            }
         }
     }
 
     Ok(children)
+}
+
+fn materialize_artifact_set(
+    set: &PlanArtifactSet,
+    artifact_names: &HashMap<ArtifactId, String>,
+    encoders: &[Box<dyn OutputEncoder>],
+) -> Result<VfsDirectory, io::Error> {
+    let capabilities = collect_capabilities(encoders);
+    let selected = match CapabilityResolver.resolve(&set.artifact, &capabilities) {
+        ResolutionResult::Resolved { selected, .. } => selected,
+        ResolutionResult::Unresolved { diagnostics } => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "no encoder could materialize artifact set '{}' ({:?})",
+                    set.directory_name, diagnostics
+                ),
+            ))
+        }
+    };
+    let encoder = encoders
+        .iter()
+        .find(|encoder| encoder.plugin_id() == selected.plugin_id)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("selected encoder '{}' is unavailable", selected.plugin_id),
+            )
+        })?;
+    let materialized = encoder.materialize_set(
+        &set.artifact_name,
+        &set.artifact,
+        &selected.capability_id,
+        &MaterializationContext {
+            artifact_names: artifact_names.clone(),
+        },
+    )?;
+
+    let mut names = std::collections::HashSet::new();
+    let mut children = Vec::with_capacity(materialized.len());
+    for member in materialized {
+        if member.name.is_empty()
+            || member.name.contains('/')
+            || member.name.contains('\\')
+            || !names.insert(member.name.clone())
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "encoder '{}' returned an invalid or duplicate artifact-set member name '{}'",
+                    selected.plugin_id, member.name
+                ),
+            ));
+        }
+        children.push(VfsNode::File(member.artifact.to_vfs_file(&member.name)));
+    }
+
+    if children.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("artifact set '{}' is empty", set.directory_name),
+        ));
+    }
+
+    Ok(VfsDirectory::with_children(&set.directory_name, children))
 }
 
 fn materialize_file(

@@ -8,8 +8,9 @@ use crate::output::presentation_spec::{
     ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
 };
 
-const BUILT_IN_PRESENTATIONS: [&str; 3] = ["flat", "grouped", "opl"];
+const BUILT_IN_PRESENTATIONS: [&str; 4] = ["duckstation", "flat", "grouped", "opl"];
 const OPL_PRESENTATION: &str = include_str!("../../presentations/opl.yaml");
+const DUCKSTATION_PRESENTATION: &str = include_str!("../../presentations/duckstation.yaml");
 
 pub fn built_in_presentation_names() -> &'static [&'static str] {
     &BUILT_IN_PRESENTATIONS
@@ -21,6 +22,9 @@ pub fn build_presentation_spec(name: &str) -> Result<PresentationSpec, String> {
 
 pub fn load_presentation(reference: &str) -> Result<PresentationDocument, String> {
     match reference {
+        "duckstation" => parse_presentation_yaml(DUCKSTATION_PRESENTATION).map_err(|error| {
+            format!("built-in presentation 'duckstation' failed validation: {error}")
+        }),
         "flat" => Ok(PresentationDocument {
             name: "flat".to_string(),
             spec: PresentationSpec::new(LayoutSpec::Flat, built_in_file_rules()),
@@ -114,7 +118,10 @@ mod tests {
 
     #[test]
     fn exposes_stable_built_in_presentation_names() {
-        assert_eq!(built_in_presentation_names(), &["flat", "grouped", "opl"]);
+        assert_eq!(
+            built_in_presentation_names(),
+            &["duckstation", "flat", "grouped", "opl"]
+        );
     }
 
     #[test]
@@ -128,6 +135,10 @@ mod tests {
             LayoutSpec::GroupedByPlatformAndGame
         );
         assert_eq!(
+            build_presentation_spec("duckstation").unwrap().layout,
+            LayoutSpec::LiteralRoot("PS1".to_string())
+        );
+        assert_eq!(
             build_presentation_spec("opl").unwrap().layout,
             LayoutSpec::Flat
         );
@@ -138,7 +149,7 @@ mod tests {
         let error = build_presentation_spec("unknown").unwrap_err();
         assert_eq!(
             error,
-            "unsupported view or presentation file 'unknown'; expected one of: flat, grouped, opl"
+            "unsupported view or presentation file 'unknown'; expected one of: duckstation, flat, grouped, opl"
         );
     }
 

@@ -107,6 +107,7 @@ impl From<Format> for ProtocolFormat {
             Format::M3u => Self::M3u,
             Format::Directory => Self::Directory,
             Format::Bin => Self::Bin,
+            Format::CueBin => Self::CueBin,
             Format::Text => Self::Text,
         }
     }
@@ -121,6 +122,7 @@ impl From<ProtocolFormat> for Format {
             ProtocolFormat::M3u => Self::M3u,
             ProtocolFormat::Directory => Self::Directory,
             ProtocolFormat::Bin => Self::Bin,
+            ProtocolFormat::CueBin => Self::CueBin,
             ProtocolFormat::Text => Self::Text,
         }
     }
@@ -134,6 +136,7 @@ impl From<CapabilityFeature> for ProtocolCapabilityFeature {
             CapabilityFeature::Lossless => Self::Lossless,
             CapabilityFeature::RandomAccess => Self::RandomAccess,
             CapabilityFeature::SupportsPartial => Self::SupportsPartial,
+            CapabilityFeature::MultiFile => Self::MultiFile,
         }
     }
 }
@@ -146,6 +149,7 @@ impl From<ProtocolCapabilityFeature> for CapabilityFeature {
             ProtocolCapabilityFeature::Lossless => Self::Lossless,
             ProtocolCapabilityFeature::RandomAccess => Self::RandomAccess,
             ProtocolCapabilityFeature::SupportsPartial => Self::SupportsPartial,
+            ProtocolCapabilityFeature::MultiFile => Self::MultiFile,
         }
     }
 }

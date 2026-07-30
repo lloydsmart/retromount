@@ -1,0 +1,20 @@
+version: 1
+name: duckstation
+
+layout:
+  type: literal_root
+  path: PS1
+
+files:
+  - select:
+      type: single_disc_games_by_platform
+      platform: ps1
+    naming:
+      type: part_name
+    artifact:
+      content_type: disc
+      format: cue_bin
+      required_features:
+        - lossless
+        - random_access
+        - multi_file

@@ -3,8 +3,8 @@ use crate::core::source::SourceRef;
 use crate::output::capabilities::{CapabilityRequirements, ContentType, Format};
 use crate::output::plan::{
     ArtifactId, ArtifactReference, ArtifactRequest, ContentArtifact, GeneratedArtifact,
-    PlanDirectory, PlanEntry, PlanFile, PlannedArtifactKind, PlaylistArtifact, PresentationPlan,
-    SourceArtifact,
+    PlanArtifactSet, PlanDirectory, PlanEntry, PlanFile, PlannedArtifactKind, PlaylistArtifact,
+    PresentationPlan, SourceArtifact,
 };
 use crate::output::presentation_expansion::{is_multi_disc_game, sorted_disc_parts};
 use crate::output::presentation_spec::{
@@ -52,9 +52,9 @@ fn compile_flat(
             let directory = ensure_directory(&mut root, &rule.directory, policy);
             let mut names = child_names(directory);
 
-            for file in try_compile_rule(rule, item, policy, &mut names) {
-                directory.entries.push(PlanEntry::File(file));
-            }
+            directory
+                .entries
+                .extend(try_compile_rule(rule, item, policy, &mut names));
         }
     }
 
@@ -82,9 +82,9 @@ fn compile_grouped_by_platform_and_game(
                     let directory = ensure_directory(game_dir, &rule.directory, policy);
                     let mut names = child_names(directory);
 
-                    for file in try_compile_rule(rule, item, policy, &mut names) {
-                        directory.entries.push(PlanEntry::File(file));
-                    }
+                    directory
+                        .entries
+                        .extend(try_compile_rule(rule, item, policy, &mut names));
                 }
             }
             NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
@@ -95,9 +95,9 @@ fn compile_grouped_by_platform_and_game(
                     let directory = ensure_directory(content_directory, &rule.directory, policy);
                     let mut names = child_names(directory);
 
-                    for file in try_compile_rule(rule, item, policy, &mut names) {
-                        directory.entries.push(PlanEntry::File(file));
-                    }
+                    directory
+                        .entries
+                        .extend(try_compile_rule(rule, item, policy, &mut names));
                 }
             }
         }
@@ -111,7 +111,7 @@ fn try_compile_rule(
     item: &NormalizedContent,
     policy: &PolicySet,
     root_names: &mut Vec<String>,
-) -> Vec<PlanFile> {
+) -> Vec<PlanEntry> {
     if rule.select == SelectSpec::MultiDiscGames {
         return try_compile_multi_disc_rule(rule, item, policy, root_names);
     }
@@ -120,6 +120,9 @@ fn try_compile_rule(
         SelectSpec::Games => match_game(item),
         SelectSpec::GamesWithoutParts => match_game_without_parts(item),
         SelectSpec::SingleDiscGames => match_single_disc_game(item),
+        SelectSpec::SingleDiscGamesByPlatform { platform } => {
+            match_single_disc_game_by_platform(item, platform)
+        }
         SelectSpec::SingleDiscGamesByPlatformAndMedia { platform, media } => {
             match_single_disc_game_by_platform_and_media(item, platform, media)
         }
@@ -136,6 +139,29 @@ fn try_compile_rule(
     let Some(proposed_name) = build_name(&rule.naming, item, &rule.artifact, policy) else {
         return Vec::new();
     };
+    if rule.artifact.format == Some(Format::CueBin) {
+        let NormalizedContent::Game(game) = item else {
+            return Vec::new();
+        };
+        let Some(cd_disc) = match_result.cd_disc else {
+            return Vec::new();
+        };
+        let directory_name =
+            policy.resolve_name_conflict(&policy.naming().game_name(game), root_names);
+        root_names.push(directory_name.clone());
+        let artifact_name = strip_known_extension(&proposed_name, Some(Format::CueBin));
+        let artifact = ArtifactRequest::new(
+            build_artifact_id(&rule.select, item),
+            PlannedArtifactKind::ContentBacked(ContentArtifact::cd_disc(cd_disc)),
+            build_requirements(&rule.artifact),
+        );
+        return vec![PlanEntry::ArtifactSet(PlanArtifactSet::new(
+            directory_name,
+            artifact_name,
+            artifact,
+        ))];
+    }
+
     let proposed_name = apply_extension(proposed_name, rule.artifact.format);
     let allocated_name = policy.resolve_name_conflict(&proposed_name, root_names);
     root_names.push(allocated_name.clone());
@@ -154,7 +180,7 @@ fn try_compile_rule(
         build_requirements(&rule.artifact),
     );
 
-    vec![PlanFile::new(allocated_name, artifact)]
+    vec![PlanEntry::File(PlanFile::new(allocated_name, artifact))]
 }
 
 fn try_compile_multi_disc_rule(
@@ -162,7 +188,7 @@ fn try_compile_multi_disc_rule(
     item: &NormalizedContent,
     policy: &PolicySet,
     names: &mut Vec<String>,
-) -> Vec<PlanFile> {
+) -> Vec<PlanEntry> {
     let NormalizedContent::Game(game) = item else {
         return Vec::new();
     };
@@ -187,7 +213,7 @@ fn try_compile_multi_disc_rule(
 
                 let artifact_id =
                     ArtifactId::new(format!("game:{}:disc:{}", game.id, disc.disc_number));
-                Some(PlanFile::new(
+                Some(PlanEntry::File(PlanFile::new(
                     allocated_name,
                     ArtifactRequest::new(
                         artifact_id,
@@ -202,7 +228,7 @@ fn try_compile_multi_disc_rule(
                         },
                         build_requirements(&rule.artifact),
                     ),
-                ))
+                )))
             })
             .collect(),
         ContentType::Playlist => {
@@ -223,7 +249,7 @@ fn try_compile_multi_disc_rule(
                 })
                 .collect();
 
-            vec![PlanFile::new(
+            vec![PlanEntry::File(PlanFile::new(
                 allocated_name,
                 ArtifactRequest::new(
                     ArtifactId::new(format!("game:{}:playlist", game.id)),
@@ -232,7 +258,7 @@ fn try_compile_multi_disc_rule(
                     )),
                     build_requirements(&rule.artifact),
                 ),
-            )]
+            ))]
         }
         _ => Vec::new(),
     }
@@ -324,6 +350,7 @@ fn child_names(directory: &PlanDirectory) -> Vec<String> {
         .map(|entry| match entry {
             PlanEntry::Directory(directory) => directory.name.clone(),
             PlanEntry::File(file) => file.name.clone(),
+            PlanEntry::ArtifactSet(set) => set.directory_name.clone(),
         })
         .collect()
 }
@@ -332,6 +359,7 @@ struct SourceMatch {
     source: SourceRef,
     size: u64,
     logical_disc: Option<crate::core::content::LogicalDisc>,
+    cd_disc: Option<crate::core::cd::CdDisc>,
 }
 
 fn match_game(item: &NormalizedContent) -> Option<SourceMatch> {
@@ -340,6 +368,7 @@ fn match_game(item: &NormalizedContent) -> Option<SourceMatch> {
             source: game.source.clone(),
             size: 0,
             logical_disc: None,
+            cd_disc: None,
         }),
         _ => None,
     }
@@ -354,6 +383,7 @@ fn match_game_without_parts(item: &NormalizedContent) -> Option<SourceMatch> {
         source: game.source.clone(),
         size: 0,
         logical_disc: None,
+        cd_disc: None,
     })
 }
 
@@ -371,9 +401,22 @@ fn match_single_disc_game(item: &NormalizedContent) -> Option<SourceMatch> {
             source: disc.source.clone(),
             size: 0,
             logical_disc: disc.logical_disc.clone(),
+            cd_disc: disc.cd_disc.clone(),
         }),
         GamePart::Rom(_) => None,
     }
+}
+
+fn match_single_disc_game_by_platform(
+    item: &NormalizedContent,
+    platform: crate::core::content::Platform,
+) -> Option<SourceMatch> {
+    let NormalizedContent::Game(game) = item else {
+        return None;
+    };
+    (game.platform == platform)
+        .then(|| match_single_disc_game(item))
+        .flatten()
 }
 
 fn match_single_disc_game_by_platform_and_media(
@@ -407,6 +450,7 @@ fn match_single_rom_game(item: &NormalizedContent) -> Option<SourceMatch> {
             source: rom.source.clone(),
             size: rom.size,
             logical_disc: None,
+            cd_disc: None,
         }),
         GamePart::Disc(_) => None,
     }
@@ -418,6 +462,7 @@ fn match_bytes(item: &NormalizedContent) -> Option<SourceMatch> {
             source: bytes.source.clone(),
             size: bytes.size,
             logical_disc: None,
+            cd_disc: None,
         }),
         _ => None,
     }
@@ -429,6 +474,7 @@ fn match_text(item: &NormalizedContent) -> Option<SourceMatch> {
             source: text.source.clone(),
             size: text.size,
             logical_disc: None,
+            cd_disc: None,
         }),
         _ => None,
     }
@@ -543,6 +589,7 @@ fn extension_for_format(format: Option<Format>) -> Option<&'static str> {
         Some(Format::M3u) => Some("m3u"),
         Some(Format::Directory) => None,
         Some(Format::Bin) => Some("bin"),
+        Some(Format::CueBin) => Some("cue"),
         Some(Format::Text) => Some("txt"),
         None => None,
     }

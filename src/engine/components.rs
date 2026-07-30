@@ -54,12 +54,14 @@ pub fn pipeline_components_with_media(
     }
     decoder.register(BasicInputDecoder::new());
 
-    let normalization = if presentation_name == "opl" {
-        NormalizationOptions {
+    let normalization = match presentation_name {
+        "opl" => NormalizationOptions {
             platform_hint: Some(Platform::Ps2),
-        }
-    } else {
-        NormalizationOptions::default()
+        },
+        "duckstation" => NormalizationOptions {
+            platform_hint: Some(Platform::Ps1),
+        },
+        _ => NormalizationOptions::default(),
     };
 
     Ok(PipelineComponents {

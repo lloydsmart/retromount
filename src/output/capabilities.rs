@@ -20,6 +20,7 @@ pub enum Format {
     M3u,
     Directory,
     Bin,
+    CueBin,
     Text,
 }
 
@@ -30,6 +31,7 @@ pub enum CapabilityFeature {
     Lossless,
     RandomAccess,
     SupportsPartial,
+    MultiFile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
