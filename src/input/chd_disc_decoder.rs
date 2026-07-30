@@ -11,6 +11,7 @@ use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::SourceObject;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentity;
+use crate::input::sbi_sidecar::discover_sbi_sidecar;
 use crate::readers::chd_reader::ChdReader;
 use crate::readers::interleaved_sector_reader::InterleavedSectorReader;
 
@@ -266,7 +267,7 @@ impl ChdDiscDecoder {
             ));
         }
 
-        Ok(CdDisc { tracks })
+        Ok(CdDisc { tracks, sbi: None })
     }
 }
 
@@ -435,7 +436,7 @@ impl InputDecoder for ChdDiscDecoder {
         }
 
         let info = Self::inspect(&object.content)?;
-        let (cd_disc, logical_disc) = if info.has_dvd_metadata {
+        let (mut cd_disc, logical_disc) = if info.has_dvd_metadata {
             (None, Some(Self::logical_disc(&object.content, info)?))
         } else if !info.cd_tracks.is_empty() {
             (
@@ -445,18 +446,27 @@ impl InputDecoder for ChdDiscDecoder {
         } else {
             (None, Some(Self::logical_disc(&object.content, info)?))
         };
+        if let Some(cd_disc) = &mut cd_disc {
+            cd_disc.sbi = discover_sbi_sidecar(object)?;
+        }
         let title = std::path::Path::new(&object.name)
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or(&object.name)
             .to_string();
 
+        let consumed_sources = cd_disc
+            .as_ref()
+            .and_then(|disc| disc.sbi.as_ref())
+            .map(|sbi| vec![sbi.source.clone()])
+            .unwrap_or_default();
+
         Ok(vec![DecodedContent::Disc(DecodedDiscContent {
             id: ContentId::new(object.name.clone()),
             source: object.source.clone(),
             title,
             disc_number: 1,
-            consumed_sources: Vec::new(),
+            consumed_sources,
             cd_disc,
             logical_disc,
         })])

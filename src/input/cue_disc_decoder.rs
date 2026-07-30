@@ -10,6 +10,7 @@ use crate::core::source::{SourceObject, SourceRef};
 use crate::core::source_resolver::resolve_source_ref;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentity;
+use crate::input::sbi_sidecar::discover_sbi_sidecar;
 use crate::readers::range_reader::RangeReader;
 use crate::readers::raw_cd_sector_reader::{
     validate_raw_cd_track, RawCdDataMode, RawCdSectorReader,
@@ -88,7 +89,7 @@ impl CueDiscDecoder {
             }
         }
 
-        Ok(CdDisc { tracks })
+        Ok(CdDisc { tracks, sbi: None })
     }
 }
 
@@ -106,7 +107,8 @@ impl InputDecoder for CueDiscDecoder {
             return Ok(Vec::new());
         }
 
-        let cd_disc = Self::decode_cd(object)?;
+        let mut cd_disc = Self::decode_cd(object)?;
+        cd_disc.sbi = discover_sbi_sidecar(object)?;
         let logical_disc = cd_disc.opl_logical_track().map(|track| LogicalDisc {
             media: DiscMedia::Cd,
             sector_size: 2048,
@@ -129,7 +131,10 @@ impl InputDecoder for CueDiscDecoder {
             .and_then(|stem| stem.to_str())
             .unwrap_or(&object.name)
             .to_string();
-        let consumed_sources = unique_track_sources(&cd_disc);
+        let mut consumed_sources = unique_track_sources(&cd_disc);
+        if let Some(sbi) = &cd_disc.sbi {
+            consumed_sources.push(sbi.source.clone());
+        }
 
         Ok(vec![DecodedContent::Disc(DecodedDiscContent {
             id: ContentId::new(object.name.clone()),

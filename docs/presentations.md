@@ -184,8 +184,9 @@ Unlike OPL, it consumes the complete track-aware PS1 CD and produces one
 coherent artifact set containing a generated CUE and live per-track BIN files.
 It supports single-disc CUE/BIN and CHD input. CHD tracks are projected live
 from their interleaved sectors; CHDs containing subchannel data fail closed
-because CUE/BIN cannot preserve it. The roadmap tracks SBI, multi-disc M3U,
-cooked ISO, and native CHD output separately.
+because CUE/BIN cannot preserve it. A valid same-stem SBI sibling is preserved
+live beside the generated CUE under the generated basename. The roadmap tracks
+multi-disc M3U, cooked ISO, and native CHD output separately.
 
 The PS1 roadmap also commits to extending the existing `opl` presentation with
 POPS support. The resulting PS2 library view will retain PS2 games below
