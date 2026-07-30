@@ -150,7 +150,7 @@ fn main() -> Result<(), RetromountError> {
         }
 
         _ => Err(RetromountError::LoadError(
-            "usage:\n  retromount\n  retromount phase3-preview <path> [--plugin-dir <dir>]\n  retromount inspect <path> [--json] [--view <grouped|flat>] [--plugin-dir <dir>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat>] [--plugin-dir <dir>]"
+            "usage:\n  retromount\n  retromount phase3-preview <path> [--plugin-dir <dir>]\n  retromount inspect <path> [--json] [--view <grouped|flat|opl>] [--plugin-dir <dir>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat|opl>] [--plugin-dir <dir>]"
                 .to_string(),
         )),
     }

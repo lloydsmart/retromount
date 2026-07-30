@@ -55,7 +55,6 @@ pub(crate) fn normalize_decoded_content(
                         title: leaf_stem_from_source(&rom.source),
                         platform: options
                             .platform_hint
-                            .clone()
                             .unwrap_or_else(|| derive_platform_from_source(&rom.source)),
                         parts: vec![GamePart::Rom(RomPart {
                             source: rom.source,
@@ -216,7 +215,6 @@ fn normalize_disc_group(
         title: primary.title.clone(),
         platform: options
             .platform_hint
-            .clone()
             .unwrap_or_else(|| derive_platform_from_source(&primary.source)),
         parts,
         consumed_sources,

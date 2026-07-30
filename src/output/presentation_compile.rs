@@ -25,10 +25,17 @@ pub fn compile_presentation_spec(
     content: &[NormalizedContent],
     policy: &PolicySet,
 ) -> PresentationPlan {
-    match spec.layout {
+    match &spec.layout {
         LayoutSpec::Flat => compile_flat(spec, content, policy),
         LayoutSpec::GroupedByPlatformAndGame => {
             compile_grouped_by_platform_and_game(spec, content, policy)
+        }
+        LayoutSpec::LiteralRoot(name) => {
+            let flat = compile_flat(spec, content, policy);
+            PresentationPlan::new(vec![PlanEntry::Directory(PlanDirectory::new(
+                name.clone(),
+                flat.entries,
+            ))])
         }
     }
 }
@@ -117,6 +124,9 @@ fn try_compile_rule(
         SelectSpec::Games => match_game(item),
         SelectSpec::GamesWithoutParts => match_game_without_parts(item),
         SelectSpec::SingleDiscGames => match_single_disc_game(item),
+        SelectSpec::SingleDiscGamesByPlatformAndMedia { platform, media } => {
+            match_single_disc_game_by_platform_and_media(item, platform, media)
+        }
         SelectSpec::MultiDiscGames => unreachable!("handled above"),
         SelectSpec::SingleRomGames => match_single_rom_game(item),
         SelectSpec::Bytes => match_bytes(item),
@@ -370,6 +380,23 @@ fn match_single_disc_game(item: &NormalizedContent) -> Option<SourceMatch> {
     }
 }
 
+fn match_single_disc_game_by_platform_and_media(
+    item: &NormalizedContent,
+    platform: crate::core::content::Platform,
+    media: crate::core::content::DiscMedia,
+) -> Option<SourceMatch> {
+    let NormalizedContent::Game(game) = item else {
+        return None;
+    };
+
+    if game.platform != platform {
+        return None;
+    }
+
+    let matched = match_single_disc_game(item)?;
+    (matched.logical_disc.as_ref()?.media == media).then_some(matched)
+}
+
 fn match_single_rom_game(item: &NormalizedContent) -> Option<SourceMatch> {
     let NormalizedContent::Game(game) = item else {
         return None;
@@ -534,6 +561,9 @@ fn build_artifact_id(select: &SelectSpec, item: &NormalizedContent) -> ArtifactI
             ArtifactId::new(format!("game:{}", game.id))
         }
         (SelectSpec::SingleDiscGames, NormalizedContent::Game(game)) => {
+            ArtifactId::new(format!("game:{}", game.id))
+        }
+        (SelectSpec::SingleDiscGamesByPlatformAndMedia { .. }, NormalizedContent::Game(game)) => {
             ArtifactId::new(format!("game:{}", game.id))
         }
         (SelectSpec::MultiDiscGames, NormalizedContent::Game(game)) => {
