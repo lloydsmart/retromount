@@ -116,6 +116,10 @@ Filesystem files and stored ZIP entries advertise random access. Compressed ZIP
 entries remain available to ordinary sequential-friendly content paths but are
 rejected by ISO and CHD decoders, which require efficient random access.
 
+[ADR-011](../architecture/adr-011-compressed-container-random-access.md)
+defines the future opt-in, bounded disk cache that will make compressed disc
+entries seekable without introducing a converted output image.
+
 ### Milestone 2 acceptance criteria
 
 * The same decoder consumes filesystem and supported ZIP-backed content.
