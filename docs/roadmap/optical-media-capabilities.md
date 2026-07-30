@@ -138,9 +138,10 @@ entries seekable without introducing a converted output image.
 Extend the existing consumer presentation to PS2 games distributed on CD
 media.
 
-[ADR-012](../architecture/adr-012-ps2-cd-opl-contract.md) defines the first
-cooked 2048-byte ISO input, explicit media context, live ISO output, and
-declarative sibling `CD/` and `DVD/` presentation directories.
+[ADR-012](../architecture/adr-012-ps2-cd-opl-contract.md) defines cooked ISO and
+CUE/BIN input, live 2352-to-2048-byte data-sector projection, preservation of
+mixed-mode and audio tracks, explicit media context, the OPL-compatible output
+subset, and declarative sibling `CD/` and `DVD/` presentation directories.
 
 ### Milestone 3 required spike
 
@@ -150,10 +151,14 @@ PS2 CD source formats.
 
 ### Milestone 3 scope
 
-* introduce only the CD semantics required by the confirmed OPL contract;
+* introduce a live track-aware CD model that preserves CUE/BIN layout, raw
+  sectors, mixed-mode discs, and audio tracks;
 * distinguish PS2 CD from PS1 CD and PS2 DVD;
 * add an OPL `CD/<title>.iso` rule alongside the existing `DVD` rule;
-* implement one supported PS2 CD input path end to end.
+* implement cooked ISO and CUE/BIN PS2 CD inputs;
+* project validated MODE1/2352 and MODE2/2352 Form 1 sectors to OPL's
+  2048-byte logical ISO view;
+* reject layouts that OPL cannot represent without loss.
 
 ### Milestone 3 acceptance criteria
 
@@ -162,6 +167,8 @@ PS2 CD source formats.
 * PS1 CDs and unknown CDs fail closed for the OPL presentation.
 * Output sector mapping and length match the confirmed OPL contract.
 * No lossy normalization is used to force unsupported CD layouts into ISO.
+* Mixed-mode structure, audio tracks, indexes, and pregaps survive decoding
+  even when the OPL presentation rejects the disc.
 
 ## Milestone 4: First PS1 vertical slice
 
