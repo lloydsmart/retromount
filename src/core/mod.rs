@@ -5,6 +5,7 @@ pub mod normalizer;
 pub mod platform;
 pub mod reader;
 pub mod reader_factory;
+pub mod reader_handle;
 pub mod reader_registry;
 pub mod source;
 pub mod track;

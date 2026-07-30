@@ -45,15 +45,15 @@ pub fn to_materialization_request(
     artifact: &ArtifactRequest,
     selected_capability_id: &str,
     context: &MaterializationContext,
-) -> MaterializationRequest {
-    MaterializationRequest {
+) -> Result<MaterializationRequest, ProtocolError> {
+    Ok(MaterializationRequest {
         artifact_id: artifact.id.0.clone(),
         logical_name: file_name.to_string(),
         selected_capability_id: selected_capability_id.to_string(),
-        artifact_kind: ProtocolArtifactKind::from(artifact.kind.clone()),
+        artifact_kind: artifact.kind.clone().try_into()?,
         requirements: ProtocolCapabilityRequirements::from(artifact.requirements.clone()),
         context: ProtocolMaterializationContext::from(context.clone()),
-    }
+    })
 }
 
 pub fn from_materialization_response(
@@ -239,16 +239,23 @@ impl From<GeneratedArtifact> for ProtocolGeneratedArtifact {
     }
 }
 
-impl From<PlannedArtifactKind> for ProtocolArtifactKind {
-    fn from(value: PlannedArtifactKind) -> Self {
-        match value {
+impl TryFrom<PlannedArtifactKind> for ProtocolArtifactKind {
+    type Error = ProtocolError;
+
+    fn try_from(value: PlannedArtifactKind) -> Result<Self, Self::Error> {
+        Ok(match value {
             PlannedArtifactKind::SourceBacked(source_artifact) => {
                 Self::SourceBacked(source_artifact.into())
             }
             PlannedArtifactKind::Generated(generated_artifact) => {
                 Self::Generated(generated_artifact.into())
             }
-        }
+            PlannedArtifactKind::ContentBacked(_) => {
+                return Err(ProtocolError::UnsupportedArtifactKind {
+                    message: "protocol v1 cannot transport content-backed artifacts".to_string(),
+                });
+            }
+        })
     }
 }
 
@@ -428,8 +435,10 @@ pub fn to_artifact_request(
     Ok((logical_name, artifact, selected_capability_id, context))
 }
 
-pub fn to_protocol_response(artifact: MaterializedArtifact) -> MaterializationResponse {
-    match artifact {
+pub fn to_protocol_response(
+    artifact: MaterializedArtifact,
+) -> Result<MaterializationResponse, ProtocolError> {
+    let response = match artifact {
         MaterializedArtifact::SourceBacked { source, size } => {
             MaterializationResponse::SourceBacked(ProtocolMaterializedSourceFile {
                 source: source.0.as_ref().to_string(),
@@ -439,7 +448,14 @@ pub fn to_protocol_response(artifact: MaterializedArtifact) -> MaterializationRe
         MaterializedArtifact::Inline(bytes) => {
             MaterializationResponse::Inline(ProtocolInlineFile { bytes })
         }
-    }
+        MaterializedArtifact::ReaderBacked { .. } => {
+            return Err(ProtocolError::UnsupportedArtifactKind {
+                message: "protocol v1 cannot transport reader-backed artifacts".to_string(),
+            });
+        }
+    };
+
+    Ok(response)
 }
 
 pub fn to_encoder_capability(
@@ -467,6 +483,10 @@ pub fn to_encoder_capability(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::content::{DiscMedia, LogicalDisc};
+    use crate::core::reader_handle::ReaderHandle;
+    use crate::output::plan::ContentArtifact;
+    use crate::readers::inline_reader::InlineReader;
 
     #[test]
     fn converts_encoder_capability_to_protocol_capability() {
@@ -484,6 +504,34 @@ mod tests {
             .features
             .contains(&ProtocolCapabilityFeature::Lossless));
         assert_eq!(protocol.priority, 100);
+    }
+
+    #[test]
+    fn rejects_content_backed_artifacts_for_protocol_v1() {
+        let artifact = ArtifactRequest::new(
+            ArtifactId::new("disc-1"),
+            PlannedArtifactKind::ContentBacked(ContentArtifact::logical_disc(LogicalDisc {
+                media: DiscMedia::Dvd,
+                sector_size: 2048,
+                sector_count: 1,
+                content: ReaderHandle::new("test:disc", || {
+                    Ok(Box::new(InlineReader::new(vec![0; 2048])))
+                }),
+            })),
+            CapabilityRequirements::new(ContentType::Disc).with_format(Format::Iso),
+        );
+
+        assert!(matches!(
+            to_materialization_request(
+                "Game.iso",
+                &artifact,
+                "disc.logical-to-iso",
+                &MaterializationContext {
+                    artifact_names: HashMap::new(),
+                },
+            ),
+            Err(ProtocolError::UnsupportedArtifactKind { .. })
+        ));
     }
 
     #[test]
@@ -505,7 +553,8 @@ mod tests {
 
         let context = MaterializationContext { artifact_names };
 
-        let request = to_materialization_request("Game.m3u", &artifact, "playlist.m3u", &context);
+        let request =
+            to_materialization_request("Game.m3u", &artifact, "playlist.m3u", &context).unwrap();
 
         assert_eq!(request.artifact_id, "playlist-1");
         assert_eq!(request.logical_name, "Game.m3u");
@@ -565,7 +614,7 @@ mod tests {
         let context = MaterializationContext { artifact_names };
 
         let protocol_request =
-            to_materialization_request("Game.iso", &artifact, "disc.iso", &context);
+            to_materialization_request("Game.iso", &artifact, "disc.iso", &context).unwrap();
 
         let (logical_name, decoded_artifact, selected_capability_id, decoded_context) =
             to_artifact_request(protocol_request).unwrap();

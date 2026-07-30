@@ -12,6 +12,7 @@ pub fn open_vfs_file(file: &VfsFile) -> Result<Box<dyn Reader>, io::Error> {
     match &file.backing {
         FileBacking::Inline(contents) => Ok(Box::new(InlineReader::new(contents.clone()))),
         FileBacking::Source(source) => open_source_ref(source),
+        FileBacking::Reader(handle) => handle.open(),
     }
 }
 
@@ -46,6 +47,7 @@ fn open_source_ref(source: &SourceRef) -> Result<Box<dyn Reader>, io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::reader_handle::ReaderHandle;
     use crate::core::vfs::VfsFile;
     use std::fs;
     use std::io::Write;
@@ -60,6 +62,21 @@ mod tests {
 
         assert_eq!(bytes, file.size as usize);
         assert_eq!(&buf, b"disc1.cue\ndisc2.cue\n");
+    }
+
+    #[test]
+    fn opens_live_reader_backed_vfs_file_at_arbitrary_offsets() {
+        let handle = ReaderHandle::new("test:logical-disc", || {
+            Ok(Box::new(InlineReader::new(b"logical disc bytes".to_vec())))
+        });
+        let file = VfsFile::reader_backed("game.iso", 18, handle);
+
+        let mut reader = open_vfs_file(&file).unwrap();
+        let mut buf = vec![0; 4];
+        let bytes = reader.read_at(8, &mut buf).unwrap();
+
+        assert_eq!(bytes, 4);
+        assert_eq!(&buf, b"disc");
     }
 
     #[test]

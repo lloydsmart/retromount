@@ -2,6 +2,7 @@ pub mod basic_encoder;
 pub mod capabilities;
 pub mod encode;
 pub mod encoder_registry;
+pub mod logical_disc_iso_encoder;
 pub mod materialize;
 pub mod name_allocator;
 pub mod plan;

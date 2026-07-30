@@ -150,7 +150,7 @@ fn main() -> Result<(), RetromountError> {
         }
 
         _ => Err(RetromountError::LoadError(
-            "usage:\n  retromount\n  retromount phase3-preview <path> [--plugin-dir <dir>]\n  retromount inspect <path> [--json] [--view <grouped|flat>] [--plugin-dir <dir>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat>] [--plugin-dir <dir>]"
+            "usage:\n  retromount\n  retromount phase3-preview <path> [--plugin-dir <dir>]\n  retromount inspect <path> [--json] [--view <grouped|flat|opl>] [--plugin-dir <dir>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat|opl>] [--plugin-dir <dir>]"
                 .to_string(),
         )),
     }
@@ -232,6 +232,7 @@ fn pipeline_options_for_view(view: &ViewConfig) -> PipelineOptions<'static> {
 fn map_view_platform(platform: &ConfigPlatform) -> ContentPlatform {
     match platform {
         ConfigPlatform::PlayStation => ContentPlatform::Ps1,
+        ConfigPlatform::PlayStation2 => ContentPlatform::Ps2,
         ConfigPlatform::SuperNintendo => ContentPlatform::Snes,
         ConfigPlatform::MegaDrive => ContentPlatform::Megadrive,
         _ => ContentPlatform::Unknown,

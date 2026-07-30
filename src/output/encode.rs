@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 
+use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::SourceRef;
 use crate::core::vfs::VfsFile;
 use crate::output::capabilities::EncoderCapability;
@@ -10,6 +11,7 @@ use crate::output::plan::{ArtifactId, ArtifactRequest};
 pub enum MaterializedArtifact {
     SourceBacked { source: SourceRef, size: u64 },
     Inline(Vec<u8>),
+    ReaderBacked { handle: ReaderHandle, size: u64 },
 }
 
 impl MaterializedArtifact {
@@ -19,6 +21,9 @@ impl MaterializedArtifact {
                 VfsFile::source_backed(name, *size, source.clone())
             }
             Self::Inline(contents) => VfsFile::inline(name, contents.clone()),
+            Self::ReaderBacked { handle, size } => {
+                VfsFile::reader_backed(name, *size, handle.clone())
+            }
         }
     }
 }

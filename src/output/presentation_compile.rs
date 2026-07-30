@@ -2,8 +2,9 @@ use crate::core::content::{ContentMeta, GameContent, GamePart, NormalizedContent
 use crate::core::source::SourceRef;
 use crate::output::capabilities::{CapabilityRequirements, ContentType, Format};
 use crate::output::plan::{
-    ArtifactId, ArtifactReference, ArtifactRequest, GeneratedArtifact, PlanDirectory, PlanEntry,
-    PlanFile, PlannedArtifactKind, PlaylistArtifact, PresentationPlan, SourceArtifact,
+    ArtifactId, ArtifactReference, ArtifactRequest, ContentArtifact, GeneratedArtifact,
+    PlanDirectory, PlanEntry, PlanFile, PlannedArtifactKind, PlaylistArtifact, PresentationPlan,
+    SourceArtifact,
 };
 use crate::output::presentation_expansion::{is_multi_disc_game, sorted_disc_parts};
 use crate::output::presentation_spec::{
@@ -24,10 +25,17 @@ pub fn compile_presentation_spec(
     content: &[NormalizedContent],
     policy: &PolicySet,
 ) -> PresentationPlan {
-    match spec.layout {
+    match &spec.layout {
         LayoutSpec::Flat => compile_flat(spec, content, policy),
         LayoutSpec::GroupedByPlatformAndGame => {
             compile_grouped_by_platform_and_game(spec, content, policy)
+        }
+        LayoutSpec::LiteralRoot(name) => {
+            let flat = compile_flat(spec, content, policy);
+            PresentationPlan::new(vec![PlanEntry::Directory(PlanDirectory::new(
+                name.clone(),
+                flat.entries,
+            ))])
         }
     }
 }
@@ -116,6 +124,9 @@ fn try_compile_rule(
         SelectSpec::Games => match_game(item),
         SelectSpec::GamesWithoutParts => match_game_without_parts(item),
         SelectSpec::SingleDiscGames => match_single_disc_game(item),
+        SelectSpec::SingleDiscGamesByPlatformAndMedia { platform, media } => {
+            match_single_disc_game_by_platform_and_media(item, platform, media)
+        }
         SelectSpec::MultiDiscGames => unreachable!("handled above"),
         SelectSpec::SingleRomGames => match_single_rom_game(item),
         SelectSpec::Bytes => match_bytes(item),
@@ -135,10 +146,15 @@ fn try_compile_rule(
 
     let artifact = ArtifactRequest::new(
         build_artifact_id(&rule.select, item),
-        PlannedArtifactKind::SourceBacked(SourceArtifact::single(
-            match_result.source,
-            match_result.size,
-        )),
+        match match_result.logical_disc {
+            Some(logical_disc) => {
+                PlannedArtifactKind::ContentBacked(ContentArtifact::logical_disc(logical_disc))
+            }
+            None => PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                match_result.source,
+                match_result.size,
+            )),
+        },
         build_requirements(&rule.artifact),
     );
 
@@ -179,10 +195,15 @@ fn try_compile_multi_disc_rule(
                     allocated_name,
                     ArtifactRequest::new(
                         artifact_id,
-                        PlannedArtifactKind::SourceBacked(SourceArtifact::single(
-                            disc.source.clone(),
-                            0,
-                        )),
+                        match &disc.logical_disc {
+                            Some(logical_disc) => PlannedArtifactKind::ContentBacked(
+                                ContentArtifact::logical_disc(logical_disc.clone()),
+                            ),
+                            None => PlannedArtifactKind::SourceBacked(SourceArtifact::single(
+                                disc.source.clone(),
+                                0,
+                            )),
+                        },
                         build_requirements(&rule.artifact),
                     ),
                 ))
@@ -314,6 +335,7 @@ fn child_names(directory: &PlanDirectory) -> Vec<String> {
 struct SourceMatch {
     source: SourceRef,
     size: u64,
+    logical_disc: Option<crate::core::content::LogicalDisc>,
 }
 
 fn match_game(item: &NormalizedContent) -> Option<SourceMatch> {
@@ -321,6 +343,7 @@ fn match_game(item: &NormalizedContent) -> Option<SourceMatch> {
         NormalizedContent::Game(game) => Some(SourceMatch {
             source: game.source.clone(),
             size: 0,
+            logical_disc: None,
         }),
         _ => None,
     }
@@ -334,6 +357,7 @@ fn match_game_without_parts(item: &NormalizedContent) -> Option<SourceMatch> {
     game.parts.is_empty().then(|| SourceMatch {
         source: game.source.clone(),
         size: 0,
+        logical_disc: None,
     })
 }
 
@@ -350,9 +374,27 @@ fn match_single_disc_game(item: &NormalizedContent) -> Option<SourceMatch> {
         GamePart::Disc(disc) => Some(SourceMatch {
             source: disc.source.clone(),
             size: 0,
+            logical_disc: disc.logical_disc.clone(),
         }),
         GamePart::Rom(_) => None,
     }
+}
+
+fn match_single_disc_game_by_platform_and_media(
+    item: &NormalizedContent,
+    platform: crate::core::content::Platform,
+    media: crate::core::content::DiscMedia,
+) -> Option<SourceMatch> {
+    let NormalizedContent::Game(game) = item else {
+        return None;
+    };
+
+    if game.platform != platform {
+        return None;
+    }
+
+    let matched = match_single_disc_game(item)?;
+    (matched.logical_disc.as_ref()?.media == media).then_some(matched)
 }
 
 fn match_single_rom_game(item: &NormalizedContent) -> Option<SourceMatch> {
@@ -368,6 +410,7 @@ fn match_single_rom_game(item: &NormalizedContent) -> Option<SourceMatch> {
         GamePart::Rom(rom) => Some(SourceMatch {
             source: rom.source.clone(),
             size: rom.size,
+            logical_disc: None,
         }),
         GamePart::Disc(_) => None,
     }
@@ -378,6 +421,7 @@ fn match_bytes(item: &NormalizedContent) -> Option<SourceMatch> {
         NormalizedContent::Bytes(bytes) => Some(SourceMatch {
             source: bytes.source.clone(),
             size: bytes.size,
+            logical_disc: None,
         }),
         _ => None,
     }
@@ -388,6 +432,7 @@ fn match_text(item: &NormalizedContent) -> Option<SourceMatch> {
         NormalizedContent::Text(text) => Some(SourceMatch {
             source: text.source.clone(),
             size: text.size,
+            logical_disc: None,
         }),
         _ => None,
     }
@@ -518,6 +563,9 @@ fn build_artifact_id(select: &SelectSpec, item: &NormalizedContent) -> ArtifactI
         (SelectSpec::SingleDiscGames, NormalizedContent::Game(game)) => {
             ArtifactId::new(format!("game:{}", game.id))
         }
+        (SelectSpec::SingleDiscGamesByPlatformAndMedia { .. }, NormalizedContent::Game(game)) => {
+            ArtifactId::new(format!("game:{}", game.id))
+        }
         (SelectSpec::MultiDiscGames, NormalizedContent::Game(game)) => {
             ArtifactId::new(format!("game:{}", game.id))
         }
@@ -596,6 +644,7 @@ mod tests {
                 source: SourceRef::new("file:/roms/Shadow of the Colossus.chd"),
                 disc_number: 1,
                 consumed_sources: vec![],
+                logical_disc: None,
             })],
             consumed_sources: vec![],
         })];

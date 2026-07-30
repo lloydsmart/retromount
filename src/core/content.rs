@@ -2,7 +2,28 @@ use serde::Serialize;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::SourceRef;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum DiscMedia {
+    Cd,
+    Dvd,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LogicalDisc {
+    pub media: DiscMedia,
+    pub sector_size: u32,
+    pub sector_count: u64,
+    pub content: ReaderHandle,
+}
+
+impl LogicalDisc {
+    pub fn byte_len(&self) -> Option<u64> {
+        u64::from(self.sector_size).checked_mul(self.sector_count)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum DecodedContentKind {
@@ -19,10 +40,11 @@ pub enum NormalizedContentKind {
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Platform {
     Snes,
     Ps1,
+    Ps2,
     Nes,
     Megadrive,
     Unknown,
@@ -33,6 +55,7 @@ impl fmt::Display for Platform {
         let value = match self {
             Self::Snes => "snes",
             Self::Ps1 => "ps1",
+            Self::Ps2 => "ps2",
             Self::Nes => "nes",
             Self::Megadrive => "megadrive",
             Self::Unknown => "unknown",
@@ -172,6 +195,7 @@ pub struct DecodedDiscContent {
     pub title: String,
     pub disc_number: u32,
     pub consumed_sources: Vec<SourceRef>,
+    pub logical_disc: Option<LogicalDisc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -201,6 +225,7 @@ pub struct DiscPart {
     pub source: SourceRef,
     pub disc_number: u32,
     pub consumed_sources: Vec<SourceRef>,
+    pub logical_disc: Option<LogicalDisc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -250,6 +275,7 @@ mod tests {
     fn formats_platform_as_expected() {
         assert_eq!(Platform::Snes.to_string(), "snes");
         assert_eq!(Platform::Ps1.to_string(), "ps1");
+        assert_eq!(Platform::Ps2.to_string(), "ps2");
         assert_eq!(Platform::Nes.to_string(), "nes");
         assert_eq!(Platform::Megadrive.to_string(), "megadrive");
         assert_eq!(Platform::Unknown.to_string(), "unknown");
@@ -263,6 +289,7 @@ mod tests {
             title: "Game".to_string(),
             disc_number: 1,
             consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+            logical_disc: None,
         });
 
         assert_eq!(content.id().to_string(), "disc-1");
@@ -281,6 +308,7 @@ mod tests {
                 source: SourceRef::new("cue:/roms/game-disc1.cue"),
                 disc_number: 1,
                 consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+                logical_disc: None,
             })],
             consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
         });

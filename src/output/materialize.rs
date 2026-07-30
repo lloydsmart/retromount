@@ -162,12 +162,17 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+    use crate::core::content::{DiscMedia, LogicalDisc};
+    use crate::core::reader_handle::ReaderHandle;
     use crate::core::source::SourceRef;
+    use crate::core::vfs_reader::open_vfs_file;
     use crate::output::basic_encoder::BasicEncoder;
-    use crate::output::capabilities::{CapabilityRequirements, ContentType, Format};
+    use crate::output::capabilities::{
+        CapabilityFeature, CapabilityRequirements, ContentType, Format,
+    };
     use crate::output::plan::{
-        ArtifactReference, ArtifactRequest, GeneratedArtifact, PlanFile, PlannedArtifactKind,
-        PlaylistArtifact, SourceArtifact, SourceArtifactInput,
+        ArtifactReference, ArtifactRequest, ContentArtifact, GeneratedArtifact, PlanFile,
+        PlannedArtifactKind, PlaylistArtifact, SourceArtifact, SourceArtifactInput,
     };
     use crate::output::plugin_client::EncoderPluginClient;
     use crate::output::plugin_protocol::{
@@ -175,6 +180,7 @@ mod tests {
         ProtocolEncoderCapability, ProtocolFormat, ProtocolMaterializedSourceFile,
         ENCODER_PLUGIN_PROTOCOL_V1,
     };
+    use crate::readers::inline_reader::InlineReader;
 
     #[derive(Clone)]
     struct TestPluginClient {
@@ -339,6 +345,45 @@ mod tests {
 
         assert_eq!(root.children().len(), 1);
         assert_eq!(root.children()[0].name(), "game.bin");
+    }
+
+    #[test]
+    fn materializes_logical_dvd_as_live_random_access_iso() {
+        let mut bytes = vec![0; 4096];
+        bytes[32..36].copy_from_slice(b"head");
+        bytes[3000..3004].copy_from_slice(b"tail");
+        let reader_bytes = bytes.clone();
+        let plan = PresentationPlan::new(vec![PlanEntry::File(PlanFile::new(
+            "Game.iso",
+            ArtifactRequest::new(
+                ArtifactId::new("game"),
+                PlannedArtifactKind::ContentBacked(ContentArtifact::logical_disc(LogicalDisc {
+                    media: DiscMedia::Dvd,
+                    sector_size: 2048,
+                    sector_count: 2,
+                    content: ReaderHandle::new("test:logical-dvd", move || {
+                        Ok(Box::new(InlineReader::new(reader_bytes.clone())))
+                    }),
+                })),
+                CapabilityRequirements::new(ContentType::Disc)
+                    .with_format(Format::Iso)
+                    .require_feature(CapabilityFeature::RandomAccess)
+                    .require_feature(CapabilityFeature::Lossless),
+            ),
+        ))]);
+
+        let root = materialize_plan(&plan).unwrap();
+        let file = root.find_file("Game.iso").unwrap();
+        assert_eq!(file.size, 4096);
+
+        let mut reader = open_vfs_file(file).unwrap();
+        let mut tail = [0; 4];
+        let mut head = [0; 4];
+        reader.read_at(3000, &mut tail).unwrap();
+        reader.read_at(32, &mut head).unwrap();
+
+        assert_eq!(&tail, b"tail");
+        assert_eq!(&head, b"head");
     }
 
     #[test]

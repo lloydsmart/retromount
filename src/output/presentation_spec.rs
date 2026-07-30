@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use crate::core::content::{DiscMedia, Platform};
 use crate::output::capabilities::{CapabilityFeature, ContentType, Format};
 
 /// Declarative presentation specifications.
@@ -21,10 +22,11 @@ impl PresentationSpec {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LayoutSpec {
     Flat,
     GroupedByPlatformAndGame,
+    LiteralRoot(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,6 +56,12 @@ pub enum SelectSpec {
 
     /// Match games with exactly one disc part.
     SingleDiscGames,
+
+    /// Match a single-disc game for a specific platform and media kind.
+    SingleDiscGamesByPlatformAndMedia {
+        platform: Platform,
+        media: DiscMedia,
+    },
 
     /// Match games consisting entirely of multiple disc parts.
     MultiDiscGames,

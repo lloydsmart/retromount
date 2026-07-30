@@ -7,6 +7,12 @@
 #   presenter → filesystem layout (default: grouped)
 #   encoder   → file representation (default: basic)
 
+- name: ps2-opl
+  source: /roms/ps2/Test Game.chd
+  mount: /mnt/retromount/ps2
+  platform: ps2
+  presenter: opl
+
 - name: ps1
   source: /roms/ps1/Ridge Racer.cue
   mount: /mnt/retromount/ps1

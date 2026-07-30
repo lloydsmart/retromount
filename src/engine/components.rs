@@ -1,7 +1,11 @@
+use crate::core::content::Platform;
+use crate::core::normalizer::NormalizationOptions;
 use crate::engine::bootstrap::build_presentation_spec;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
+use crate::input::chd_disc_decoder::ChdDiscDecoder;
 use crate::input::decode::InputDecoder;
+use crate::input::decoder_registry::DecoderRegistry;
 use crate::input::identify::InputIdentifier;
 use crate::output::presentation_spec::PresentationSpec;
 use crate::policy::PolicySet;
@@ -16,6 +20,7 @@ pub struct PipelineComponents {
     pub identifier: Box<dyn InputIdentifier>,
     pub decoder: Box<dyn InputDecoder>,
     pub presentation: PresentationSpec,
+    pub normalization: NormalizationOptions,
     pub policy: PolicySet,
 }
 
@@ -27,10 +32,23 @@ pub fn pipeline_components(presentation_name: &str) -> Result<PipelineComponents
     let presentation =
         build_presentation_spec(presentation_name).map_err(RetromountError::LoadError)?;
 
+    let mut decoder = DecoderRegistry::new();
+    decoder.register(ChdDiscDecoder::new());
+    decoder.register(BasicInputDecoder::new());
+
+    let normalization = if presentation_name == "opl" {
+        NormalizationOptions {
+            platform_hint: Some(Platform::Ps2),
+        }
+    } else {
+        NormalizationOptions::default()
+    };
+
     Ok(PipelineComponents {
         identifier: Box::new(BasicInputIdentifier::new()),
-        decoder: Box::new(BasicInputDecoder::new()),
+        decoder: Box::new(decoder),
         presentation,
+        normalization,
         policy: PolicySet::default(),
     })
 }

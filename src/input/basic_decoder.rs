@@ -57,6 +57,7 @@ impl InputDecoder for BasicInputDecoder {
                     title,
                     disc_number,
                     consumed_sources: consumed_sources_for_disc_image(object)?,
+                    logical_disc: None,
                 })
             }
             InputIdentity::File => {
@@ -79,7 +80,7 @@ impl InputDecoder for BasicInputDecoder {
                 source: object.source.clone(),
                 size,
             }),
-            InputIdentity::Directory | InputIdentity::Archive => {
+            InputIdentity::Directory | InputIdentity::Archive | InputIdentity::ChdDisc => {
                 return Ok(Vec::new());
             }
         };
@@ -279,6 +280,13 @@ mod tests {
         let content = decoder.decode(&object, &InputIdentity::File).unwrap();
         assert_eq!(content.len(), 1);
         assert!(matches!(content[0], DecodedContent::Rom(_)));
+    }
+
+    #[test]
+    fn leaves_chd_content_for_a_dedicated_decoder() {
+        let decoder = BasicInputDecoder::new();
+
+        assert!(!decoder.supports(&InputIdentity::ChdDisc));
     }
 
     #[test]
