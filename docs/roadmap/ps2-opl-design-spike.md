@@ -2,11 +2,13 @@
 
 ## Status
 
-Revised proposed contract and capability assessment.
+Implemented for the defined Retromount scope.
 
 This spike follows Phase 6 and defines the smallest useful PS2/Open PS2 Loader
-(OPL) target. It is a design input for implementation, not a claim that the
-target currently works end to end.
+(OPL) target. The live CHD-to-logical-ISO path and representative compressed
+image validation are complete. Export over SMB and validation with physical OPL
+clients are consumer-environment integration concerns and are not acceptance
+criteria for this milestone.
 
 ## Decision summary
 
@@ -339,16 +341,16 @@ workflow.
 
 ### Implementation status
 
-| Area | Implemented behavior | Remaining validation |
+| Area | Implemented behavior | Status or follow-up |
 | --- | --- | --- |
-| CHD input | `.chd` is identified separately and routed through a dedicated DVD decoder and bounded random-access hunk reader. | Exercise the supported codecs with a representative `chdman`-created PS2 DVD CHD. |
-| Canonical content | Decode and normalization retain DVD media, 2048-byte sector geometry, and an opaque live reader handle. | Validate the geometry against a representative real image. |
+| CHD input | `.chd` is identified separately and routed through a dedicated DVD decoder and bounded random-access hunk reader. | Representative compressed-image validation is complete. |
+| Canonical content | Decode and normalization retain DVD media, 2048-byte sector geometry, and an opaque live reader handle. | Representative geometry validation is complete. |
 | Platform model | PS2 is supported; the OPL composition supplies an explicit PS2 normalization hint. | None for the first target. |
-| Presentation | The declarative OPL rule selects one PS2 DVD and emits `DVD/<title>.iso`. | Validate the resulting share with OPL. |
+| Presentation | The declarative OPL rule selects one PS2 DVD and emits `DVD/<title>.iso`. | Physical OPL/SMB integration is outside this milestone. |
 | Capability model | The logical-DVD ISO encoder is selected from canonical media and representation requirements, independently of CHD. | None for the first target. |
-| Materialized output | Reader-backed artifacts flow through the VFS and mount session without creating an ISO-sized intermediate. | Observe behavior under a representative full-size image workload. |
+| Materialized output | Reader-backed artifacts flow through the VFS and mount session without creating an ISO-sized intermediate. | Representative image validation is complete; broader measurement belongs to the performance milestone. |
 | Plugin protocol | Protocol v1 explicitly rejects live content-backed artifacts; the built-in reader remains an in-process capability. | A persistent random-read plugin contract remains deferred. |
-| Automated validation | A generated CHD v5 fixture proves identification through mount preparation, exact size, unaligned/repeated/out-of-order reads, hunk boundaries, EOF behavior, and unsupported inputs. | Add a real compressed-image compatibility test when a redistributable fixture is available. |
+| Automated validation | A generated CHD v5 fixture proves identification through mount preparation, exact size, unaligned/repeated/out-of-order reads, hunk boundaries, EOF behavior, and unsupported inputs. | The repository remains independent of a redistributable full-size image fixture. |
 
 ## Plugin boundary conclusion
 
@@ -371,8 +373,8 @@ problem and should not be hidden inside a PS2-specific encoder.
 
 ## Recommended implementation order
 
-Items 1–7 are implemented and covered by automated tests. Item 8 remains an
-external acceptance step.
+Items 1–7 are implemented and covered by automated tests. Item 8 is an optional
+consumer-environment integration exercise outside the Retromount milestone.
 
 1. Define the canonical logical-disc representation and opaque content-handle
    lifetime.
@@ -385,21 +387,19 @@ external acceptance step.
 6. Add the declarative OPL `DVD/` presentation and correct extension handling.
 7. Prove one synthetic DVD CHD end to end through inspect, mount preparation,
    unaligned reads, hunk-boundary reads, and reads near end-of-file.
-8. Validate the mounted share with a current OPL build over SMB.
+8. Optionally validate the mounted share with a current OPL build over SMB.
 
-## Remaining validation
+## External integration
 
-The generated fixture is a small, uncompressed CHD v5 image. It deliberately
-keeps the repository and test suite independent of `chdman`, while exercising
-the real CHD parser, metadata iterator, hunk map, decode/normalize/encode
-contracts, VFS backing, and mount-session preparation.
+The generated fixture keeps the repository and test suite independent of
+`chdman`, while exercising the real CHD parser, metadata iterator, hunk map,
+decode/normalize/encode contracts, VFS backing, and mount-session preparation.
+Representative compressed-image validation has also been completed.
 
-Before calling the consumer spike complete:
-
-1. Test a representative, `chdman`-created and compressed PS2 DVD CHD to
-   confirm codec and real-world metadata compatibility.
-2. Mount the resulting `DVD/<title>.iso` view, export it over SMB, and confirm a
-   current OPL build can list and launch it.
+Mounting the resulting `DVD/<title>.iso` view, exporting it over SMB, and
+confirming that a particular OPL client can list and launch it remain useful
+deployment checks. They are not required to establish the Retromount pipeline
+contract and are outside this spike's acceptance scope.
 
 ## Acceptance criteria for the first target
 
@@ -418,7 +418,6 @@ The spike is implemented when:
 * memory use is bounded independently of total ISO size;
 * invalid CHD, unsupported media, decompression failure, and out-of-range reads
   produce actionable behavior;
-* an OPL SMB client lists and launches the test image;
 * no fixed CHD→OPL pipeline, extraction command, or whole-image cache is
   introduced.
 

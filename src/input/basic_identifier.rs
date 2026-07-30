@@ -24,6 +24,7 @@ impl InputIdentifier for BasicInputIdentifier {
         let identity = match path.extension().and_then(|ext| ext.to_str()) {
             Some(ext) if ext.eq_ignore_ascii_case("cue") => InputIdentity::DiscImage,
             Some(ext) if ext.eq_ignore_ascii_case("chd") => InputIdentity::ChdDisc,
+            Some(ext) if ext.eq_ignore_ascii_case("iso") => InputIdentity::IsoDisc,
             Some(ext)
                 if ext.eq_ignore_ascii_case("txt")
                     || ext.eq_ignore_ascii_case("md")
@@ -79,6 +80,20 @@ mod tests {
         assert_eq!(
             identifier.identify(&object).unwrap(),
             InputIdentity::ChdDisc
+        );
+    }
+
+    #[test]
+    fn identifies_iso_as_a_distinct_disc_format() {
+        let identifier = BasicInputIdentifier::new();
+        let object = SourceObject {
+            source: SourceRef::new("/tmp/game.ISO"),
+            name: "game.ISO".to_string(),
+        };
+
+        assert_eq!(
+            identifier.identify(&object).unwrap(),
+            InputIdentity::IsoDisc
         );
     }
 }

@@ -62,6 +62,9 @@ This structure ensures that:
 * `cleanup-tracker.md` — concrete cleanup and refactor tasks arising from findings
 * `../presentations.md` — versioned YAML presentation schema, selection, and
   authoring reference
+* `adr-010-optical-media-contract.md` — separates source containers, input
+  formats, media semantics, platforms, output representations, and
+  presentations for the next optical-media capability slices
 
 ---
 
@@ -218,7 +221,8 @@ The architecture review work in this directory aims to:
 
 ## Next Focus Areas
 
-* improve module-level documentation
-* introduce diagrams for better visualization of the pipeline
-* refine filesystem adapter behaviour and performance (e.g. read caching)
-* add examples for alternate presentation specifications, encoders, and adapter layers
+* add filesystem ISO input through the canonical PS2 DVD and OPL path
+* replace the old ZIP integration with a live input-content boundary
+* define PS2 CD requirements for the OPL presentation
+* implement a named PS1 consumer slice and track-aware CD model
+* measure representative workloads before introducing broader caching

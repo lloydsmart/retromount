@@ -80,7 +80,10 @@ impl InputDecoder for BasicInputDecoder {
                 source: object.source.clone(),
                 size,
             }),
-            InputIdentity::Directory | InputIdentity::Archive | InputIdentity::ChdDisc => {
+            InputIdentity::Directory
+            | InputIdentity::Archive
+            | InputIdentity::ChdDisc
+            | InputIdentity::IsoDisc => {
                 return Ok(Vec::new());
             }
         };

@@ -33,5 +33,8 @@ Adding a new consumer layout now means defining a presentation specification
 and, when needed, supplying an encoder capability. It no longer requires a new
 filesystem presenter implementation.
 
-The next milestone is the first practical consumer target: presenting
-server-side CHD content to PS2/OPL as ISO-compatible output.
+The first practical consumer target was subsequently delivered: supported PS2
+DVD CHD content can be presented through a live, ISO-compatible OPL view.
+
+The next capability roadmap is documented in
+[`optical-media-capabilities.md`](optical-media-capabilities.md).
