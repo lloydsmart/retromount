@@ -118,13 +118,15 @@ Supported `select.type` values:
 * `games`
 * `games_without_parts`
 * `single_disc_games`
+* `single_disc_games_by_platform`
 * `single_disc_games_by_platform_and_media`
 * `multi_disc_games`
 * `single_rom_games`
 * `bytes`
 * `text`
 
-`single_disc_games_by_platform_and_media` also requires `platform` and `media`.
+`single_disc_games_by_platform` requires `platform`.
+`single_disc_games_by_platform_and_media` requires `platform` and `media`.
 Schema version 1 supports the platforms and media kinds already present in the
 normalized content model.
 
@@ -151,17 +153,24 @@ Each rule declares a `content_type` and may declare:
 A feature cannot be required or preferred while also forbidden. Capability
 resolution selects an encoder after the presentation has compiled.
 
+`format: cue_bin` requests one atomic multi-file disc artifact. Its encoder
+produces a generated CUE and live per-track BIN files inside one game
+directory. The `multi_file` feature describes that one-to-many output and is
+distinct from `multi_source`, which describes multiple encoder inputs.
+
 ## Built-in catalog
 
 The built-in catalog currently contains:
 
 * `flat`
 * `grouped`
+* `duckstation`
 * `opl`
 
-OPL is loaded from an embedded copy of `presentations/opl.yaml`. Flat and
-grouped remain code-constructed declarative values until their shared rule set
-is migrated without unnecessary duplication.
+DuckStation and OPL are loaded from embedded copies of
+`presentations/duckstation.yaml` and `presentations/opl.yaml`. Flat and grouped
+remain code-constructed declarative values until their shared rule set is
+migrated without unnecessary duplication.
 
 The OPL presentation declares sibling `DVD/` and `CD/` rules. ISO inputs need
 an explicit `media: dvd` or `media: cd` composition hint because ISO does not
@@ -169,14 +178,12 @@ reliably identify its original carrier. Track-aware CUE/BIN inputs provide CD
 media semantics directly, but mixed-mode, audio, and other layouts without a
 safe 2048-byte logical projection are rejected by the OPL composition.
 
-The next built-in presentation is the accepted `duckstation` contract defined
-by
+The `duckstation` contract is defined by
 [ADR-013](architecture/adr-013-ps1-duckstation-presentation-contract.md).
-Unlike OPL, it will consume the complete track-aware PS1 CD and produce one
+Unlike OPL, it consumes the complete track-aware PS1 CD and produces one
 coherent artifact set containing a generated CUE and live per-track BIN files.
-That implementation requires a schema extension for multi-file artifacts; it
-is documented here as planned behavior and is not yet available in the
-built-in catalog.
+The first implementation supports single-disc CUE/BIN input; the roadmap
+tracks CHD, SBI, multi-disc M3U, cooked ISO, and native CHD output separately.
 
 The PS1 roadmap also commits to extending the existing `opl` presentation with
 POPS support. The resulting PS2 library view will retain PS2 games below

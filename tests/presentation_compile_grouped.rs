@@ -324,6 +324,10 @@ mod grouped_parity_tests {
                     let path = format!("{parent}{}", file.name);
                     paths.push(path);
                 }
+                PlanEntry::ArtifactSet(set) => {
+                    let path = format!("{parent}{}/", set.directory_name);
+                    paths.push(path);
+                }
             }
         }
     }

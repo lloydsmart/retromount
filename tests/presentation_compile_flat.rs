@@ -160,6 +160,9 @@ mod flat_parity_tests {
             .map(|entry| match entry {
                 PlanEntry::File(file) => file.name.as_str(),
                 PlanEntry::Directory(_) => panic!("flat plan should contain only files"),
+                PlanEntry::ArtifactSet(_) => {
+                    panic!("this flat fixture should contain only files")
+                }
             })
             .collect();
         assert_eq!(actual, expected);

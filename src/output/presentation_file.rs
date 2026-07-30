@@ -194,6 +194,9 @@ enum SerializedSelect {
     Games,
     GamesWithoutParts,
     SingleDiscGames,
+    SingleDiscGamesByPlatform {
+        platform: SerializedPlatform,
+    },
     SingleDiscGamesByPlatformAndMedia {
         platform: SerializedPlatform,
         media: SerializedDiscMedia,
@@ -210,6 +213,9 @@ impl SerializedSelect {
             Self::Games => SelectSpec::Games,
             Self::GamesWithoutParts => SelectSpec::GamesWithoutParts,
             Self::SingleDiscGames => SelectSpec::SingleDiscGames,
+            Self::SingleDiscGamesByPlatform { platform } => SelectSpec::SingleDiscGamesByPlatform {
+                platform: platform.into(),
+            },
             Self::SingleDiscGamesByPlatformAndMedia { platform, media } => {
                 SelectSpec::SingleDiscGamesByPlatformAndMedia {
                     platform: platform.into(),
@@ -306,6 +312,7 @@ enum SerializedCapabilityFeature {
     Lossless,
     RandomAccess,
     SupportsPartial,
+    MultiFile,
 }
 
 impl From<SerializedCapabilityFeature> for CapabilityFeature {
@@ -316,6 +323,7 @@ impl From<SerializedCapabilityFeature> for CapabilityFeature {
             SerializedCapabilityFeature::Lossless => Self::Lossless,
             SerializedCapabilityFeature::RandomAccess => Self::RandomAccess,
             SerializedCapabilityFeature::SupportsPartial => Self::SupportsPartial,
+            SerializedCapabilityFeature::MultiFile => Self::MultiFile,
         }
     }
 }
@@ -357,6 +365,7 @@ enum SerializedFormat {
     M3u,
     Directory,
     Bin,
+    CueBin,
     Text,
 }
 
@@ -369,6 +378,7 @@ impl From<SerializedFormat> for Format {
             SerializedFormat::M3u => Self::M3u,
             SerializedFormat::Directory => Self::Directory,
             SerializedFormat::Bin => Self::Bin,
+            SerializedFormat::CueBin => Self::CueBin,
             SerializedFormat::Text => Self::Text,
         }
     }

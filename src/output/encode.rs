@@ -14,6 +14,21 @@ pub enum MaterializedArtifact {
     ReaderBacked { handle: ReaderHandle, size: u64 },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MaterializedNamedArtifact {
+    pub name: String,
+    pub artifact: MaterializedArtifact,
+}
+
+impl MaterializedNamedArtifact {
+    pub fn new(name: impl Into<String>, artifact: MaterializedArtifact) -> Self {
+        Self {
+            name: name.into(),
+            artifact,
+        }
+    }
+}
+
 impl MaterializedArtifact {
     pub fn to_vfs_file(&self, name: &str) -> VfsFile {
         match self {
@@ -45,4 +60,21 @@ pub trait OutputEncoder: Send + Sync {
         selected_capability_id: &str,
         context: &MaterializationContext,
     ) -> Result<MaterializedArtifact, io::Error>;
+
+    fn materialize_set(
+        &self,
+        _artifact_name: &str,
+        _artifact: &ArtifactRequest,
+        selected_capability_id: &str,
+        _context: &MaterializationContext,
+    ) -> Result<Vec<MaterializedNamedArtifact>, io::Error> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            format!(
+                "encoder '{}' capability '{}' does not materialize artifact sets",
+                self.plugin_id(),
+                selected_capability_id
+            ),
+        ))
+    }
 }

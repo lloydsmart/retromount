@@ -52,7 +52,12 @@ impl OutputEncoder for LogicalDiscIsoEncoder {
                 "logical ISO encoding requires a content-backed artifact",
             ));
         };
-        let disc = &content.logical_disc;
+        let crate::output::plan::ContentArtifact::LogicalDisc(disc) = content else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "logical ISO encoding requires logical disc content",
+            ));
+        };
 
         if disc.sector_size != 2048 {
             return Err(io::Error::new(

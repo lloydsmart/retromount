@@ -334,5 +334,21 @@ or the first CUE/BIN contract.
 8. Validate the mounted result with DuckStation on a representative,
    user-owned PS1 image and document the result.
 
+## Implementation status
+
+The software implementation is complete. It includes:
+
+* canonical file-backed and declared pregap separation;
+* track-relative indexes and complete encoded source extents;
+* platform-specific single-disc selection;
+* atomic multi-file artifact-set planning and materialization;
+* a lossless, random-access CUE/BIN encoder;
+* generated CUE timing and sibling per-track BIN names;
+* an embedded `duckstation` presentation rooted at `PS1/`;
+* mixed-mode filesystem and stored-ZIP integration coverage.
+
+Representative real-DuckStation validation remains to be documented before
+the milestone is considered operationally verified.
+
 [duckstation-readme]: https://github.com/stenzek/duckstation/blob/master/README.md
 [duckstation-sbi]: https://github.com/stenzek/duckstation/blob/master/README.md#libcrypt-protection-and-sbi-files

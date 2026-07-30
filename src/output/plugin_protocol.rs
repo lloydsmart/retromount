@@ -87,6 +87,7 @@ pub enum ProtocolFormat {
     M3u,
     Directory,
     Bin,
+    CueBin,
     Text,
 }
 
@@ -97,6 +98,7 @@ pub enum ProtocolCapabilityFeature {
     Lossless,
     RandomAccess,
     SupportsPartial,
+    MultiFile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

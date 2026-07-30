@@ -204,7 +204,7 @@ an item.
 
 #### PS1-1: DuckStation CUE/BIN presentation
 
-**Status:** Contract accepted
+**Status:** Implemented
 
 Implement the first slice described above.
 
