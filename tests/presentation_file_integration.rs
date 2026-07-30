@@ -80,5 +80,6 @@ files: []
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).unwrap();
     assert!(stderr.contains("unsupported schema version 99"));
-    assert!(stderr.contains(presentation_path.to_str().unwrap()));
+    assert!(stderr.contains("failed to load presentation"));
+    assert!(stderr.contains("invalid.yaml"));
 }
