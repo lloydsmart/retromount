@@ -112,11 +112,15 @@ mod tests {
     #[test]
     fn resolves_relative_paths_from_structured_origins() {
         let filesystem = SourceOrigin::Filesystem(PathBuf::from("/roms/ps1/game.cue"));
+        let expected_filesystem_source = PathBuf::from("/roms/ps1")
+            .join("game.bin")
+            .to_string_lossy()
+            .into_owned();
         assert_eq!(
             filesystem
                 .resolve_relative(Path::new("game.bin"))
                 .to_string(),
-            "/roms/ps1/game.bin"
+            expected_filesystem_source
         );
 
         let zip = SourceOrigin::ZipEntry {
