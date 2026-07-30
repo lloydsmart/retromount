@@ -172,37 +172,146 @@ PS2 CD source formats.
 
 ## Milestone 4: First PS1 vertical slice
 
+**Status:** Contract accepted
+
 ### Milestone 4 purpose
 
 Introduce a track-aware optical-media use case and the first dedicated PS1
 consumer presentation.
 
-### Milestone 4 required decisions
+[ADR-013](../architecture/adr-013-ps1-duckstation-presentation-contract.md)
+selects DuckStation as the first named consumer. The first implementation
+presents a single PS1 CUE/BIN disc as a generated CUE file and live per-track
+BIN files.
 
-Choose a named consumer before fixing the output contract. The design must
-then determine:
+### Milestone 4 scope
 
-* accepted filesystem layout and artifact formats;
-* treatment of data and audio tracks;
-* sector formats, pregaps, indexes, and information that must be preserved;
-* single-disc and multi-disc behavior;
-* whether CUE, BIN, CHD, and M3U artifacts are source-backed, generated, or
-  transformed.
+* refine the canonical CD model to distinguish file-backed and declared
+  pregaps and retain complete encoded track extents;
+* add platform-specific single-disc selection without requiring CD/DVD media
+  projection;
+* add a multi-file CUE/BIN artifact-set contract;
+* generate deterministic CUE documents with sibling per-track BIN references;
+* expose every track BIN as a bounded live view over encoded sectors;
+* add a serialized built-in `duckstation` presentation rooted at `PS1/`;
+* prove mixed data/audio, pregap, filesystem, and stored-ZIP behavior.
 
-### Milestone 4 initial implementation
+### Milestone 4 delivery sequence
 
-Implement one input format and one consumer output end to end. Add further PS1
-input formats only after the canonical CD representation is proven by that
-slice.
+Milestone 4 is a group of tracked vertical increments. It is complete only
+when PS1-1 through PS1-7 are implemented or a later ADR explicitly supersedes
+an item.
+
+#### PS1-1: DuckStation CUE/BIN presentation
+
+**Status:** Contract accepted
+
+Implement the first slice described above.
+
+#### PS1-2: CHD input
+
+**Status:** Planned
+
+Decode CHD metadata, tracks, sectors, audio, pregaps, and available subchannel
+information into the canonical `CdDisc`. Present the result through the
+DuckStation CUE/BIN view without flattening it to `LogicalDisc`.
+
+Acceptance requires mixed-mode and audio fixtures, bounded random access, and
+equivalent canonical semantics for matching CHD and CUE/BIN images.
+
+#### PS1-3: SBI sidecars
+
+**Status:** Planned
+
+Resolve and preserve optional source-backed SBI sidecars. Couple the output
+basename to the presented disc basename and reject ambiguous or mismatched
+sidecars.
+
+Acceptance requires filesystem and supported ZIP-backed sidecars, byte-exact
+live reads, and a DuckStation layout in which the SBI is adjacent to its disc
+entry with the same basename.
+
+#### PS1-4: Multi-disc M3U
+
+**Status:** Planned
+
+Present every disc in a normalized multi-disc PS1 game and generate an M3U
+whose relative entries reference the planned CUE or CHD artifacts.
+
+Acceptance requires deterministic disc ordering, atomic conflict resolution
+for the complete game artifact set, relative portable paths, and DuckStation
+validation of disc switching and game grouping.
+
+#### PS1-5: Cooked ISO input
+
+**Status:** Planned
+
+Accept cooked ISO only for the explicit data-only PS1 subset that it can
+represent. Require PS1 platform and CD media context; do not infer completeness
+from the extension or synthesize absent audio, raw-sector, or subchannel data.
+
+Acceptance requires byte-exact live reads, explicit rejection of incompatible
+claims, and presentation through a consumer representation that honestly
+describes the available sectors.
+
+#### PS1-6: Native CHD output
+
+**Status:** Planned
+
+Add lossless CHD output for DuckStation after specifying how a compression
+encoder fits a lazy, random-access VFS. The design must set bounded temporary
+storage, cancellation, cache lifetime, concurrency, and repeat-mount behavior.
+
+Acceptance requires round-trip track/layout verification, measured resource
+bounds, no untracked permanent intermediate, and useful random-read behavior
+after materialization.
+
+#### PS1-7: Extend the OPL presentation with POPS
+
+**Status:** Research required
+
+Extend the existing `opl` presentation so a PS2 library view contains PS2
+games below `DVD/` and `CD/` and PS1 games below `POPS/`. Do not create a
+standalone POPS presentation.
+
+First select the exact supported OPL, POPStarter, or POPSLoader compatibility
+target and storage backend. Record the VCD format, `POPS/` layout,
+launcher/runtime asset boundary, naming, multi-track, audio, and multi-disc
+requirements in a dedicated ADR.
+
+Acceptance requires:
+
+* a documented VCD byte and sector contract derived from the selected
+  implementation or its authoritative tooling;
+* a declarative `POPS/` rule in the existing serialized `opl` presentation
+  rather than consumer-specific decoder logic;
+* preservation of the existing PS2 `DVD/` and `CD/` behavior in the expanded
+  OPL view;
+* preservation or explicit compatibility treatment of data and audio tracks;
+* actionable handling of user-supplied launcher/runtime assets;
+* a representative real-consumer test on the selected PS2 storage backend;
+* documented exclusions for other forks or backends not covered by that test.
+
+The POPS rule must reuse canonical `CdDisc` semantics but must not reuse
+DuckStation's output artifact contract. VCD conversion remains a separately
+resolved encoder capability even though its result is composed into the OPL
+presentation.
 
 ### Milestone 4 acceptance criteria
 
 * PS1 and PS2 CDs remain semantically distinct.
-* The canonical model preserves everything required by the selected consumer.
-* A mixed-mode or multi-track fixture prevents regression to a DVD-like
-  contiguous-data assumption.
-* Multi-disc support is included only when required by the chosen first
-  consumer contract.
+* The canonical model preserves encoded track bytes, data/audio kinds, sector
+  formats, indexes, and both pregap forms required by generated CUE/BIN output.
+* A mixed-mode fixture is exposed as one generated CUE and complete live track
+  BINs without a whole-disc intermediate.
+* Generated CUE references are relative sibling filenames and match planned
+  VFS artifacts.
+* Filesystem and stored-ZIP inputs produce equivalent presentation semantics.
+* The complete artifact set is planned atomically and fails closed when timing
+  or naming cannot be represented.
+* PS2 and unknown CDs do not match the DuckStation rule.
+* Multi-disc support remains deferred from this first implementation.
+* PS1-2 through PS1-7 remain visible as planned work after PS1-1 merges.
 
 ## Milestone 5: Performance, caching, and optimization
 

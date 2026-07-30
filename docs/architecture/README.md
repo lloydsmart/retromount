@@ -71,6 +71,10 @@ This structure ensures that:
 * `adr-012-ps2-cd-opl-contract.md` — defines cooked ISO and CUE/BIN PlayStation
   2 CD input, live raw-sector projection, track and audio preservation, the OPL
   `CD/` compatibility boundary, and declarative sibling CD/DVD directories
+* `adr-013-ps1-duckstation-presentation-contract.md` — defines the first
+  PlayStation 1 presentation for DuckStation as generated CUE plus live
+  per-track BIN artifacts, including the required CD timing-model refinement
+  and deliberately deferred CHD, SBI, and multi-disc increments
 
 ---
 
