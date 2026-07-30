@@ -70,21 +70,23 @@ Super Mario World.sfc
 
 ## CLI Usage
 
-Presenter selection is exposed via the `--view` flag:
+Presentation selection is exposed via the `--presentation` flag:
 
 ```bash
-retromount inspect <input> --view grouped
-retromount inspect <input> --view flat
+retromount inspect <input> --presentation grouped
+retromount inspect <input> --presentation flat
 
-retromount mount <input> <mountpoint> --view grouped
-retromount mount <input> <mountpoint> --view flat
+retromount mount <input> <mountpoint> --presentation grouped
+retromount mount <input> <mountpoint> --presentation flat
 ```
 
 Default:
 
 ```bash
---view grouped
+--presentation grouped
 ```
+
+The legacy `--view` spelling remains available as a compatibility alias.
 
 ---
 

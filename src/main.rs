@@ -6,7 +6,7 @@ use retromount::core::content::{
 };
 use retromount::core::normalizer::NormalizationOptions;
 use retromount::core::platform::Platform as ConfigPlatform;
-use retromount::engine::bootstrap::{build_presentation_spec, built_in_presentation_names};
+use retromount::engine::bootstrap::load_presentation;
 use retromount::engine::components::pipeline_components;
 use retromount::engine::inspect::{run_phase3_inspect, run_phase3_inspect_with_plugins};
 use retromount::engine::mount::{run_mount_command, run_mount_command_with_plugins};
@@ -50,19 +50,19 @@ fn main() -> Result<(), RetromountError> {
             run_phase3_inspect(&path, true, "grouped")
         }
         [command, path, view_flag, view]
-            if command.to_string_lossy() == "inspect" && view_flag.to_string_lossy() == "--view" =>
+            if command.to_string_lossy() == "inspect" && is_presentation_flag(view_flag) =>
         {
             let path = PathBuf::from(path);
-            let presentation_name = parse_presentation_name(view)?;
+            let presentation_name = parse_presentation_reference(view)?;
             run_phase3_inspect(&path, false, &presentation_name)
         }
         [command, path, flag, view_flag, view]
             if command.to_string_lossy() == "inspect"
                 && flag.to_string_lossy() == "--json"
-                && view_flag.to_string_lossy() == "--view" =>
+                && is_presentation_flag(view_flag) =>
         {
             let path = PathBuf::from(path);
-            let presentation_name = parse_presentation_name(view)?;
+            let presentation_name = parse_presentation_reference(view)?;
             run_phase3_inspect(&path, true, &presentation_name)
         }
         [command, path, plugin_flag, plugin_dir]
@@ -86,11 +86,11 @@ fn main() -> Result<(), RetromountError> {
         }
         [command, path, view_flag, view, plugin_flag, plugin_dir]
             if command.to_string_lossy() == "inspect"
-                && view_flag.to_string_lossy() == "--view"
+                && is_presentation_flag(view_flag)
                 && plugin_flag.to_string_lossy() == "--plugin-dir" =>
         {
             let path = PathBuf::from(path);
-            let presentation_name = parse_presentation_name(view)?;
+            let presentation_name = parse_presentation_reference(view)?;
             let plugin_dir = PathBuf::from(plugin_dir);
             let plugin_registry = load_plugin_registry(&plugin_dir)?;
             run_phase3_inspect_with_plugins(&path, false, &presentation_name, Some(&plugin_registry))
@@ -98,11 +98,11 @@ fn main() -> Result<(), RetromountError> {
         [command, path, json_flag, view_flag, view, plugin_flag, plugin_dir]
             if command.to_string_lossy() == "inspect"
                 && json_flag.to_string_lossy() == "--json"
-                && view_flag.to_string_lossy() == "--view"
+                && is_presentation_flag(view_flag)
                 && plugin_flag.to_string_lossy() == "--plugin-dir" =>
         {
             let path = PathBuf::from(path);
-            let presentation_name = parse_presentation_name(view)?;
+            let presentation_name = parse_presentation_reference(view)?;
             let plugin_dir = PathBuf::from(plugin_dir);
             let plugin_registry = load_plugin_registry(&plugin_dir)?;
             run_phase3_inspect_with_plugins(&path, true, &presentation_name, Some(&plugin_registry))
@@ -114,11 +114,11 @@ fn main() -> Result<(), RetromountError> {
             run_mount_command(&input, &mountpoint, "grouped")
         }
         [command, input, mountpoint, view_flag, view]
-            if command.to_string_lossy() == "mount" && view_flag.to_string_lossy() == "--view" =>
+            if command.to_string_lossy() == "mount" && is_presentation_flag(view_flag) =>
         {
             let input = PathBuf::from(input);
             let mountpoint = PathBuf::from(mountpoint);
-            let presentation_name = parse_presentation_name(view)?;
+            let presentation_name = parse_presentation_reference(view)?;
             run_mount_command(&input, &mountpoint, &presentation_name)
         }
         [command, input, mountpoint, plugin_flag, plugin_dir]
@@ -133,12 +133,12 @@ fn main() -> Result<(), RetromountError> {
         }
         [command, input, mountpoint, view_flag, view, plugin_flag, plugin_dir]
             if command.to_string_lossy() == "mount"
-                && view_flag.to_string_lossy() == "--view"
+                && is_presentation_flag(view_flag)
                 && plugin_flag.to_string_lossy() == "--plugin-dir" =>
         {
             let input = PathBuf::from(input);
             let mountpoint = PathBuf::from(mountpoint);
-            let presentation_name = parse_presentation_name(view)?;
+            let presentation_name = parse_presentation_reference(view)?;
             let plugin_dir = PathBuf::from(plugin_dir);
             let plugin_registry = load_plugin_registry(&plugin_dir)?;
             run_mount_command_with_plugins(
@@ -150,23 +150,25 @@ fn main() -> Result<(), RetromountError> {
         }
 
         _ => Err(RetromountError::LoadError(
-            "usage:\n  retromount\n  retromount phase3-preview <path> [--plugin-dir <dir>]\n  retromount inspect <path> [--json] [--view <grouped|flat|opl>] [--plugin-dir <dir>]\n  retromount mount <input> <mountpoint> [--view <grouped|flat|opl>] [--plugin-dir <dir>]"
+            "usage:\n  retromount\n  retromount phase3-preview <path> [--plugin-dir <dir>]\n  retromount inspect <path> [--json] [--presentation <name|file>] [--plugin-dir <dir>]\n  retromount mount <input> <mountpoint> [--presentation <name|file>] [--plugin-dir <dir>]"
                 .to_string(),
         )),
     }
 }
 
-fn parse_presentation_name(value: &std::ffi::OsStr) -> Result<String, RetromountError> {
+fn is_presentation_flag(value: &std::ffi::OsStr) -> bool {
+    matches!(
+        value.to_string_lossy().as_ref(),
+        "--presentation" | "--view"
+    )
+}
+
+fn parse_presentation_reference(value: &std::ffi::OsStr) -> Result<String, RetromountError> {
     let value = value.to_string_lossy().to_string();
 
-    if build_presentation_spec(&value).is_ok() {
-        Ok(value)
-    } else {
-        Err(RetromountError::LoadError(format!(
-            "unsupported view '{value}'; expected one of: {}",
-            built_in_presentation_names().join(", ")
-        )))
-    }
+    load_presentation(&value)
+        .map(|_| value)
+        .map_err(RetromountError::LoadError)
 }
 
 fn run_configured_views() -> Result<(), RetromountError> {
@@ -179,7 +181,7 @@ fn run_configured_views() -> Result<(), RetromountError> {
     info!("Loaded {} view(s) from config", config.len());
 
     for view in &config {
-        let presentation_name = view.presenter.as_deref().unwrap_or("grouped");
+        let presentation_name = presentation_reference_for_view(view)?;
 
         info!("View: {}", view.name);
         info!("  Source: {}", view.source.display());
@@ -218,6 +220,18 @@ fn run_configured_views() -> Result<(), RetromountError> {
     }
 
     Ok(())
+}
+
+fn presentation_reference_for_view(view: &ViewConfig) -> Result<&str, RetromountError> {
+    match (&view.presentation, &view.presenter) {
+        (Some(_), Some(_)) => Err(RetromountError::LoadError(format!(
+            "view '{}' defines both 'presentation' and legacy 'presenter'; use only 'presentation'",
+            view.name
+        ))),
+        (Some(presentation), None) => Ok(presentation),
+        (None, Some(presenter)) => Ok(presenter),
+        (None, None) => Ok("grouped"),
+    }
 }
 
 fn pipeline_options_for_view(view: &ViewConfig) -> PipelineOptions<'static> {
@@ -264,5 +278,51 @@ fn log_content_summary(content: &NormalizedContent) {
             info!("    ID: {}", other.id());
             info!("    Source: {}", other.source());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn view_config(presentation: Option<&str>, presenter: Option<&str>) -> ViewConfig {
+        serde_yaml::from_str(&format!(
+            r#"
+name: test
+source: /roms
+mount: /mnt/roms
+platform: ps2
+{}{}
+"#,
+            presentation
+                .map(|value| format!("presentation: {value}\n"))
+                .unwrap_or_default(),
+            presenter
+                .map(|value| format!("presenter: {value}\n"))
+                .unwrap_or_default(),
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn configured_view_prefers_the_presentation_field() {
+        let view = view_config(Some("custom.yaml"), None);
+
+        assert_eq!(
+            presentation_reference_for_view(&view).unwrap(),
+            "custom.yaml"
+        );
+    }
+
+    #[test]
+    fn configured_view_supports_legacy_presenter_and_rejects_both_fields() {
+        let legacy = view_config(None, Some("flat"));
+        assert_eq!(presentation_reference_for_view(&legacy).unwrap(), "flat");
+
+        let conflicting = view_config(Some("grouped"), Some("flat"));
+        assert!(presentation_reference_for_view(&conflicting)
+            .unwrap_err()
+            .to_string()
+            .contains("defines both"));
     }
 }

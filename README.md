@@ -90,6 +90,7 @@ Retromount is under active development and progressing through a structured road
 * Phase 4D — Extensibility and configuration layer
 * Phase 5 — Runtime encoder plugin architecture
 * Phase 6 — Declarative presentation specifications
+* Versioned YAML presentation files and external presentation loading
 * First practical consumer target — live PS2 DVD CHD to OPL-compatible ISO
   presentation
 
@@ -114,7 +115,8 @@ RetroMount can expose a collection as a read-only filesystem using FUSE.
 
 ```bash
 retromount mount <input> <mountpoint>
-retromount mount "/roms/ps2/Test Game.chd" /mnt/retromount/ps2 --view opl
+retromount mount "/roms/ps2/Test Game.chd" /mnt/retromount/ps2 \
+  --presentation opl
 ```
 
 ### Example
@@ -150,14 +152,14 @@ Create a file called `retromount.yaml`:
   source: /roms/ps1/Ridge Racer.cue
   mount: /mnt/retromount/ps1
   platform: ps1
-  presenter: grouped
+  presentation: grouped
   encoder: basic
 
 - name: ps2-opl
   source: /roms/ps2/Test Game.chd
   mount: /mnt/retromount/ps2
   platform: ps2
-  presenter: opl
+  presentation: opl
 
 - name: snes
   source: /roms/snes
@@ -168,19 +170,19 @@ Create a file called `retromount.yaml`:
   source: /roms/megadrive
   mount: /mnt/retromount/megadrive
   platform: megadrive
-  presenter: flat
+  presentation: flat
 ```
 
 Fields:
 
-| Field       | Description                                                |
-| ----------- | ---------------------------------------------------------- |
-| `name`      | Logical name for the mounted view                          |
-| `source`    | Source directory, archive, or disc image                   |
-| `mount`     | Mount point for the virtual filesystem                     |
-| `platform`  | Target platform (e.g. `ps1`, `ps2`, `snes`, `megadrive`)   |
-| `presenter` | Layout (`grouped`, `flat`, `opl`; default: `grouped`)      |
-| `encoder`   | File representation strategy (default: `basic`)            |
+| Field          | Description                                                |
+| -------------- | ---------------------------------------------------------- |
+| `name`         | Logical name for the mounted view                          |
+| `source`       | Source directory, archive, or disc image                   |
+| `mount`        | Mount point for the virtual filesystem                     |
+| `platform`     | Target platform (e.g. `ps1`, `ps2`, `snes`, `megadrive`)   |
+| `presentation` | Built-in name or YAML file path (default: `grouped`)       |
+| `encoder`      | File representation strategy (default: `basic`)            |
 
 Platform names are **case-insensitive** and accept friendly aliases.
 
@@ -195,7 +197,9 @@ Each configured view is composed of:
 
 If not specified:
 
-* the legacy `presenter` config field selects a presentation and defaults to `grouped`
+* `presentation` selects a built-in name or versioned YAML file and defaults
+  to `grouped`
+* the legacy `presenter` field remains a compatibility alias
 * `encoder` defaults to `basic`
 
 This allows different views to present the same underlying data in different layouts without duplicating files.
@@ -280,6 +284,7 @@ Output-specific filtering will be implemented in the **view/output layer** in a 
 ## Documentation
 
 * [Consumer Views (Phase 4B)](docs/consumer-views.md)
+* [Presentation files](docs/presentations.md)
 
 ---
 
