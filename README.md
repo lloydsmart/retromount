@@ -97,8 +97,8 @@ Retromount is under active development and progressing through a structured road
 ### In Progress
 
 * Optical-media capability expansion — filesystem ISO input through the PS2
-  DVD OPL path is implemented; the live input-content boundary and revised ZIP
-  integration are next
+  DVD OPL path and the live filesystem/ZIP input-content boundary are
+  implemented; PS2 CD requirements for OPL are next
 
 ### Planned
 

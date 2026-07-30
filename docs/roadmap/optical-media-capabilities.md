@@ -76,7 +76,7 @@ and feed the same output presentation.
 
 ## Milestone 2: Live input-content boundary and ZIP replacement
 
-**Status:** Next
+**Status:** Implemented
 
 ### Milestone 2 purpose
 
@@ -109,6 +109,16 @@ Until a bounded strategy is designed and measured, a decoder that requires
 efficient random access may reject a compressed ZIP entry with an actionable
 diagnostic. It must not silently extract a complete disc, repeatedly decompress
 unbounded data, or retain a complete decompressed image in memory.
+
+The implemented boundary represents encoded input as an opaque reader handle,
+known length, declared access capability, and structured source origin.
+Filesystem files and stored ZIP entries advertise random access. Compressed ZIP
+entries remain available to ordinary sequential-friendly content paths but are
+rejected by ISO and CHD decoders, which require efficient random access.
+
+[ADR-011](../architecture/adr-011-compressed-container-random-access.md)
+defines the future opt-in, bounded disk cache that will make compressed disc
+entries seekable without introducing a converted output image.
 
 ### Milestone 2 acceptance criteria
 

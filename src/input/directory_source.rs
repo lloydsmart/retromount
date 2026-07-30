@@ -2,7 +2,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::core::source::{SourceObject, SourceRef};
+use crate::core::source::{SourceObject, SourceOrigin, SourceRef};
+use crate::core::source_resolver::filesystem_content;
 use crate::input::source::{InputSource, InputSourceKind};
 
 #[derive(Debug, Clone)]
@@ -44,7 +45,12 @@ impl DirectoryInputSource {
 
                 let source = SourceRef::new(path.to_string_lossy().into_owned());
 
-                objects.push(SourceObject { source, name });
+                objects.push(SourceObject {
+                    source,
+                    name,
+                    origin: SourceOrigin::Filesystem(path.clone()),
+                    content: filesystem_content(&path)?,
+                });
             }
         }
 

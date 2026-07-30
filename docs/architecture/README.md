@@ -65,6 +65,9 @@ This structure ensures that:
 * `adr-010-optical-media-contract.md` — separates source containers, input
   formats, media semantics, platforms, output representations, and
   presentations for the next optical-media capability slices
+* `adr-011-compressed-container-random-access.md` — permits explicit,
+  disk-backed source-entry caching for non-seekable container members while
+  preserving the prohibition on hidden output conversion
 
 ---
 

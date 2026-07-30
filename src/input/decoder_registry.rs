@@ -50,17 +50,36 @@ impl InputDecoder for DecoderRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::input_content::{InputAccess, InputContent};
+    use crate::core::reader_handle::ReaderHandle;
+    use crate::core::source::{SourceOrigin, SourceRef};
     use crate::input::basic_decoder::BasicInputDecoder;
+    use crate::readers::dir_reader::DirReader;
+
+    fn object_for(path: &std::path::Path, name: &str) -> SourceObject {
+        let reader_path = path.to_path_buf();
+        SourceObject {
+            source: SourceRef::new(path.to_string_lossy().into_owned()),
+            name: name.to_string(),
+            origin: SourceOrigin::Filesystem(path.to_path_buf()),
+            content: InputContent::new(
+                std::fs::metadata(path)
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(0),
+                InputAccess::RandomAccess,
+                ReaderHandle::new(format!("test:{}", path.display()), move || {
+                    Ok(Box::new(DirReader::open(&reader_path)?))
+                }),
+            ),
+        }
+    }
 
     #[test]
     fn delegates_to_a_decoder_that_supports_the_identity() {
         let mut registry = DecoderRegistry::new();
         registry.register(BasicInputDecoder::new());
         let file = tempfile::NamedTempFile::new().unwrap();
-        let object = SourceObject {
-            source: crate::core::source::SourceRef::new(file.path().to_string_lossy().into_owned()),
-            name: "readme.txt".to_string(),
-        };
+        let object = object_for(file.path(), "readme.txt");
 
         let decoded = registry.decode(&object, &InputIdentity::Text).unwrap();
 
@@ -70,10 +89,8 @@ mod tests {
     #[test]
     fn rejects_an_identity_without_a_registered_decoder() {
         let registry = DecoderRegistry::new();
-        let object = SourceObject {
-            source: crate::core::source::SourceRef::new("/tmp/game.chd"),
-            name: "game.chd".to_string(),
-        };
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let object = object_for(file.path(), "game.chd");
 
         let error = registry
             .decode(&object, &InputIdentity::ChdDisc)
