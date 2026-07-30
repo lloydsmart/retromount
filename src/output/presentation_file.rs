@@ -131,6 +131,8 @@ impl TryFrom<SerializedLayout> for LayoutSpec {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SerializedFileRule {
+    #[serde(default)]
+    directory: Option<String>,
     select: SerializedSelect,
     naming: SerializedNaming,
     artifact: SerializedArtifact,
@@ -138,12 +140,52 @@ struct SerializedFileRule {
 
 impl SerializedFileRule {
     fn into_rule(self) -> Result<FileRuleSpec, String> {
+        let directory = self
+            .directory
+            .map(|path| parse_virtual_directory(&path))
+            .transpose()?
+            .unwrap_or_default();
+
         Ok(FileRuleSpec::new(
             self.select.into_select(),
             self.naming.into_naming()?,
             self.artifact.into_artifact()?,
-        ))
+        )
+        .in_directory(directory))
     }
+}
+
+fn parse_virtual_directory(path: &str) -> Result<Vec<String>, String> {
+    if path.trim().is_empty() {
+        return Err("directory must not be empty".to_string());
+    }
+    if path.starts_with('/') || path.starts_with('\\') {
+        return Err("directory must be a relative virtual path".to_string());
+    }
+
+    let normalized = path.replace('\\', "/");
+    let segments = normalized
+        .split('/')
+        .map(str::trim)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+
+    if segments
+        .iter()
+        .any(|segment| segment.is_empty() || segment == "." || segment == "..")
+    {
+        return Err(
+            "directory must not contain empty, current, or parent path segments".to_string(),
+        );
+    }
+    if segments
+        .first()
+        .is_some_and(|segment| segment.ends_with(':'))
+    {
+        return Err("directory must not contain a drive prefix".to_string());
+    }
+
+    Ok(segments)
 }
 
 #[derive(Debug, Deserialize)]
@@ -383,7 +425,8 @@ layout:
   type: literal_root
   path: DVD
 files:
-  - select:
+  - directory: DVD
+    select:
       type: single_disc_games_by_platform_and_media
       platform: ps2
       media: dvd
@@ -407,6 +450,7 @@ files:
             LayoutSpec::LiteralRoot("DVD".to_string())
         );
         assert_eq!(document.spec.files.len(), 1);
+        assert_eq!(document.spec.files[0].directory, ["DVD"]);
         assert_eq!(
             document.spec.files[0].select,
             SelectSpec::SingleDiscGamesByPlatformAndMedia {
@@ -452,5 +496,18 @@ files: []
             .unwrap_err()
             .to_string()
             .contains("both required and forbidden"));
+    }
+
+    #[test]
+    fn rejects_unsafe_rule_destination_directories() {
+        for directory in ["", "/DVD", "../DVD", "games//DVD", "C:\\DVD"] {
+            let yaml = VALID.replace("directory: DVD", &format!("directory: {directory:?}"));
+            let error = parse_presentation_yaml(&yaml).unwrap_err().to_string();
+
+            assert!(
+                error.contains("directory"),
+                "expected directory error for {directory:?}, got {error}"
+            );
+        }
     }
 }

@@ -6,11 +6,20 @@
 # Each view can optionally specify:
 #   presentation → built-in name or YAML presentation path (default: grouped)
 #   encoder      → file representation (default: basic)
+#   media        → explicit disc carrier for ambiguous ISO input (cd or dvd)
 
 - name: ps2-opl
   source: /roms/ps2/Test Game.chd
   mount: /mnt/retromount/ps2
   platform: ps2
+  media: dvd
+  presentation: opl
+
+- name: ps2-cd-opl
+  source: /roms/ps2/Gradius III and IV.iso
+  mount: /mnt/retromount/ps2-cd
+  platform: ps2
+  media: cd
   presentation: opl
 
 - name: ps1

@@ -1,6 +1,6 @@
+pub mod cd;
 pub mod content;
 pub mod cue;
-pub mod disc;
 pub mod input_content;
 pub mod normalizer;
 pub mod platform;
@@ -11,7 +11,6 @@ pub mod reader_handle;
 pub mod reader_registry;
 pub mod source;
 pub mod source_resolver;
-pub mod track;
 pub mod vfs;
 pub mod vfs_reader;
 pub mod vfs_resolver;

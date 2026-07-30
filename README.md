@@ -96,9 +96,10 @@ Retromount is under active development and progressing through a structured road
 
 ### In Progress
 
-* Optical-media capability expansion — filesystem ISO input through the PS2
-  DVD OPL path and the live filesystem/ZIP input-content boundary are
-  implemented; PS2 CD requirements for OPL are next
+* Optical-media capability expansion — filesystem and stored-ZIP inputs,
+  cooked ISO and CUE/BIN PS2 CDs, live raw-sector projection, and declarative
+  OPL `CD/` and `DVD/` output are implemented; the first PS1 presentation is
+  next
 
 ### Planned
 
@@ -159,6 +160,7 @@ Create a file called `retromount.yaml`:
   source: /roms/ps2/Test Game.chd
   mount: /mnt/retromount/ps2
   platform: ps2
+  media: dvd
   presentation: opl
 
 - name: snes
@@ -181,6 +183,7 @@ Fields:
 | `source`       | Source directory, archive, or disc image                   |
 | `mount`        | Mount point for the virtual filesystem                     |
 | `platform`     | Target platform (e.g. `ps1`, `ps2`, `snes`, `megadrive`)   |
+| `media`        | Optional `cd`/`dvd` hint for ambiguous ISO input           |
 | `presentation` | Built-in name or YAML file path (default: `grouped`)       |
 | `encoder`      | File representation strategy (default: `basic`)            |
 

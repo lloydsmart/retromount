@@ -53,6 +53,7 @@ impl InputDecoder for BasicInputDecoder {
                     title,
                     disc_number,
                     consumed_sources: consumed_sources_for_disc_image(object)?,
+                    cd_disc: None,
                     logical_disc: None,
                 })
             }
@@ -94,7 +95,7 @@ fn content_size_for(object: &SourceObject) -> Result<u64, io::Error> {
 
 fn consumed_sources_for_disc_image(object: &SourceObject) -> Result<Vec<SourceRef>, io::Error> {
     let cue_text = read_text_from_source(object)?;
-    let parsed = parse_cue(&cue_text);
+    let parsed = parse_cue(&cue_text)?;
 
     let mut consumed = Vec::new();
 

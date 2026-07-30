@@ -68,6 +68,9 @@ This structure ensures that:
 * `adr-011-compressed-container-random-access.md` — permits explicit,
   disk-backed source-entry caching for non-seekable container members while
   preserving the prohibition on hidden output conversion
+* `adr-012-ps2-cd-opl-contract.md` — defines cooked ISO and CUE/BIN PlayStation
+  2 CD input, live raw-sector projection, track and audio preservation, the OPL
+  `CD/` compatibility boundary, and declarative sibling CD/DVD directories
 
 ---
 

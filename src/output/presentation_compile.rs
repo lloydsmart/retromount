@@ -45,16 +45,20 @@ fn compile_flat(
     content: &[NormalizedContent],
     policy: &PolicySet,
 ) -> PresentationPlan {
-    let mut entries = Vec::new();
-    let mut root_names = Vec::new();
+    let mut root = PlanDirectory::new("", Vec::new());
 
     for item in content {
-        for file in compile_item(spec, item, policy, &mut root_names) {
-            entries.push(PlanEntry::File(file));
+        for rule in &spec.files {
+            let directory = ensure_directory(&mut root, &rule.directory, policy);
+            let mut names = child_names(directory);
+
+            for file in try_compile_rule(rule, item, policy, &mut names) {
+                directory.entries.push(PlanEntry::File(file));
+            }
         }
     }
 
-    PresentationPlan::new(entries)
+    PresentationPlan::new(root.entries)
 }
 
 fn compile_grouped_by_platform_and_game(
@@ -74,40 +78,32 @@ fn compile_grouped_by_platform_and_game(
                 let platform_dir = ensure_directory(&mut root, &[platform_name], policy);
                 let game_dir =
                     ensure_distinct_child_directory(platform_dir, &game_dir_name, policy);
-                let mut names = child_names(game_dir);
+                for rule in &spec.files {
+                    let directory = ensure_directory(game_dir, &rule.directory, policy);
+                    let mut names = child_names(directory);
 
-                for file in compile_item(spec, item, policy, &mut names) {
-                    game_dir.entries.push(PlanEntry::File(file));
+                    for file in try_compile_rule(rule, item, policy, &mut names) {
+                        directory.entries.push(PlanEntry::File(file));
+                    }
                 }
             }
             NormalizedContent::Bytes(_) | NormalizedContent::Text(_) => {
                 let (parents, _) = split_parent_dirs(&item.id().to_string());
-                let directory = ensure_directory(&mut root, &parents, policy);
-                let mut names = child_names(directory);
+                let content_directory = ensure_directory(&mut root, &parents, policy);
 
-                for file in compile_item(spec, item, policy, &mut names) {
-                    directory.entries.push(PlanEntry::File(file));
+                for rule in &spec.files {
+                    let directory = ensure_directory(content_directory, &rule.directory, policy);
+                    let mut names = child_names(directory);
+
+                    for file in try_compile_rule(rule, item, policy, &mut names) {
+                        directory.entries.push(PlanEntry::File(file));
+                    }
                 }
             }
         }
     }
 
     PresentationPlan::new(root.entries)
-}
-
-fn compile_item(
-    spec: &PresentationSpec,
-    item: &NormalizedContent,
-    policy: &PolicySet,
-    root_names: &mut Vec<String>,
-) -> Vec<PlanFile> {
-    let mut files = Vec::new();
-
-    for rule in &spec.files {
-        files.extend(try_compile_rule(rule, item, policy, root_names));
-    }
-
-    files
 }
 
 fn try_compile_rule(
@@ -644,6 +640,7 @@ mod tests {
                 source: SourceRef::new("file:/roms/Shadow of the Colossus.chd"),
                 disc_number: 1,
                 consumed_sources: vec![],
+                cd_disc: None,
                 logical_disc: None,
             })],
             consumed_sources: vec![],
@@ -663,6 +660,45 @@ mod tests {
             crate::output::capabilities::ContentType::Disc
         );
         assert_eq!(file.artifact.requirements.format, Some(Format::Bin));
+    }
+
+    #[test]
+    fn compiles_rule_files_into_a_destination_directory() {
+        let spec = PresentationSpec::new(
+            LayoutSpec::Flat,
+            vec![FileRuleSpec::new(
+                SelectSpec::SingleDiscGames,
+                NamingSpec::GameTitle,
+                ArtifactSpec::new(crate::output::capabilities::ContentType::Disc)
+                    .with_format(Format::Iso),
+            )
+            .in_directory(["CD"])],
+        );
+        let content = vec![NormalizedContent::Game(GameContent {
+            id: ContentId::new("ps2:game"),
+            source: SourceRef::new("file:/roms/Game.iso"),
+            title: "Game".to_string(),
+            platform: Platform::Ps2,
+            parts: vec![GamePart::Disc(DiscPart {
+                source: SourceRef::new("file:/roms/Game.iso"),
+                disc_number: 1,
+                consumed_sources: vec![],
+                cd_disc: None,
+                logical_disc: None,
+            })],
+            consumed_sources: vec![],
+        })];
+
+        let plan = compile_presentation_spec(&spec, &content, &test_policy());
+
+        let [PlanEntry::Directory(directory)] = plan.entries.as_slice() else {
+            panic!("expected destination directory");
+        };
+        assert_eq!(directory.name, "CD");
+        let [PlanEntry::File(file)] = directory.entries.as_slice() else {
+            panic!("expected file in destination directory");
+        };
+        assert_eq!(file.name, "Game.iso");
     }
 
     #[test]

@@ -1,11 +1,13 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
 
+use crate::core::cd::CdDisc;
 use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::SourceRef;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DiscMedia {
     Cd,
     Dvd,
@@ -195,6 +197,7 @@ pub struct DecodedDiscContent {
     pub title: String,
     pub disc_number: u32,
     pub consumed_sources: Vec<SourceRef>,
+    pub cd_disc: Option<CdDisc>,
     pub logical_disc: Option<LogicalDisc>,
 }
 
@@ -225,6 +228,7 @@ pub struct DiscPart {
     pub source: SourceRef,
     pub disc_number: u32,
     pub consumed_sources: Vec<SourceRef>,
+    pub cd_disc: Option<CdDisc>,
     pub logical_disc: Option<LogicalDisc>,
 }
 
@@ -289,6 +293,7 @@ mod tests {
             title: "Game".to_string(),
             disc_number: 1,
             consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+            cd_disc: None,
             logical_disc: None,
         });
 
@@ -308,6 +313,7 @@ mod tests {
                 source: SourceRef::new("cue:/roms/game-disc1.cue"),
                 disc_number: 1,
                 consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],
+                cd_disc: None,
                 logical_disc: None,
             })],
             consumed_sources: vec![SourceRef::new("cue:/roms/game-disc1.bin")],

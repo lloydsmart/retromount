@@ -78,3 +78,40 @@ pub fn open_source_ref(source: &SourceRef) -> io::Result<Box<dyn Reader>> {
 
     Ok(Box::new(DirReader::open(Path::new(path))?))
 }
+
+pub fn resolve_source_ref(source: &SourceRef) -> io::Result<InputContent> {
+    let raw = source.0.as_ref();
+
+    if let Some(remainder) = raw.strip_prefix("zip:") {
+        let (archive_path, entry_name) = remainder.split_once('#').ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("invalid ZIP source ref: {raw}"),
+            )
+        })?;
+        let file = std::fs::File::open(archive_path)?;
+        let mut archive = zip::ZipArchive::new(file)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let entry = archive
+            .by_name(entry_name)
+            .map_err(|error| io::Error::new(io::ErrorKind::NotFound, error))?;
+        let access = if entry.compression() == zip::CompressionMethod::Stored {
+            InputAccess::RandomAccess
+        } else {
+            InputAccess::Sequential
+        };
+
+        return Ok(zip_entry_content(
+            Path::new(archive_path),
+            entry_name,
+            entry.size(),
+            access,
+        ));
+    }
+
+    let path = raw
+        .strip_prefix("file:")
+        .or_else(|| raw.strip_prefix("cue:"))
+        .unwrap_or(raw);
+    filesystem_content(Path::new(path))
+}
