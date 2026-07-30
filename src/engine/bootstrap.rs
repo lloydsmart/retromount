@@ -1,44 +1,59 @@
-use crate::core::content::{DiscMedia, Platform};
-use crate::output::capabilities::{CapabilityFeature, ContentType, Format};
+use std::path::Path;
+
+use crate::output::capabilities::{ContentType, Format};
+use crate::output::presentation_file::{
+    load_presentation_file, parse_presentation_yaml, PresentationDocument,
+};
 use crate::output::presentation_spec::{
     ArtifactSpec, FileRuleSpec, LayoutSpec, NamingSpec, PresentationSpec, SelectSpec,
 };
 
 const BUILT_IN_PRESENTATIONS: [&str; 3] = ["flat", "grouped", "opl"];
+const OPL_PRESENTATION: &str = include_str!("../../presentations/opl.yaml");
 
 pub fn built_in_presentation_names() -> &'static [&'static str] {
     &BUILT_IN_PRESENTATIONS
 }
 
 pub fn build_presentation_spec(name: &str) -> Result<PresentationSpec, String> {
-    match name {
-        "flat" => Ok(PresentationSpec::new(
-            LayoutSpec::Flat,
-            built_in_file_rules(),
-        )),
-        "grouped" => Ok(PresentationSpec::new(
-            LayoutSpec::GroupedByPlatformAndGame,
-            built_in_file_rules(),
-        )),
-        "opl" => Ok(PresentationSpec::new(
-            LayoutSpec::LiteralRoot("DVD".to_string()),
-            vec![FileRuleSpec::new(
-                SelectSpec::SingleDiscGamesByPlatformAndMedia {
-                    platform: Platform::Ps2,
-                    media: DiscMedia::Dvd,
-                },
-                NamingSpec::GameTitle,
-                ArtifactSpec::new(ContentType::Disc)
-                    .with_format(Format::Iso)
-                    .require_feature(CapabilityFeature::RandomAccess)
-                    .require_feature(CapabilityFeature::Lossless),
-            )],
-        )),
+    Ok(load_presentation(name)?.spec)
+}
+
+pub fn load_presentation(reference: &str) -> Result<PresentationDocument, String> {
+    match reference {
+        "flat" => Ok(PresentationDocument {
+            name: "flat".to_string(),
+            spec: PresentationSpec::new(LayoutSpec::Flat, built_in_file_rules()),
+        }),
+        "grouped" => Ok(PresentationDocument {
+            name: "grouped".to_string(),
+            spec: PresentationSpec::new(
+                LayoutSpec::GroupedByPlatformAndGame,
+                built_in_file_rules(),
+            ),
+        }),
+        "opl" => parse_presentation_yaml(OPL_PRESENTATION)
+            .map_err(|error| format!("built-in presentation 'opl' failed validation: {error}")),
+        _ if looks_like_presentation_path(reference) => {
+            load_presentation_file(Path::new(reference))
+                .map_err(|error| format!("failed to load presentation '{}': {error}", reference))
+        }
         _ => Err(format!(
-            "unsupported view '{name}'; expected one of: {}",
+            "unsupported view or presentation file '{reference}'; expected one of: {}",
             built_in_presentation_names().join(", ")
         )),
     }
+}
+
+fn looks_like_presentation_path(reference: &str) -> bool {
+    let path = Path::new(reference);
+    path.is_file()
+        || path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| {
+                extension.eq_ignore_ascii_case("yaml") || extension.eq_ignore_ascii_case("yml")
+            })
 }
 
 fn built_in_file_rules() -> Vec<FileRuleSpec> {
@@ -85,7 +100,8 @@ fn built_in_file_rules() -> Vec<FileRuleSpec> {
 mod tests {
     use super::*;
     use crate::core::content::{
-        ContentId, DiscPart, GameContent, GamePart, LogicalDisc, NormalizedContent, Platform,
+        ContentId, DiscMedia, DiscPart, GameContent, GamePart, LogicalDisc, NormalizedContent,
+        Platform,
     };
     use crate::core::reader_handle::ReaderHandle;
     use crate::core::source::SourceRef;
@@ -122,8 +138,44 @@ mod tests {
         let error = build_presentation_spec("unknown").unwrap_err();
         assert_eq!(
             error,
-            "unsupported view 'unknown'; expected one of: flat, grouped, opl"
+            "unsupported view or presentation file 'unknown'; expected one of: flat, grouped, opl"
         );
+    }
+
+    #[test]
+    fn reports_a_missing_presentation_file_as_a_read_error() {
+        let error = load_presentation("/missing/presentation.yaml").unwrap_err();
+
+        assert!(error.contains("failed to read presentation"));
+        assert!(error.contains("/missing/presentation.yaml"));
+    }
+
+    #[test]
+    fn loads_an_external_presentation_file() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            file.path(),
+            r#"
+version: 1
+name: external-flat
+layout:
+  type: flat
+files:
+  - select:
+      type: bytes
+    naming:
+      type: source_name
+    artifact:
+      content_type: bytes
+      format: bin
+"#,
+        )
+        .unwrap();
+
+        let document = load_presentation(file.path().to_str().unwrap()).unwrap();
+
+        assert_eq!(document.name, "external-flat");
+        assert_eq!(document.spec.layout, LayoutSpec::Flat);
     }
 
     #[test]

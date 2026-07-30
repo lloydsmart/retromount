@@ -60,6 +60,8 @@ This structure ensures that:
 * `review-findings.md` — findings discovered during architecture review
 * `decisions.md` — architectural decisions made during the review
 * `cleanup-tracker.md` — concrete cleanup and refactor tasks arising from findings
+* `../presentations.md` — versioned YAML presentation schema, selection, and
+  authoring reference
 
 ---
 

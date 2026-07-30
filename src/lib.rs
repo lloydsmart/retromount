@@ -22,6 +22,10 @@ pub struct ViewConfig {
     pub platform: Platform,
 
     #[serde(default)]
+    pub presentation: Option<String>,
+
+    /// Legacy alias for `presentation`.
+    #[serde(default)]
     pub presenter: Option<String>,
 
     #[serde(default)]

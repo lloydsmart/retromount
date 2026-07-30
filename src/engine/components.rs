@@ -1,6 +1,6 @@
 use crate::core::content::Platform;
 use crate::core::normalizer::NormalizationOptions;
-use crate::engine::bootstrap::build_presentation_spec;
+use crate::engine::bootstrap::load_presentation;
 use crate::input::basic_decoder::BasicInputDecoder;
 use crate::input::basic_identifier::BasicInputIdentifier;
 use crate::input::chd_disc_decoder::ChdDiscDecoder;
@@ -29,8 +29,7 @@ pub fn default_pipeline_components() -> Result<PipelineComponents, RetromountErr
 }
 
 pub fn pipeline_components(presentation_name: &str) -> Result<PipelineComponents, RetromountError> {
-    let presentation =
-        build_presentation_spec(presentation_name).map_err(RetromountError::LoadError)?;
+    let document = load_presentation(presentation_name).map_err(RetromountError::LoadError)?;
 
     let mut decoder = DecoderRegistry::new();
     decoder.register(ChdDiscDecoder::new());
@@ -47,7 +46,7 @@ pub fn pipeline_components(presentation_name: &str) -> Result<PipelineComponents
     Ok(PipelineComponents {
         identifier: Box::new(BasicInputIdentifier::new()),
         decoder: Box::new(decoder),
-        presentation,
+        presentation: document.spec,
         normalization,
         policy: PolicySet::default(),
     })
