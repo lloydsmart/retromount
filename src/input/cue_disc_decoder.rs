@@ -110,7 +110,9 @@ impl InputDecoder for CueDiscDecoder {
         let logical_disc = cd_disc.opl_logical_track().map(|track| LogicalDisc {
             media: DiscMedia::Cd,
             sector_size: 2048,
-            sector_count: track.sector_count,
+            sector_count: track
+                .playable_sector_count()
+                .expect("OPL-compatible track must have INDEX 01"),
             content: track
                 .logical_content
                 .clone()
@@ -177,23 +179,33 @@ fn build_track(
     }
 
     let file_sectors = content.size / sector_size;
+    let extent_start = entry
+        .indexes
+        .iter()
+        .find(|index| index.number == 0)
+        .map(|index| index.sector)
+        .unwrap_or(index_one);
     let end_sector = next_start.unwrap_or(file_sectors);
-    if index_one >= end_sector || end_sector > file_sectors {
+    if extent_start > index_one || index_one >= end_sector || end_sector > file_sectors {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!("CUE track {:02} has an invalid source range", entry.number),
         ));
     }
 
-    let sector_count = end_sector - index_one;
-    let source_offset = index_one
+    let sector_count = end_sector - extent_start;
+    let playable_sector_count = end_sector - index_one;
+    let source_offset = extent_start
+        .checked_mul(sector_size)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "CUE track offset overflow"))?;
+    let logical_source_offset = index_one
         .checked_mul(sector_size)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "CUE track offset overflow"))?;
     let logical_content = logical_track_handle(
         &content,
         &source,
-        source_offset,
-        sector_count,
+        logical_source_offset,
+        playable_sector_count,
         sector_format,
     )?;
     let file_backed_pregap = entry
@@ -210,9 +222,7 @@ fn build_track(
         })
         .transpose()?
         .unwrap_or(0);
-    let pregap_sectors = file_backed_pregap
-        .checked_add(entry.pregap_sectors.unwrap_or(0))
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "CUE pregap overflow"))?;
+    let declared_pregap_sectors = entry.pregap_sectors.unwrap_or(0);
 
     Ok(CdTrack {
         number: entry.number,
@@ -226,12 +236,23 @@ fn build_track(
         indexes: entry
             .indexes
             .iter()
-            .map(|index| CdIndex {
-                number: index.number,
-                sector: index.sector,
+            .map(|index| {
+                Ok(CdIndex {
+                    number: index.number,
+                    sector: index.sector.checked_sub(extent_start).ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!(
+                                "CUE track {:02} index precedes its preserved extent",
+                                entry.number
+                            ),
+                        )
+                    })?,
+                })
             })
-            .collect(),
-        pregap_sectors,
+            .collect::<io::Result<Vec<_>>>()?,
+        file_backed_pregap_sectors: file_backed_pregap,
+        declared_pregap_sectors,
     })
 }
 
@@ -473,7 +494,9 @@ mod tests {
 
         assert_eq!(cd.tracks.len(), 2);
         assert_eq!(cd.tracks[1].kind, CdTrackKind::Audio);
-        assert_eq!(cd.tracks[1].pregap_sectors, 150);
+        assert_eq!(cd.tracks[1].file_backed_pregap_sectors, 0);
+        assert_eq!(cd.tracks[1].declared_pregap_sectors, 150);
+        assert_eq!(cd.tracks[1].total_pregap_sectors(), Some(150));
         assert!(disc.logical_disc.is_none());
     }
 
@@ -541,9 +564,12 @@ mod tests {
 
         assert_eq!(tracks.len(), 2);
         assert_eq!(tracks[0].sector_count, 1);
-        assert_eq!(tracks[1].source_offset, 2 * 2352);
-        assert_eq!(tracks[1].sector_count, 1);
-        assert_eq!(tracks[1].pregap_sectors, 1);
+        assert_eq!(tracks[1].source_offset, 2352);
+        assert_eq!(tracks[1].sector_count, 2);
+        assert_eq!(tracks[1].file_backed_pregap_sectors, 1);
+        assert_eq!(tracks[1].declared_pregap_sectors, 0);
+        assert_eq!(tracks[1].index_one_sector(), Some(1));
+        assert_eq!(tracks[1].playable_sector_count(), Some(1));
         assert_eq!(tracks[0].source, tracks[1].source);
         assert!(disc.logical_disc.is_none());
     }
