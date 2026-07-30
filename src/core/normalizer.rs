@@ -143,6 +143,8 @@ fn platform_from_segments(path: &str) -> Option<Platform> {
             Platform::Snes
         } else if matches_platform_segment(segment, &["ps1", "psx", "playstation"]) {
             Platform::Ps1
+        } else if matches_platform_segment(segment, &["ps2", "playstation2"]) {
+            Platform::Ps2
         } else if matches_platform_segment(segment, &["nes"]) {
             Platform::Nes
         } else if matches_platform_segment(segment, &["megadrive", "genesis"]) {
@@ -431,6 +433,8 @@ mod tests {
     fn derives_platform_from_path() {
         assert_eq!(derive_platform("roms/snes/game.sfc"), Platform::Snes);
         assert_eq!(derive_platform("roms/ps1/game.cue"), Platform::Ps1);
+        assert_eq!(derive_platform("roms/ps2/game.chd"), Platform::Ps2);
+        assert_eq!(derive_platform("roms/playstation2/game.chd"), Platform::Ps2);
         assert_eq!(derive_platform("roms/psx/game.cue"), Platform::Ps1);
         assert_eq!(derive_platform("roms/playstation/game.cue"), Platform::Ps1);
         assert_eq!(derive_platform("roms/nes/game.nes"), Platform::Nes);

@@ -44,6 +44,7 @@ pub enum NormalizedContentKind {
 pub enum Platform {
     Snes,
     Ps1,
+    Ps2,
     Nes,
     Megadrive,
     Unknown,
@@ -54,6 +55,7 @@ impl fmt::Display for Platform {
         let value = match self {
             Self::Snes => "snes",
             Self::Ps1 => "ps1",
+            Self::Ps2 => "ps2",
             Self::Nes => "nes",
             Self::Megadrive => "megadrive",
             Self::Unknown => "unknown",
@@ -273,6 +275,7 @@ mod tests {
     fn formats_platform_as_expected() {
         assert_eq!(Platform::Snes.to_string(), "snes");
         assert_eq!(Platform::Ps1.to_string(), "ps1");
+        assert_eq!(Platform::Ps2.to_string(), "ps2");
         assert_eq!(Platform::Nes.to_string(), "nes");
         assert_eq!(Platform::Megadrive.to_string(), "megadrive");
         assert_eq!(Platform::Unknown.to_string(), "unknown");

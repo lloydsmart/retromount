@@ -232,6 +232,7 @@ fn pipeline_options_for_view(view: &ViewConfig) -> PipelineOptions<'static> {
 fn map_view_platform(platform: &ConfigPlatform) -> ContentPlatform {
     match platform {
         ConfigPlatform::PlayStation => ContentPlatform::Ps1,
+        ConfigPlatform::PlayStation2 => ContentPlatform::Ps2,
         ConfigPlatform::SuperNintendo => ContentPlatform::Snes,
         ConfigPlatform::MegaDrive => ContentPlatform::Megadrive,
         _ => ContentPlatform::Unknown,
