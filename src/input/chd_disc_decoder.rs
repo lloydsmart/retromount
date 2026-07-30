@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use chd::metadata::MetadataTag;
-use chd::Chd;
+use chd::{Chd, Error as ChdError};
 
 use crate::core::content::{ContentId, DecodedContent, DecodedDiscContent, DiscMedia, LogicalDisc};
 use crate::core::reader_handle::ReaderHandle;
@@ -33,8 +33,7 @@ impl ChdDiscDecoder {
 
     fn inspect(path: &Path) -> io::Result<ChdDiscInfo> {
         let file = File::open(path)?;
-        let mut chd = Chd::open(file, None)
-            .map_err(|error| io::Error::other(format!("failed to open CHD: {error}")))?;
+        let mut chd = Chd::open(file, None).map_err(map_chd_open_error)?;
         let header = chd.header();
         let has_parent = header.has_parent();
         let unit_bytes = header.unit_bytes();
@@ -91,6 +90,23 @@ impl ChdDiscDecoder {
             }),
         })
     }
+}
+
+fn map_chd_open_error(error: ChdError) -> io::Error {
+    let kind = match error {
+        ChdError::InvalidFile
+        | ChdError::InvalidData
+        | ChdError::InvalidMetadata
+        | ChdError::InvalidMetadataSize
+        | ChdError::ReadError => io::ErrorKind::InvalidData,
+        ChdError::RequiresParent
+        | ChdError::NotSupported
+        | ChdError::UnsupportedFormat
+        | ChdError::UnsupportedVersion => io::ErrorKind::Unsupported,
+        _ => io::ErrorKind::Other,
+    };
+
+    io::Error::new(kind, format!("failed to open CHD: {error}"))
 }
 
 impl InputDecoder for ChdDiscDecoder {
@@ -198,6 +214,22 @@ mod tests {
                 .unwrap_err()
                 .kind(),
             io::ErrorKind::InvalidData
+        );
+    }
+
+    #[test]
+    fn maps_invalid_and_unsupported_chd_errors_to_actionable_io_kinds() {
+        assert_eq!(
+            map_chd_open_error(ChdError::InvalidData).kind(),
+            io::ErrorKind::InvalidData
+        );
+        assert_eq!(
+            map_chd_open_error(ChdError::UnsupportedVersion).kind(),
+            io::ErrorKind::Unsupported
+        );
+        assert_eq!(
+            map_chd_open_error(ChdError::RequiresParent).kind(),
+            io::ErrorKind::Unsupported
         );
     }
 }
