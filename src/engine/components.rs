@@ -7,6 +7,7 @@ use crate::input::chd_disc_decoder::ChdDiscDecoder;
 use crate::input::decode::InputDecoder;
 use crate::input::decoder_registry::DecoderRegistry;
 use crate::input::identify::InputIdentifier;
+use crate::input::iso_disc_decoder::IsoDiscDecoder;
 use crate::output::presentation_spec::PresentationSpec;
 use crate::policy::PolicySet;
 use crate::RetromountError;
@@ -34,6 +35,9 @@ pub fn pipeline_components(presentation_name: &str) -> Result<PipelineComponents
 
     let mut decoder = DecoderRegistry::new();
     decoder.register(ChdDiscDecoder::new());
+    if presentation_name == "opl" {
+        decoder.register(IsoDiscDecoder::new(crate::core::content::DiscMedia::Dvd));
+    }
     decoder.register(BasicInputDecoder::new());
 
     let normalization = if presentation_name == "opl" {

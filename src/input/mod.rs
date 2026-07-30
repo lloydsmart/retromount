@@ -6,5 +6,6 @@ pub mod decoder_registry;
 pub mod directory_source;
 pub mod file_source;
 pub mod identify;
+pub mod iso_disc_decoder;
 pub mod source;
 pub mod zip_source;

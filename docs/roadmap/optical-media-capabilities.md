@@ -41,6 +41,8 @@ Every milestone must preserve these rules:
 
 ## Milestone 1: Filesystem ISO input for PS2 DVD
 
+**Status:** Implemented
+
 ### Milestone 1 purpose
 
 Prove that multiple input decoders can produce the same canonical logical DVD
@@ -73,6 +75,8 @@ and feed the same output presentation.
 * The CHD path remains unchanged.
 
 ## Milestone 2: Live input-content boundary and ZIP replacement
+
+**Status:** Next
 
 ### Milestone 2 purpose
 
