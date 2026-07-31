@@ -112,10 +112,16 @@ fn try_compile_rule(
     policy: &PolicySet,
     root_names: &mut Vec<String>,
 ) -> Vec<PlanEntry> {
+    if !matches_source_format_filters(rule, item) {
+        return Vec::new();
+    }
     if rule.select == SelectSpec::MultiDiscGames {
         return try_compile_multi_disc_rule(rule, item, policy, root_names);
     }
     if matches!(rule.select, SelectSpec::MultiDiscGamesByPlatform { .. }) {
+        if rule.artifact.format == Some(Format::Chd) && rule.source_formats.contains(&Format::Chd) {
+            return try_compile_multi_disc_chd_game(rule, item, policy, root_names);
+        }
         return try_compile_multi_disc_cue_bin_game(rule, item, policy, root_names);
     }
 
@@ -143,7 +149,9 @@ fn try_compile_rule(
     let Some(proposed_name) = build_name(&rule.naming, item, &rule.artifact, policy) else {
         return Vec::new();
     };
-    if rule.artifact.format == Some(Format::CueBin) {
+    let is_native_chd_set =
+        rule.artifact.format == Some(Format::Chd) && rule.source_formats.contains(&Format::Chd);
+    if rule.artifact.format == Some(Format::CueBin) || is_native_chd_set {
         let NormalizedContent::Game(game) = item else {
             return Vec::new();
         };
@@ -153,7 +161,11 @@ fn try_compile_rule(
         let directory_name =
             policy.resolve_name_conflict(&policy.naming().game_name(game), root_names);
         root_names.push(directory_name.clone());
-        let artifact_name = strip_known_extension(&proposed_name, Some(Format::CueBin));
+        let artifact_name = if rule.artifact.format == Some(Format::Chd) {
+            strip_known_extension(&proposed_name, Some(Format::CueBin))
+        } else {
+            strip_known_extension(&proposed_name, rule.artifact.format)
+        };
         let artifact = ArtifactRequest::new(
             build_artifact_id(&rule.select, item),
             PlannedArtifactKind::ContentBacked(ContentArtifact::cd_disc(cd_disc)),
@@ -162,6 +174,7 @@ fn try_compile_rule(
         return vec![PlanEntry::ArtifactSet(PlanArtifactSet::new(
             directory_name,
             artifact_name,
+            if is_native_chd_set { "chd" } else { "cue" },
             artifact,
         ))];
     }
@@ -185,6 +198,126 @@ fn try_compile_rule(
     );
 
     vec![PlanEntry::File(PlanFile::new(allocated_name, artifact))]
+}
+
+fn matches_source_format_filters(rule: &FileRuleSpec, item: &NormalizedContent) -> bool {
+    if rule.source_formats.is_empty() && rule.excluded_source_formats.is_empty() {
+        return true;
+    }
+
+    let NormalizedContent::Game(game) = item else {
+        return false;
+    };
+    let formats = game
+        .parts
+        .iter()
+        .map(|part| match part {
+            GamePart::Disc(disc) => source_format(&disc.source),
+            GamePart::Rom(rom) => source_format(&rom.source),
+        })
+        .collect::<Option<Vec<_>>>();
+    let Some(formats) = formats else {
+        return false;
+    };
+
+    (rule.source_formats.is_empty()
+        || formats
+            .iter()
+            .all(|format| rule.source_formats.contains(format)))
+        && formats
+            .iter()
+            .all(|format| !rule.excluded_source_formats.contains(format))
+}
+
+fn source_format(source: &SourceRef) -> Option<Format> {
+    let file_name = source.file_name();
+    let extension = std::path::Path::new(&file_name)
+        .extension()
+        .and_then(|extension| extension.to_str())?;
+
+    if extension.eq_ignore_ascii_case("chd") {
+        Some(Format::Chd)
+    } else if extension.eq_ignore_ascii_case("iso") {
+        Some(Format::Iso)
+    } else if extension.eq_ignore_ascii_case("cue") {
+        Some(Format::CueBin)
+    } else if extension.eq_ignore_ascii_case("bin") {
+        Some(Format::Bin)
+    } else if extension.eq_ignore_ascii_case("zip") {
+        Some(Format::Zip)
+    } else {
+        None
+    }
+}
+
+fn try_compile_multi_disc_chd_game(
+    rule: &FileRuleSpec,
+    item: &NormalizedContent,
+    policy: &PolicySet,
+    names: &mut Vec<String>,
+) -> Vec<PlanEntry> {
+    let NormalizedContent::Game(game) = item else {
+        return Vec::new();
+    };
+    let SelectSpec::MultiDiscGamesByPlatform { platform } = rule.select else {
+        return Vec::new();
+    };
+    if game.platform != platform
+        || !is_multi_disc_game(game)
+        || rule.artifact.content_type != ContentType::Game
+        || rule.artifact.format != Some(Format::Chd)
+    {
+        return Vec::new();
+    }
+
+    let directory_name = policy.resolve_name_conflict(&policy.naming().game_name(game), names);
+    names.push(directory_name.clone());
+    let mut entries = Vec::with_capacity(game.parts.len() + 1);
+    let mut child_names = Vec::new();
+    let mut references = Vec::new();
+
+    for disc in sorted_disc_parts(game) {
+        let part_name = policy
+            .naming()
+            .part_name(game, &GamePart::Disc(disc.clone()));
+        let artifact_name = strip_known_extension(&part_name, Some(Format::CueBin));
+        let disc_directory_name = policy.resolve_name_conflict(&artifact_name, &child_names);
+        child_names.push(disc_directory_name.clone());
+        let artifact_id = ArtifactId::new(format!("game:{}:disc:{}", game.id, disc.disc_number));
+        references.push(ArtifactReference::new(artifact_id.clone()));
+        let Some(cd_disc) = &disc.cd_disc else {
+            return Vec::new();
+        };
+
+        let mut disc_spec = rule.artifact.clone();
+        disc_spec.content_type = ContentType::Disc;
+        entries.push(PlanEntry::ArtifactSet(PlanArtifactSet::new(
+            disc_directory_name,
+            artifact_name,
+            "chd",
+            ArtifactRequest::new(
+                artifact_id,
+                PlannedArtifactKind::ContentBacked(ContentArtifact::cd_disc(cd_disc.clone())),
+                build_requirements(&disc_spec),
+            ),
+        )));
+    }
+
+    entries.push(PlanEntry::File(PlanFile::new(
+        policy.naming().playlist_name(game),
+        ArtifactRequest::new(
+            ArtifactId::new(format!("game:{}:playlist", game.id)),
+            PlannedArtifactKind::Generated(GeneratedArtifact::Playlist(PlaylistArtifact::new(
+                references,
+            ))),
+            CapabilityRequirements::new(ContentType::Playlist).with_format(Format::M3u),
+        ),
+    )));
+
+    vec![PlanEntry::Directory(PlanDirectory::new(
+        directory_name,
+        entries,
+    ))]
 }
 
 fn try_compile_multi_disc_cue_bin_game(
@@ -231,6 +364,7 @@ fn try_compile_multi_disc_cue_bin_game(
         entries.push(PlanEntry::ArtifactSet(PlanArtifactSet::new(
             disc_directory_name,
             artifact_name,
+            "cue",
             ArtifactRequest::new(
                 artifact_id,
                 PlannedArtifactKind::ContentBacked(ContentArtifact::cd_disc(cd_disc.clone())),

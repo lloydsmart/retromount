@@ -31,6 +31,7 @@ pub enum PlanEntry {
 pub struct PlanArtifactSet {
     pub directory_name: String,
     pub artifact_name: String,
+    pub primary_extension: String,
     pub artifact: ArtifactRequest,
 }
 
@@ -38,13 +39,19 @@ impl PlanArtifactSet {
     pub fn new(
         directory_name: impl Into<String>,
         artifact_name: impl Into<String>,
+        primary_extension: impl Into<String>,
         artifact: ArtifactRequest,
     ) -> Self {
         Self {
             directory_name: directory_name.into(),
             artifact_name: artifact_name.into(),
+            primary_extension: primary_extension.into(),
             artifact,
         }
+    }
+
+    pub fn primary_file_name(&self) -> String {
+        format!("{}.{}", self.artifact_name, self.primary_extension)
     }
 }
 

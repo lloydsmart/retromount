@@ -342,17 +342,18 @@ fn presents_multi_disc_chds_through_the_same_relative_m3u_contract() {
     assert_eq!(
         String::from_utf8(read_file(&session, playlist.inode)).unwrap(),
         concat!(
-            "CHD Multi (Disc 1)/CHD Multi (Disc 1).cue\n",
-            "CHD Multi (Disc 2)/CHD Multi (Disc 2).cue\n",
+            "CHD Multi (Disc 1)/CHD Multi (Disc 1).chd\n",
+            "CHD Multi (Disc 2)/CHD Multi (Disc 2).chd\n",
         )
     );
 }
 
 #[test]
-fn presents_a_mixed_mode_ps1_chd_through_the_duckstation_cue_bin_view() {
+fn presents_a_ps1_chd_and_sbi_byte_exactly_without_reencoding() {
     let directory = tempfile::tempdir().unwrap();
     let chd_path = directory.path().join("CHD Game.chd");
-    fs::write(&chd_path, cd_chd_fixture(false)).unwrap();
+    let chd_bytes = cd_chd_fixture(false);
+    fs::write(&chd_path, &chd_bytes).unwrap();
     let sbi_bytes = sbi_fixture(0x58);
     fs::write(directory.path().join("CHD Game.sbi"), &sbi_bytes).unwrap();
 
@@ -363,36 +364,72 @@ fn presents_a_mixed_mode_ps1_chd_through_the_duckstation_cue_bin_view() {
     let game = session
         .lookup_child(ps1.inode, "CHD Game")
         .expect("CHD game directory");
-    let track1 = session
-        .lookup_child(game.inode, "CHD Game (Disc 1) (Track 01).bin")
-        .expect("CHD data track");
-    let track2 = session
-        .lookup_child(game.inode, "CHD Game (Disc 1) (Track 02).bin")
-        .expect("CHD audio track");
+    let chd = session
+        .lookup_child(game.inode, "CHD Game (Disc 1).chd")
+        .expect("native CHD");
     let sbi = session
         .lookup_child(game.inode, "CHD Game (Disc 1).sbi")
         .expect("CHD-adjacent SBI");
 
-    assert_eq!(
-        read_file(&session, track1.inode),
-        expected_chd_track_bytes(0, 4)
-    );
-    assert_eq!(
-        read_file(&session, track2.inode),
-        expected_chd_track_bytes(4, 4)
-    );
+    assert_eq!(read_file(&session, chd.inode), chd_bytes);
     assert_eq!(read_file(&session, sbi.inode), sbi_bytes);
 }
 
 #[test]
-fn rejects_chd_subchannel_data_that_cue_bin_cannot_preserve() {
+fn presents_a_stored_zip_chd_and_sbi_byte_exactly_without_reencoding() {
+    let archive = tempfile::NamedTempFile::new().unwrap();
+    let chd_bytes = cd_chd_fixture(false);
+    let sbi_bytes = sbi_fixture(0x68);
+    {
+        let mut zip = zip::ZipWriter::new(archive.reopen().unwrap());
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("Zip CHD.chd", stored).unwrap();
+        zip.write_all(&chd_bytes).unwrap();
+        zip.start_file("Zip CHD.sbi", stored).unwrap();
+        zip.write_all(&sbi_bytes).unwrap();
+        zip.finish().unwrap();
+    }
+    let zip_path = archive.path().with_extension("zip");
+    fs::copy(archive.path(), &zip_path).unwrap();
+
+    let session = prepare_mount_session(&zip_path, "duckstation").unwrap();
+    let ps1 = session
+        .lookup_child(session.root_inode(), "PS1")
+        .expect("PS1 presentation root");
+    let game = session
+        .lookup_child(ps1.inode, "Zip CHD")
+        .expect("stored ZIP CHD game");
+    let chd = session
+        .lookup_child(game.inode, "Zip CHD (Disc 1).chd")
+        .expect("stored ZIP native CHD");
+    let sbi = session
+        .lookup_child(game.inode, "Zip CHD (Disc 1).sbi")
+        .expect("stored ZIP SBI");
+
+    assert_eq!(read_file(&session, chd.inode), chd_bytes);
+    assert_eq!(read_file(&session, sbi.inode), sbi_bytes);
+}
+
+#[test]
+fn preserves_chd_subchannel_data_via_native_passthrough() {
     let directory = tempfile::tempdir().unwrap();
     let chd_path = directory.path().join("Protected.chd");
-    fs::write(&chd_path, cd_chd_fixture(true)).unwrap();
+    let chd_bytes = cd_chd_fixture(true);
+    fs::write(&chd_path, &chd_bytes).unwrap();
 
-    let error = prepare_mount_session(&chd_path, "duckstation").unwrap_err();
+    let session = prepare_mount_session(&chd_path, "duckstation").unwrap();
+    let ps1 = session
+        .lookup_child(session.root_inode(), "PS1")
+        .expect("PS1 presentation root");
+    let game = session
+        .lookup_child(ps1.inode, "Protected")
+        .expect("protected CHD game");
+    let chd = session
+        .lookup_child(game.inode, "Protected (Disc 1).chd")
+        .expect("native protected CHD");
 
-    assert!(error.to_string().contains("subchannel data"));
+    assert_eq!(read_file(&session, chd.inode), chd_bytes);
 }
 
 fn cd_chd_fixture(with_subchannel: bool) -> Vec<u8> {
@@ -448,12 +485,6 @@ fn cd_chd_fixture(with_subchannel: bool) -> Vec<u8> {
         }));
     }
     bytes
-}
-
-fn expected_chd_track_bytes(start_frame: usize, frames: usize) -> Vec<u8> {
-    (start_frame..start_frame + frames)
-        .flat_map(|frame| (0..2352).map(move |offset| chd_sector_byte(frame, offset)))
-        .collect()
 }
 
 fn chd_sector_byte(frame: usize, offset: usize) -> u8 {

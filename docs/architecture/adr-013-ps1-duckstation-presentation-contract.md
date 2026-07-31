@@ -4,7 +4,7 @@
 
 Accepted
 
-PS1-1 through PS1-5 implemented
+PS1-1 through PS1-5 and PS1-6a implemented
 
 ## Context
 
@@ -217,7 +217,8 @@ milestones, not an open-ended backlog:
 | PS1-3 | SBI sidecars | Preserve source-backed SBI files and couple their basename to the presented disc |
 | PS1-4 | Multi-disc M3U | Present all discs and generate a relative M3U playlist with stable names |
 | PS1-5 | Cooked ISO input | Accept only the explicitly safe data-only subset without implying missing track or subchannel data |
-| PS1-6 | CHD output | Provide native lossless CHD only after its bounded materialization and random-access behavior is specified and measured |
+| PS1-6a | Native CHD passthrough | Preserve an existing CHD and optional SBI byte-for-byte without re-encoding |
+| PS1-6b | Materialized CHD encoding | Encode other inputs only after bounded materialization, caching, and random-access behavior are specified and measured |
 | PS1-7 | Extend OPL with POPS | Add PS1 VCD content below `POPS/` to the existing OPL library presentation |
 
 CHD input must not be represented only as a 2048-byte `LogicalDisc`; doing so
@@ -347,6 +348,25 @@ The decoder rejects empty and partial-sector images. Filesystem and stored-ZIP
 sources use the same live reader contract. OPL continues to compose the ISO
 decoder with its own explicit or default CD/DVD media selection, so adding the
 PS1 path does not change PS2 presentation semantics.
+
+## PS1-6a implementation note
+
+Native CHD presentation is source passthrough, not CHD encoding. Serialized
+presentation rules can include or exclude source formats, allowing DuckStation
+to request a CHD artifact set only when every selected disc already originates
+from CHD. Other inputs continue to request CUE/BIN.
+
+The passthrough encoder validates that every canonical track points to one CHD
+source, exposes that source byte-for-byte, and retains an optional SBI under the
+same generated basename. Multi-disc CHD games use one atomic game directory,
+per-disc CHD artifact sets, and a relative M3U referencing the native CHDs.
+Embedded subchannel data remains intact because the CHD is never projected
+through the more limited CUE/BIN representation.
+
+Encoding CUE/BIN or ISO input to CHD is PS1-6b. It is not a live transform: it
+requires a completed materialized file with known length and usable random
+access. Its temporary-storage, cancellation, concurrency, invalidation, and
+reuse contract belongs to the performance and caching milestone.
 
 ## Consequences
 

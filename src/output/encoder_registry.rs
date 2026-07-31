@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::output::basic_encoder::BasicEncoder;
+use crate::output::chd_passthrough_encoder::ChdPassthroughEncoder;
 use crate::output::cue_bin_encoder::CueBinEncoder;
 use crate::output::encode::OutputEncoder;
 use crate::output::logical_disc_iso_encoder::LogicalDiscIsoEncoder;
@@ -53,6 +54,7 @@ impl Default for EncoderRegistry {
 pub fn default_encoder_registry() -> EncoderRegistry {
     let mut registry = EncoderRegistry::new();
     registry.register("basic", || Box::new(BasicEncoder::new()));
+    registry.register("chd-passthrough", || Box::new(ChdPassthroughEncoder::new()));
     registry.register("cue-bin", || Box::new(CueBinEncoder::new()));
     registry.register(
         "logical-disc-iso",

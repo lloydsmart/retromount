@@ -133,6 +133,10 @@ impl TryFrom<SerializedLayout> for LayoutSpec {
 struct SerializedFileRule {
     #[serde(default)]
     directory: Option<String>,
+    #[serde(default)]
+    source_formats: BTreeSet<SerializedFormat>,
+    #[serde(default)]
+    excluded_source_formats: BTreeSet<SerializedFormat>,
     select: SerializedSelect,
     naming: SerializedNaming,
     artifact: SerializedArtifact,
@@ -146,12 +150,34 @@ impl SerializedFileRule {
             .transpose()?
             .unwrap_or_default();
 
+        if let Some(format) = self
+            .source_formats
+            .intersection(&self.excluded_source_formats)
+            .next()
+        {
+            return Err(format!(
+                "source format {format:?} cannot be both included and excluded"
+            ));
+        }
+        let source_formats = self
+            .source_formats
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<_>>();
+        let excluded_source_formats = self
+            .excluded_source_formats
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<_>>();
+
         Ok(FileRuleSpec::new(
             self.select.into_select(),
             self.naming.into_naming()?,
             self.artifact.into_artifact()?,
         )
-        .in_directory(directory))
+        .in_directory(directory)
+        .with_source_formats(source_formats)
+        .excluding_source_formats(excluded_source_formats))
     }
 }
 
@@ -362,7 +388,7 @@ impl From<SerializedContentType> for ContentType {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 enum SerializedFormat {
     Iso,
@@ -512,6 +538,32 @@ files: []
             .unwrap_err()
             .to_string()
             .contains("both required and forbidden"));
+    }
+
+    #[test]
+    fn parses_and_validates_source_format_filters() {
+        let filtered = VALID.replace(
+            "    select:",
+            "    source_formats: [chd]\n    excluded_source_formats: [iso]\n    select:",
+        );
+        let document = parse_presentation_yaml(&filtered).unwrap();
+        assert_eq!(
+            document.spec.files[0].source_formats,
+            BTreeSet::from([Format::Chd])
+        );
+        assert_eq!(
+            document.spec.files[0].excluded_source_formats,
+            BTreeSet::from([Format::Iso])
+        );
+
+        let conflicting = filtered.replace(
+            "excluded_source_formats: [iso]",
+            "excluded_source_formats: [chd]",
+        );
+        assert!(parse_presentation_yaml(&conflicting)
+            .unwrap_err()
+            .to_string()
+            .contains("both included and excluded"));
     }
 
     #[test]

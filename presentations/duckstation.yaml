@@ -6,9 +6,25 @@ layout:
   path: PS1
 
 files:
+  - source_formats:
+      - chd
+    select:
+      type: single_disc_games_by_platform
+      platform: ps1
+    naming:
+      type: part_name
+    artifact:
+      content_type: disc
+      format: chd
+      required_features:
+        - lossless
+        - random_access
+
   - select:
       type: single_disc_games_by_platform
       platform: ps1
+    excluded_source_formats:
+      - chd
     naming:
       type: part_name
     artifact:
@@ -19,9 +35,25 @@ files:
         - random_access
         - multi_file
 
+  - source_formats:
+      - chd
+    select:
+      type: multi_disc_games_by_platform
+      platform: ps1
+    naming:
+      type: game_name
+    artifact:
+      content_type: game
+      format: chd
+      required_features:
+        - lossless
+        - random_access
+
   - select:
       type: multi_disc_games_by_platform
       platform: ps1
+    excluded_source_formats:
+      - chd
     naming:
       type: game_name
     artifact:

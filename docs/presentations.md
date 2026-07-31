@@ -181,19 +181,20 @@ safe 2048-byte logical projection are rejected by the OPL composition.
 The `duckstation` contract is defined by
 [ADR-013](architecture/adr-013-ps1-duckstation-presentation-contract.md).
 Unlike OPL, it consumes the complete track-aware PS1 CD and produces one
-coherent artifact set containing a generated CUE and live per-track BIN files.
-It supports single-disc CUE/BIN, CHD, and cooked data-only ISO input. Cooked ISO
-is represented honestly as one `MODE1/2048` track; Retromount does not
-synthesize absent raw-sector headers, audio, pregaps, or subchannel data. CHD
-tracks are projected live from their interleaved sectors; CHDs containing
-subchannel data fail closed because CUE/BIN cannot preserve it. A valid
-same-stem SBI sibling is preserved live beside the generated CUE under the
-generated basename. The roadmap tracks native CHD output separately.
+coherent artifact set containing either a native CHD or a generated CUE with
+live per-track BIN files.
+It supports single-disc CUE/BIN, CHD, and cooked data-only ISO input. Existing
+CHDs are presented byte-for-byte with an optional same-stem SBI, preserving
+embedded subchannel data without re-encoding. Cooked ISO is represented
+honestly as one `MODE1/2048` track; Retromount does not synthesize absent
+raw-sector headers, audio, pregaps, or subchannel data. CUE/BIN and ISO inputs
+continue to produce generated CUE and live track BIN files.
 
 Multi-disc PS1 games are allocated as one game directory containing an ordered
-CUE/BIN subdirectory for each disc and a sibling M3U playlist. Playlist entries
-use portable relative paths to the generated CUE files, so conflict-renamed
-game directories remain internally coherent.
+artifact set for each disc and a sibling M3U playlist. Existing CHDs remain
+native; other supported inputs produce CUE/BIN. Playlist entries use portable
+relative paths to the selected disc artifacts, so conflict-renamed game
+directories remain internally coherent.
 
 The PS1 roadmap also commits to extending the existing `opl` presentation with
 POPS support. The resulting PS2 library view will retain PS2 games below
@@ -209,3 +210,8 @@ Schema version 1 intentionally exposes only concepts supported by the current
 generic compiler. New fields and rule types should be added in response to a
 real presentation requirement, then covered by validation and compilation
 tests.
+
+Rules may constrain `source_formats` or `excluded_source_formats`. These
+filters select representations from the normalized source identity; they do
+not reinterpret or convert the source. A format cannot appear in both sets on
+one rule, and every part of a multi-part game must satisfy the selected rule.
