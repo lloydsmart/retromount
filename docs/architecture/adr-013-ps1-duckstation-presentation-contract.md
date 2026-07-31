@@ -4,7 +4,7 @@
 
 Accepted
 
-PS1-1 through PS1-4 implemented
+PS1-1 through PS1-5 implemented
 
 ## Context
 
@@ -332,6 +332,21 @@ The generated M3U is a sibling of those disc directories and references the
 planned CUE member of each set with a forward-slash relative path. The outer
 game name is conflict-resolved once before any children are planned, keeping
 the complete set coherent if another game requests the same presentation name.
+
+## PS1-5 implementation note
+
+Cooked ISO input is accepted only in a composition that supplies explicit CD
+media and PS1 platform context. The ISO decoder represents its complete
+2048-byte-sector extent as one `MODE1/2048` data track with `INDEX 01` at zero.
+The original random-access reader is retained for both encoded and logical
+content, allowing the existing DuckStation CUE/BIN encoder to expose the bytes
+without manufacturing raw-sector headers or claiming absent audio, pregap, or
+subchannel information.
+
+The decoder rejects empty and partial-sector images. Filesystem and stored-ZIP
+sources use the same live reader contract. OPL continues to compose the ISO
+decoder with its own explicit or default CD/DVD media selection, so adding the
+PS1 path does not change PS2 presentation semantics.
 
 ## Consequences
 

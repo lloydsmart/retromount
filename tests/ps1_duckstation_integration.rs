@@ -150,6 +150,80 @@ fn presents_stored_zip_cue_bin_through_the_same_duckstation_path() {
 }
 
 #[test]
+fn presents_a_cooked_ps1_iso_as_an_honest_mode1_2048_cue_bin_set() {
+    let directory = tempfile::tempdir().unwrap();
+    let iso_path = directory.path().join("Cooked Game.iso");
+    let iso = (0..4096)
+        .map(|offset| (offset % 251) as u8)
+        .collect::<Vec<_>>();
+    fs::write(&iso_path, &iso).unwrap();
+
+    let session = prepare_mount_session(&iso_path, "duckstation").unwrap();
+    let ps1 = session
+        .lookup_child(session.root_inode(), "PS1")
+        .expect("PS1 presentation root");
+    let game = session
+        .lookup_child(ps1.inode, "Cooked Game")
+        .expect("cooked ISO game directory");
+    let cue = session
+        .lookup_child(game.inode, "Cooked Game (Disc 1).cue")
+        .expect("generated CUE");
+    let track = session
+        .lookup_child(game.inode, "Cooked Game (Disc 1) (Track 01).bin")
+        .expect("generated MODE1/2048 BIN");
+
+    assert_eq!(read_file(&session, track.inode), iso);
+    assert_eq!(
+        String::from_utf8(read_file(&session, cue.inode)).unwrap(),
+        concat!(
+            "FILE \"Cooked Game (Disc 1) (Track 01).bin\" BINARY\n",
+            "  TRACK 01 MODE1/2048\n",
+            "    INDEX 01 00:00:00\n",
+        )
+    );
+}
+
+#[test]
+fn presents_a_stored_zip_cooked_iso_through_the_same_live_path() {
+    let archive = tempfile::NamedTempFile::new().unwrap();
+    let iso = vec![0x5c; 4096];
+    {
+        let mut zip = zip::ZipWriter::new(archive.reopen().unwrap());
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("Zip ISO.iso", stored).unwrap();
+        zip.write_all(&iso).unwrap();
+        zip.finish().unwrap();
+    }
+    let zip_path = archive.path().with_extension("zip");
+    fs::copy(archive.path(), &zip_path).unwrap();
+
+    let session = prepare_mount_session(&zip_path, "duckstation").unwrap();
+    let ps1 = session
+        .lookup_child(session.root_inode(), "PS1")
+        .expect("PS1 presentation root");
+    let game = session
+        .lookup_child(ps1.inode, "Zip ISO")
+        .expect("stored ZIP ISO game directory");
+    let track = session
+        .lookup_child(game.inode, "Zip ISO (Disc 1) (Track 01).bin")
+        .expect("stored ZIP ISO track");
+
+    assert_eq!(read_file(&session, track.inode), iso);
+}
+
+#[test]
+fn rejects_cooked_ps1_iso_with_partial_sector_geometry() {
+    let directory = tempfile::tempdir().unwrap();
+    let iso_path = directory.path().join("Partial.iso");
+    fs::write(&iso_path, vec![0; 2049]).unwrap();
+
+    let error = prepare_mount_session(&iso_path, "duckstation").unwrap_err();
+
+    assert!(error.to_string().contains("whole 2048-byte sectors"));
+}
+
+#[test]
 fn rejects_ambiguous_case_insensitive_sbi_sidecars() {
     let archive = tempfile::NamedTempFile::new().unwrap();
     {

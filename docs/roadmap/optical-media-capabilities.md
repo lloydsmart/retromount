@@ -266,7 +266,7 @@ so normalization can group and order both input formats consistently.
 
 #### PS1-5: Cooked ISO input
 
-**Status:** Planned
+**Status:** Implemented
 
 Accept cooked ISO only for the explicit data-only PS1 subset that it can
 represent. Require PS1 platform and CD media context; do not infer completeness
@@ -275,6 +275,15 @@ from the extension or synthesize absent audio, raw-sector, or subchannel data.
 Acceptance requires byte-exact live reads, explicit rejection of incompatible
 claims, and presentation through a consumer representation that honestly
 describes the available sectors.
+
+The DuckStation composition supplies the otherwise unknowable PS1 CD context
+and decodes a cooked ISO as exactly one `MODE1/2048` data track. The source
+reader backs both the canonical logical-disc view and the encoded track view,
+so generated CUE/BIN output is byte-exact and does not synthesize raw-sector
+headers, audio, pregaps, or subchannel data. Empty images and sizes that do not
+contain whole 2048-byte sectors fail closed. Filesystem and stored-ZIP inputs
+use the same live path, while OPL retains its independently selected CD/DVD
+media behavior.
 
 #### PS1-6: Native CHD output
 
@@ -333,7 +342,7 @@ presentation.
   or naming cannot be represented.
 * PS2 and unknown CDs do not match the DuckStation rule.
 * Multi-disc support remains deferred from this first implementation.
-* PS1-5 through PS1-7 remain visible as planned work after PS1-4 merges.
+* PS1-6 and PS1-7 remain visible as planned work after PS1-5 merges.
 
 ## Milestone 5: Performance, caching, and optimization
 

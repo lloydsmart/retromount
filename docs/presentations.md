@@ -182,11 +182,13 @@ The `duckstation` contract is defined by
 [ADR-013](architecture/adr-013-ps1-duckstation-presentation-contract.md).
 Unlike OPL, it consumes the complete track-aware PS1 CD and produces one
 coherent artifact set containing a generated CUE and live per-track BIN files.
-It supports single-disc CUE/BIN and CHD input. CHD tracks are projected live
-from their interleaved sectors; CHDs containing subchannel data fail closed
-because CUE/BIN cannot preserve it. A valid same-stem SBI sibling is preserved
-live beside the generated CUE under the generated basename. The roadmap tracks
-cooked ISO and native CHD output separately.
+It supports single-disc CUE/BIN, CHD, and cooked data-only ISO input. Cooked ISO
+is represented honestly as one `MODE1/2048` track; Retromount does not
+synthesize absent raw-sector headers, audio, pregaps, or subchannel data. CHD
+tracks are projected live from their interleaved sectors; CHDs containing
+subchannel data fail closed because CUE/BIN cannot preserve it. A valid
+same-stem SBI sibling is preserved live beside the generated CUE under the
+generated basename. The roadmap tracks native CHD output separately.
 
 Multi-disc PS1 games are allocated as one game directory containing an ordered
 CUE/BIN subdirectory for each disc and a sibling M3U playlist. Playlist entries
