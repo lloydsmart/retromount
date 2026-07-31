@@ -1,9 +1,11 @@
 use std::io;
 use std::path::Path;
 
+use crate::core::cd::{CdDisc, CdIndex, CdSectorFormat, CdTrack, CdTrackKind};
 use crate::core::content::{ContentId, DecodedContent, DecodedDiscContent, DiscMedia, LogicalDisc};
 use crate::core::input_content::InputContent;
 use crate::core::source::SourceObject;
+use crate::input::basic_decoder::parse_disc_info_from_name;
 use crate::input::decode::InputDecoder;
 use crate::input::identify::InputIdentity;
 
@@ -49,6 +51,40 @@ impl IsoDiscDecoder {
             content: content.handle.clone(),
         })
     }
+
+    fn cd_disc(object: &SourceObject, logical_disc: &LogicalDisc) -> io::Result<Option<CdDisc>> {
+        if logical_disc.media != DiscMedia::Cd {
+            return Ok(None);
+        }
+        if logical_disc.sector_size != ISO_SECTOR_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "cooked CD ISO input requires 2048-byte sectors",
+            ));
+        }
+
+        Ok(Some(CdDisc {
+            tracks: vec![CdTrack {
+                number: 1,
+                kind: CdTrackKind::Data,
+                sector_format: CdSectorFormat::Mode1_2048,
+                sector_count: logical_disc.sector_count,
+                source: object.source.clone(),
+                source_offset: 0,
+                encoded_content: logical_disc.content.clone(),
+                logical_content: Some(logical_disc.content.clone()),
+                subchannel_content: None,
+                subchannel_format: None,
+                indexes: vec![CdIndex {
+                    number: 1,
+                    sector: 0,
+                }],
+                file_backed_pregap_sectors: 0,
+                declared_pregap_sectors: 0,
+            }],
+            sbi: None,
+        }))
+    }
 }
 
 impl InputDecoder for IsoDiscDecoder {
@@ -66,19 +102,21 @@ impl InputDecoder for IsoDiscDecoder {
         }
 
         let logical_disc = Self::logical_disc(&object.content, self.media)?;
-        let title = Path::new(&object.name)
+        let cd_disc = Self::cd_disc(object, &logical_disc)?;
+        let raw_title = Path::new(&object.name)
             .file_stem()
             .and_then(|stem| stem.to_str())
             .unwrap_or(&object.name)
             .to_string();
+        let (title, disc_number) = parse_disc_info_from_name(&raw_title);
 
         Ok(vec![DecodedContent::Disc(DecodedDiscContent {
             id: ContentId::new(object.name.clone()),
             source: object.source.clone(),
             title,
-            disc_number: 1,
+            disc_number,
             consumed_sources: Vec::new(),
-            cd_disc: None,
+            cd_disc,
             logical_disc: Some(logical_disc),
         })])
     }
@@ -155,6 +193,43 @@ mod tests {
         assert_eq!(
             disc.logical_disc.as_ref().map(|disc| disc.media),
             Some(DiscMedia::Dvd)
+        );
+        assert!(disc.cd_disc.is_none());
+    }
+
+    #[test]
+    fn decodes_cooked_cd_iso_as_one_mode1_2048_track() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), vec![0x5a; ISO_SECTOR_SIZE as usize * 2]).unwrap();
+        let object = object_for(file.path(), "Game (Disc 2).iso");
+
+        let decoded = IsoDiscDecoder::new(DiscMedia::Cd)
+            .decode(&object, &InputIdentity::IsoDisc)
+            .unwrap();
+        let DecodedContent::Disc(disc) = &decoded[0] else {
+            panic!("ISO should decode as a disc");
+        };
+        let cd = disc
+            .cd_disc
+            .as_ref()
+            .expect("CD hint should retain CD semantics");
+
+        assert_eq!(disc.title, "Game");
+        assert_eq!(disc.disc_number, 2);
+        assert_eq!(cd.tracks.len(), 1);
+        assert_eq!(cd.tracks[0].kind, CdTrackKind::Data);
+        assert_eq!(cd.tracks[0].sector_format, CdSectorFormat::Mode1_2048);
+        assert_eq!(cd.tracks[0].sector_count, 2);
+        assert_eq!(
+            cd.tracks[0].indexes,
+            vec![CdIndex {
+                number: 1,
+                sector: 0
+            }]
+        );
+        assert_eq!(
+            cd.tracks[0].encoded_content,
+            disc.logical_disc.as_ref().unwrap().content
         );
     }
 }

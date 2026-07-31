@@ -47,10 +47,13 @@ pub fn pipeline_components_with_media(
     } else {
         CueDiscDecoder::new()
     });
-    if presentation_name == "opl" {
-        decoder.register(IsoDiscDecoder::new(
-            media_hint.unwrap_or(crate::core::content::DiscMedia::Dvd),
-        ));
+    if matches!(presentation_name, "opl" | "duckstation") {
+        let default_media = if presentation_name == "duckstation" {
+            crate::core::content::DiscMedia::Cd
+        } else {
+            crate::core::content::DiscMedia::Dvd
+        };
+        decoder.register(IsoDiscDecoder::new(media_hint.unwrap_or(default_media)));
     }
     decoder.register(BasicInputDecoder::new());
 
