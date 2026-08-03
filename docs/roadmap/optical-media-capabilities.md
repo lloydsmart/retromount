@@ -285,13 +285,26 @@ contain whole 2048-byte sectors fail closed. Filesystem and stored-ZIP inputs
 use the same live path, while OPL retains its independently selected CD/DVD
 media behavior.
 
-#### PS1-6: Native CHD output
+#### PS1-6a: Native CHD passthrough
 
-**Status:** Planned
+**Status:** Implemented
 
-Add lossless CHD output for DuckStation after specifying how a compression
-encoder fits a lazy, random-access VFS. The design must set bounded temporary
-storage, cancellation, cache lifetime, concurrency, and repeat-mount behavior.
+Present existing CHD input byte-for-byte rather than decoding and re-encoding
+it. Preserve an optional same-stem SBI sidecar, embedded subchannel data, and
+multi-disc M3U behavior. Serialized source-format filters select native CHD
+artifact sets while CUE/BIN and ISO inputs retain their existing representation.
+
+Acceptance requires filesystem and stored-ZIP parity, byte-exact CHD and SBI
+reads, relative native-CHD M3U entries, and no CHD encoder invocation.
+
+#### PS1-6b: Materialized CHD encoding
+
+**Status:** Deferred to Milestone 5
+
+Encode CUE/BIN or ISO input only after specifying how a compression encoder
+fits a lazy, random-access VFS. This is bounded materialization rather than a
+live transform. The design must set temporary-storage limits, cancellation,
+cache lifetime and invalidation, concurrency, and repeat-mount behavior.
 
 Acceptance requires round-trip track/layout verification, measured resource
 bounds, no untracked permanent intermediate, and useful random-read behavior
@@ -342,7 +355,7 @@ presentation.
   or naming cannot be represented.
 * PS2 and unknown CDs do not match the DuckStation rule.
 * Multi-disc support remains deferred from this first implementation.
-* PS1-6 and PS1-7 remain visible as planned work after PS1-5 merges.
+* PS1-6b and PS1-7 remain visible after PS1-6a merges.
 
 ## Milestone 5: Performance, caching, and optimization
 

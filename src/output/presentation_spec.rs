@@ -32,6 +32,8 @@ pub enum LayoutSpec {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileRuleSpec {
     pub directory: Vec<String>,
+    pub source_formats: BTreeSet<Format>,
+    pub excluded_source_formats: BTreeSet<Format>,
     pub select: SelectSpec,
     pub naming: NamingSpec,
     pub artifact: ArtifactSpec,
@@ -41,10 +43,22 @@ impl FileRuleSpec {
     pub fn new(select: SelectSpec, naming: NamingSpec, artifact: ArtifactSpec) -> Self {
         Self {
             directory: Vec::new(),
+            source_formats: BTreeSet::new(),
+            excluded_source_formats: BTreeSet::new(),
             select,
             naming,
             artifact,
         }
+    }
+
+    pub fn with_source_formats(mut self, formats: impl IntoIterator<Item = Format>) -> Self {
+        self.source_formats = formats.into_iter().collect();
+        self
+    }
+
+    pub fn excluding_source_formats(mut self, formats: impl IntoIterator<Item = Format>) -> Self {
+        self.excluded_source_formats = formats.into_iter().collect();
+        self
     }
 
     pub fn in_directory(mut self, directory: impl IntoIterator<Item = impl Into<String>>) -> Self {

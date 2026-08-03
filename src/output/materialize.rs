@@ -63,7 +63,7 @@ fn collect_artifact_names_recursive(
             PlanEntry::ArtifactSet(set) => {
                 names.insert(
                     set.artifact.id.clone(),
-                    format!("{}/{}.cue", set.directory_name, set.artifact_name),
+                    format!("{}/{}", set.directory_name, set.primary_file_name()),
                 );
             }
         }

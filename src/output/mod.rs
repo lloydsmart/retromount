@@ -1,5 +1,6 @@
 pub mod basic_encoder;
 pub mod capabilities;
+pub mod chd_passthrough_encoder;
 pub mod cue_bin_encoder;
 pub mod encode;
 pub mod encoder_registry;
