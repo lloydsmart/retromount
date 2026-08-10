@@ -1,7 +1,7 @@
 # 🎮 RetroMount
 
 ![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)
-[[![License](https://img.shields.io/github/license/lloydsmart/retromount)](LICENSE.md)](LICENSE.md)
+[![License](https://img.shields.io/github/license/lloydsmart/retromount)](LICENSE.md)
 
 > A virtual filesystem for retro game collections that can be mounted and transformed on-the-fly without duplicating files.
 
