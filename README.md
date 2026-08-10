@@ -1,7 +1,7 @@
 # 🎮 RetroMount
 
 ![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)
-[![License](https://img.shields.io/github/license/lloydsmart/retromount)](LICENSE.md)
+![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 > A virtual filesystem for retro game collections that can be mounted and transformed on-the-fly without duplicating files.
 
@@ -313,4 +313,4 @@ Output-specific filtering will be implemented in the **view/output layer** in a 
 
 ## License
 
-[GPL-3.0](LICENSE.md)
+[GPL-3.0](LICENSE)
