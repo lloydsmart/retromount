@@ -117,37 +117,140 @@ Retromount is under active development and progressing through a structured road
 
 ---
 
+## Getting Started (Linux)
+
+### Prerequisites
+
+You need Git, a C compiler/linker, and [Rustup](https://rustup.rs/). This
+repository's `rust-toolchain.toml` selects the current stable Rust toolchain;
+no minimum supported Rust version (MSRV) is declared.
+
+To use the `mount` command, the Linux host must also provide kernel FUSE
+support (`/dev/fuse`) and the `fusermount3` helper (or `fusermount` on a FUSE 2
+system). On Debian or Ubuntu, install the required system packages with:
+
+```bash
+sudo apt-get update
+sudo apt-get install build-essential fuse3 git
+```
+
+Other distributions need equivalent packages providing Git, a system linker,
+and the FUSE runtime and mount helper. The current Linux build uses `fuser`'s
+pure-Rust mount path, so libfuse development headers and `pkg-config` are not
+required. If FUSE is installed but `/dev/fuse` is absent, load the kernel module
+with `sudo modprobe fuse`.
+
+### Clone and build
+
+```bash
+git clone https://github.com/lloydsmart/retromount.git
+cd retromount
+cargo build --locked
+```
+
+Rustup reads `rust-toolchain.toml` and installs stable Rust if necessary.
+
+### Run a verified example
+
+Inspect the tracked `LICENSE` file with the flat presentation:
+
+```bash
+cargo run --locked -- inspect LICENSE --presentation flat
+```
+
+This runs the complete pipeline without mounting anything. The report describes
+the input, decoded and normalized content, and proposed virtual filesystem. Its
+final section should be:
+
+```text
+Output VFS:
+/
+  LICENSE.bin
+```
+
+The `.bin` entry is the name Retromount would expose; the command does not write
+a new `LICENSE.bin` file to the checkout.
+
+---
+
 ## Mounting (Linux)
 
-RetroMount can expose a collection as a read-only filesystem using FUSE.
+RetroMount can expose a file, ZIP archive, or directory as a read-only FUSE
+filesystem. The mountpoint must already exist. For example, from the repository
+root:
 
 ```bash
-retromount mount <input> <mountpoint>
-retromount mount "/roms/ps2/Test Game.chd" /mnt/retromount/ps2 \
-  --presentation opl
+mkdir -p /tmp/retromount
+cargo run --locked -- mount LICENSE /tmp/retromount --presentation flat
 ```
 
-### Example
+The Retromount process stays in the foreground while the filesystem is mounted.
+In another terminal, inspect it and then unmount it:
 
 ```bash
-retromount mount ./retromount-testdata /tmp/retromount-test
+ls /tmp/retromount
+fusermount3 -u /tmp/retromount
 ```
 
-You can then browse and read files normally:
-
-```bash
-ls /tmp/retromount-test
-tree /tmp/retromount-test
-cat /tmp/retromount-test/ps1/Final\ Fantasy\ VII/Final\ Fantasy\ VII.m3u
-head /tmp/retromount-test/snes/Super\ Mario\ World/Super\ Mario\ World.sfc
-```
+The `ls` command should show `LICENSE.bin`. On a FUSE 2 system, use
+`fusermount -u /tmp/retromount` instead. After unmounting, the foreground
+Retromount process exits.
 
 ### Notes
 
-* Linux only (via FUSE)
-* filesystem is read-only
-* output reflects the same structure as `preview` / `inspect`
+* FUSE mounting is Linux only
+* the mounted filesystem is read-only
+* output reflects the same structure shown by `phase3-preview` and `inspect`
 * performance optimisations are planned in future phases
+
+---
+
+## CLI Reference
+
+During development, invoke commands with `cargo run --locked --` as shown
+below. If you run an installed `retromount` binary, omit that prefix. The
+current CLI parser is order-sensitive; when combining options, keep them in
+the order shown.
+
+### `mount`
+
+```bash
+cargo run --locked -- mount <input> <mountpoint> \
+  [--presentation <name-or-yaml-file>] [--plugin-dir <dir>]
+```
+
+`mount` runs the pipeline for a regular file, ZIP archive, or directory, then
+serves the resulting VFS at the existing mountpoint until it is unmounted. The
+default presentation is `grouped`.
+
+### `inspect`
+
+```bash
+cargo run --locked -- inspect <path> [--json] \
+  [--presentation <name-or-yaml-file>] [--plugin-dir <dir>]
+```
+
+`inspect` runs the pipeline without mounting and reports the input objects,
+decoding and normalization results, and output VFS. `--json` emits the pipeline
+trace as JSON instead of the text report.
+
+For `mount` and `inspect`, `--presentation` accepts the built-in names
+`duckstation`, `flat`, `grouped`, and `opl`, or the path to a versioned `.yaml`
+or `.yml` presentation file. The older `--view` spelling remains a compatibility
+alias. `--plugin-dir` loads runtime encoder plugins from the supplied directory.
+There are no CLI `--platform` or `--media` options; those hints are available
+only through configuration.
+
+### `phase3-preview`
+
+```bash
+cargo run --locked -- phase3-preview <path> [--plugin-dir <dir>]
+```
+
+`phase3-preview` runs the default `grouped` presentation and prints only the
+proposed VFS tree. It accepts a regular file, ZIP archive, or directory. The
+development-era command name is transitional, and this command does not
+currently accept `--presentation` or `--json`.
 
 ---
 
@@ -304,6 +407,8 @@ while requesting CUE/BIN artifacts for other supported PS1 sources.
 
 * [Consumer Views (Phase 4B)](docs/consumer-views.md)
 * [Presentation files](docs/presentations.md)
+* [Contributing](CONTRIBUTING.md)
+* [Security policy](SECURITY.md)
 
 ---
 
@@ -322,7 +427,7 @@ while requesting CUE/BIN artifacts for other supported PS1 sources.
 * Generic presentation compiler
 * Flat and grouped layout parity
 * Multi-disc playlists and preserved relative paths
-* Spec-native preview, inspect, mount, and plugin execution
+* Spec-native `phase3-preview`, `inspect`, `mount`, and plugin execution
 * Legacy presenter implementations retired
 
 ---
