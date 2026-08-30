@@ -1,6 +1,12 @@
 # 🎮 RetroMount
 
-![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)
+![Rust](https://img.shields.io/badge/Rust-stable-orange)
+[![CI](https://github.com/lloydsmart/retromount/actions/workflows/validate-rust.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/validate-rust.yml)
+[![Rust Lint](https://github.com/lloydsmart/retromount/actions/workflows/lint-rust.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/lint-rust.yml)
+[![Markdown Lint](https://github.com/lloydsmart/retromount/actions/workflows/lint-docs.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/lint-docs.yml)
+[![Actions Lint](https://github.com/lloydsmart/retromount/actions/workflows/lint-actions.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/lint-actions.yml)
+[![Shell Lint](https://github.com/lloydsmart/retromount/actions/workflows/lint-shell.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/lint-shell.yml)
+[![CodeQL](https://github.com/lloydsmart/retromount/actions/workflows/scan-codeql-rust.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/scan-codeql-rust.yml)
 [![License](https://img.shields.io/github/license/lloydsmart/retromount)](LICENSE)
 
 > A virtual filesystem for retro game collections that can be mounted and transformed on-the-fly without duplicating files.
@@ -9,12 +15,13 @@ RetroMount is an experimental Rust project for building a **virtual filesystem o
 
 It allows ROMs, disc images, and archives to be **mounted into alternative filesystem layouts on-the-fly**, enabling different devices and emulators to view the same underlying collection in different formats without duplicating files.
 
-For example:
+Implemented examples include:
 
-* Present CHD images as ISO files
-* Extract ROMs from ZIP archives transparently
-* Convert disc images into emulator-friendly layouts
-* Provide platform-specific views for systems like MiSTer or Batocera
+* Present supported PS2 DVD CHD/ISO inputs and PS2 CD ISO/CUE/BIN inputs as
+  OPL-compatible ISO files
+* Expose ROMs from ZIP archives through flat or grouped layouts
+* Present supported PS1 CUE/BIN, ISO, and CHD inputs in a DuckStation layout
+* Load custom presentation layouts from versioned YAML files
 
 The long-term goal is a flexible **input → transformation → output pipeline** backed by a FUSE filesystem.
 
@@ -60,15 +67,13 @@ Example:
 Storage (single copy)
     │
     ▼
-/roms/ps1/game.chd
+/roms/ps2/game.chd
 ```
 
-RetroMount can present that same file as:
+RetroMount can present that file through its OPL presentation as:
 
 ```text
-/mnt/mister/ps1/game.cue
-/mnt/batocera/ps1/game.chd
-/mnt/tools/ps1/game.iso
+/mnt/opl/DVD/game.iso
 ```
 
 All backed by **one underlying file**.
@@ -85,7 +90,7 @@ Retromount is under active development and progressing through a structured road
 * Phase 2 — Core abstractions and initial pipeline
 * Phase 3 — Pipeline consolidation and normalized content model
 * Phase 4A — Mountable filesystem (FUSE integration)
-* Phase 4B — Consumer views (multiple presenters)
+* Phase 4B — Consumer views (multiple presentations)
 * Phase 4C — Naming and conflict resolution policies
 * Phase 4D — Extensibility and configuration layer
 * Phase 5 — Runtime encoder plugin architecture
@@ -93,13 +98,15 @@ Retromount is under active development and progressing through a structured road
 * Versioned YAML presentation files and external presentation loading
 * First practical consumer target — live PS2 DVD CHD to OPL-compatible ISO
   presentation
+* First PS1 consumer target — the built-in `duckstation` presentation, with
+  integration coverage for CUE/BIN, ISO, CHD, stored ZIP, multi-disc, and SBI
+  inputs
 
 ### In Progress
 
-* Optical-media capability expansion — filesystem and stored-ZIP inputs,
-  cooked ISO and CUE/BIN PS2 CDs, live raw-sector projection, and declarative
-  OPL `CD/` and `DVD/` output are implemented; the first PS1 presentation is
-  next
+* Optical-media capability expansion beyond the implemented OPL PS2 and
+  DuckStation PS1 paths; materialized CHD encoding is deferred to caching work,
+  and OPL/POPS integration still requires research
 
 ### Planned
 
@@ -146,7 +153,13 @@ head /tmp/retromount-test/snes/Super\ Mario\ World/Super\ Mario\ World.sfc
 
 ## Example Configuration
 
-Create a file called `retromount.yaml`:
+Running `retromount` with no arguments reads `retromount.yaml` from the current
+directory. For each configured view it builds the pipeline and logs the
+resulting VFS tree at info level (`RUST_LOG=info`). This path does not mount the
+tree at the configured `mount` path; use the explicit `retromount mount`
+command to create a FUSE mount.
+
+Create `retromount.yaml`:
 
 ```yaml
 - name: ps1
@@ -154,7 +167,6 @@ Create a file called `retromount.yaml`:
   mount: /mnt/retromount/ps1
   platform: ps1
   presentation: grouped
-  encoder: basic
 
 - name: ps2-opl
   source: /roms/ps2/Test Game.chd
@@ -177,15 +189,15 @@ Create a file called `retromount.yaml`:
 
 Fields:
 
-| Field          | Description                                                |
-| -------------- | ---------------------------------------------------------- |
-| `name`         | Logical name for the mounted view                          |
-| `source`       | Source directory, archive, or disc image                   |
-| `mount`        | Mount point for the virtual filesystem                     |
-| `platform`     | Target platform (e.g. `ps1`, `ps2`, `snes`, `megadrive`)   |
-| `media`        | Optional `cd`/`dvd` hint for ambiguous ISO input           |
-| `presentation` | Built-in name or YAML file path (default: `grouped`)       |
-| `encoder`      | File representation strategy (default: `basic`)            |
+| Field          | Description                                                          |
+| -------------- | -------------------------------------------------------------------- |
+| `name`         | Logical view name used in log output                                 |
+| `source`       | Source directory, archive, or disc image                             |
+| `mount`        | Required path that is currently logged but not mounted by this path  |
+| `platform`     | Normalization hint (e.g. `ps1`, `ps2`, `snes`, `megadrive`)          |
+| `media`        | Optional `cd`/`dvd` hint for ISO input in OPL or DuckStation         |
+| `presentation` | Built-in name or YAML file path (default: `grouped`)                 |
+| `encoder`      | Accepted by the configuration parser but currently unused            |
 
 Platform names are **case-insensitive** and accept friendly aliases.
 
@@ -193,17 +205,16 @@ Platform names are **case-insensitive** and accept friendly aliases.
 
 ### Composition
 
-Each configured view is composed of:
-
-* a **presentation specification** (defines filesystem structure and artifacts)
-* an **encoder** (defines file representation)
+Each configured view selects a **presentation specification**, which defines
+filesystem structure and artifact requirements. Capability resolution then
+selects the available encoders needed to materialize those artifacts; the
+configured `encoder` field does not override that selection.
 
 If not specified:
 
 * `presentation` selects a built-in name or versioned YAML file and defaults
   to `grouped`
 * the legacy `presenter` field remains a compatibility alias
-* `encoder` defaults to `basic`
 
 This allows different views to present the same underlying data in different layouts without duplicating files.
 
@@ -238,16 +249,18 @@ Resolve + Materialize Encoders
 VFS
 ```
 
-### Input handlers
+### Input sources
 
-Input handlers are responsible for discovering files from a source.
+Input sources enumerate objects from a source.
 
 Examples:
 
-* `DirectoryInputHandler`
-* `ZipInputHandler`
-* `FileInputHandler`
-* `CueInputHandler`
+* `DirectoryInputSource`
+* `ZipInputSource`
+* `FileInputSource`
+
+CUE, CHD, and ISO interpretation is handled by input decoders rather than by
+separate input-source types.
 
 ### Readers
 
@@ -261,9 +274,11 @@ Readers provide access to underlying data streams:
 Disc-based systems use structured models:
 
 ```text
-GameImage
- └─ Disc
-     └─ Track
+GameContent
+ └─ GamePart::Disc(DiscPart)
+     ├─ LogicalDisc (when a contiguous view is available)
+     └─ CdDisc (for track-aware CDs)
+         └─ CdTrack
 ```
 
 This enables accurate representation of multi-track disc formats.
@@ -272,15 +287,16 @@ This enables accurate representation of multi-track disc formats.
 
 ## Filtering
 
-RetroMount only removes **universally unwanted junk files** during discovery:
+Discovery enumerates all regular files and ZIP entries; it does not
+automatically exclude `.DS_Store`, `Thumbs.db`, `__MACOSX/`, or other names.
 
-* `__MACOSX/`
-* `.DS_Store`
-* `Thumbs.db`
-
-Other sidecar files such as `.nfo`, `.txt`, or cover art are preserved.
-
-Output-specific filtering will be implemented in the **view/output layer** in a later phase.
+Presentation file rules can constrain normalized games with `source_formats`
+and `excluded_source_formats`. The compiler derives each game part's format
+from its source extension (`chd`, `iso`, `cue`, `bin`, or `zip`), and every part
+must satisfy the rule. These constraints choose which presentation rule emits
+an artifact; they do not filter discovery or convert the source. The built-in
+`duckstation` presentation uses them to pass existing CHDs through natively
+while requesting CUE/BIN artifacts for other supported PS1 sources.
 
 ---
 
@@ -298,9 +314,9 @@ Output-specific filtering will be implemented in the **view/output layer** in a 
 * Mountable virtual filesystem (FUSE)
 * Multiple consumer views
 * Presentation policies (naming, conflict resolution)
-* Explicit, configurable presentation and encoder composition
+* Explicit presentation configuration
 
-### Phase 6 (integration)
+### Phase 6 (completed)
 
 * Declarative `PresentationSpec` model
 * Generic presentation compiler
