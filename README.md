@@ -325,66 +325,95 @@ This allows different views to present the same underlying data in different lay
 
 ## Architecture Overview
 
-The processing pipeline is:
+Retromount uses one processing model for inspection, previews, and mounts. Input
+formats are interpreted before output choices are made, with a normalized
+content model separating source details from consumer-specific filesystem
+layouts.
 
 ```text
-Input Source
-     │
-     ▼
-Identify
-     │
-     ▼
-Decode
-     │
-     ▼
-Normalize
-     │
-     ▼
-Compile PresentationSpec
-     │
-     ▼
-PresentationPlan
-     │
-     ▼
-Resolve + Materialize Encoders
-     │
-     ▼
-VFS
+Input discovery and enumeration
+              │
+              ▼
+Identification and format decoding
+              │
+              ▼
+Normalized content model
+              │
+              ▼
+Presentation compilation and planning
+              │
+              ▼
+Artifact resolution and materialization
+              │
+              ▼
+Read-only virtual filesystem (VFS)
+              │
+              └──► Optional Linux FUSE exposure
 ```
 
-### Input sources
+### Discovery and source interpretation
 
-Input sources enumerate objects from a source.
+The input path first selects a source enumerator. A regular file produces one
+object, a directory is walked recursively, and a ZIP archive is opened as a
+container whose non-directory entries become objects. Each object retains the
+metadata and byte access needed by later pipeline stages.
+At this stage ZIP is a discovery concern: it determines what input objects are
+available, not what those objects mean.
 
-Examples:
+Each object is then identified and passed to a decoder that understands its
+source format. CUE, CHD, and ISO semantics are handled here, including disc
+layout and any safe track-aware or contiguous views of the media. Ordinary ROM,
+text, and byte content follows the same identify-and-decode boundary. Discovery
+therefore answers "what content is available?", while decoding answers "what
+does this content represent?"
 
-* `DirectoryInputSource`
-* `ZipInputSource`
-* `FileInputSource`
+### Normalized content
 
-CUE, CHD, and ISO interpretation is handled by input decoders rather than by
-separate input-source types.
+Decoders preserve source-format structure, but downstream presentation does not
+consume decoder-specific results directly. Normalization creates a shared,
+presentation-agnostic model of games, ROMs, discs, text, and bytes. It applies
+semantic information such as platform and disc order, groups related discs into
+games, and prevents files consumed by compound inputs from also appearing as
+independent content.
 
-### Readers
+This boundary lets the same interpreted content feed different consumer views
+without reparsing inputs or embedding filenames, directory layouts, or output
+formats in the core model.
 
-Readers provide access to underlying data streams:
+### Presentation planning
 
-* `DirReader`
-* `ZipReader`
+A command or configured view selects a built-in or versioned YAML presentation
+before the run is composed. The presentation specification itself is applied
+after normalization. It declares which normalized content to select, how to
+arrange and name it, and which output artifacts and formats are required.
+Current built-in consumer presentations may also provide platform or optical
+media hints when the run is composed.
 
-### Core disc models
+The presentation compiler combines that specification with naming and conflict
+policy to produce a concrete plan of directories, files, multi-file artifact
+sets, and generated items such as multi-disc playlists. The plan describes the
+desired result and its artifact requirements; it does not choose or implement
+an encoder.
 
-Disc-based systems use structured models:
+### Artifact production and VFS construction
 
-```text
-GameContent
- └─ GamePart::Disc(DiscPart)
-     ├─ LogicalDisc (when a contiguous view is available)
-     └─ CdDisc (for track-aware CDs)
-         └─ CdTrack
-```
+For every planned artifact, the host compares its required content type, format,
+and features with the capabilities advertised by built-in and runtime-plugin
+encoders. Resolution selects an encoder deterministically; that encoder then
+materializes the requested representation. Materialization can preserve a
+source-backed file, generate inline content, or provide a reader-backed view, so
+it does not necessarily copy data into a separate output file.
 
-This enables accurate representation of multi-track disc formats.
+The materialized entries become a read-only VFS tree. Inspection and preview
+commands report that tree directly. On Linux, the mount path indexes the same
+tree as filesystem nodes and gives it to a thin FUSE adapter, which handles
+directory traversal and delegates file reads to the existing VFS reader layer.
+FUSE does not repeat discovery, decoding, presentation, or encoding decisions.
+
+For source navigation, orchestration lives in `src/engine/pipeline.rs`; input
+enumeration and decoding in `src/input`; normalization, semantic content, and
+VFS primitives in `src/core`; presentation planning, capability resolution, and
+materialization in `src/output`; and FUSE integration in `src/mount`.
 
 ---
 
