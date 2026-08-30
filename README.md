@@ -1,6 +1,12 @@
 # 🎮 RetroMount
 
 ![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)
+[![CI](https://github.com/lloydsmart/retromount/actions/workflows/validate-rust.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/validate-rust.yml)
+[![Rust Lint](https://github.com/lloydsmart/retromount/actions/workflows/lint-rust.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/lint-rust.yml)
+[![Markdown Lint](https://github.com/lloydsmart/retromount/actions/workflows/lint-docs.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/lint-docs.yml)
+[![Actions Lint](https://github.com/lloydsmart/retromount/actions/workflows/lint-actions.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/lint-actions.yml)
+[![Shell Lint](https://github.com/lloydsmart/retromount/actions/workflows/lint-shell.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/lint-shell.yml)
+[![CodeQL](https://github.com/lloydsmart/retromount/actions/workflows/scan-codeql-rust.yml/badge.svg?branch=develop)](https://github.com/lloydsmart/retromount/actions/workflows/scan-codeql-rust.yml)
 [![License](https://img.shields.io/github/license/lloydsmart/retromount)](LICENSE)
 
 > A virtual filesystem for retro game collections that can be mounted and transformed on-the-fly without duplicating files.
