@@ -70,14 +70,17 @@ fn zip_candidates(archive_path: &Path, entry_name: &str) -> io::Result<Vec<Sourc
         if entry.is_dir() {
             continue;
         }
-        let candidate = PathBuf::from(entry.name());
+        let entry_name = entry
+            .name()
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+        let candidate = PathBuf::from(entry_name.as_ref());
         if candidate.parent().unwrap_or_else(|| Path::new("")) == directory
             && matches_sbi_stem(&candidate, stem)
         {
             candidates.push(SourceRef::new(format!(
                 "zip:{}#{}",
                 archive_path.to_string_lossy(),
-                entry.name()
+                entry_name
             )));
         }
     }
@@ -159,4 +162,43 @@ fn invalid_sbi(source: &SourceRef, message: &str) -> io::Error {
         io::ErrorKind::InvalidData,
         format!("SBI sidecar '{source}' {message}"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+
+    #[test]
+    fn zip_candidates_preserve_unicode_names_and_match_only_sibling_sidecars() -> io::Result<()> {
+        let directory = tempfile::tempdir()?;
+        let archive_path = directory.path().join("sidecars.zip");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&archive_path)?);
+        let options = SimpleFileOptions::default();
+        for name in [
+            "日本語/Game.cue",
+            "日本語/game.SBI",
+            "other/Game.sbi",
+            "日本語/Other.sbi",
+        ] {
+            zip.start_file(name, options)?;
+            zip.write_all(SBI_HEADER)?;
+        }
+        zip.add_directory("日本語/Game.sbi/", options)?;
+        zip.finish()?;
+
+        let candidates = zip_candidates(&archive_path, "日本語/Game.cue")?;
+
+        assert_eq!(
+            candidates,
+            vec![SourceRef::new(format!(
+                "zip:{}#日本語/game.SBI",
+                archive_path.to_string_lossy()
+            ))]
+        );
+        let content = resolve_source_ref(&candidates[0])?;
+        validate_sbi(&candidates[0], &content)?;
+        Ok(())
+    }
 }

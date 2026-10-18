@@ -45,7 +45,10 @@ impl InputSource for ZipInputSource {
                 continue;
             }
 
-            let entry_name = entry.name().to_string();
+            let entry_name = entry
+                .name()
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?
+                .into_owned();
             let display_name = entry_name.clone();
             let size = entry.size();
             let access = if entry.compression() == zip::CompressionMethod::Stored {
@@ -128,5 +131,38 @@ mod tests {
         assert!(objects
             .iter()
             .all(|object| object.content.access == InputAccess::Sequential));
+    }
+
+    #[test]
+    fn preserves_unicode_entry_names_and_source_identities() -> io::Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let zip_path = temp_dir.path().join("unicode.zip");
+        let entry_name = "日本語/ゲーム.bin";
+        let mut zip = zip::ZipWriter::new(File::create(&zip_path)?);
+        zip.start_file(entry_name, zip::write::SimpleFileOptions::default())?;
+        zip.write_all(b"romdata")?;
+        zip.finish()?;
+
+        let objects = ZipInputSource::new(&zip_path).enumerate()?;
+
+        assert_eq!(objects.len(), 1);
+        let object = &objects[0];
+        assert_eq!(object.name, entry_name);
+        assert_eq!(
+            object.source,
+            SourceRef::new(format!("zip:{}#{entry_name}", zip_path.to_string_lossy()))
+        );
+        assert_eq!(
+            object.origin,
+            SourceOrigin::ZipEntry {
+                archive_path: zip_path,
+                entry_name: entry_name.to_owned(),
+            }
+        );
+        let mut reader = object.content.open()?;
+        let mut bytes = [0; 7];
+        assert_eq!(reader.read_at(0, &mut bytes)?, bytes.len());
+        assert_eq!(&bytes, b"romdata");
+        Ok(())
     }
 }
