@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -6,6 +7,7 @@ use crate::core::input_content::InputAccess;
 use crate::core::source::{SourceObject, SourceOrigin, SourceRef};
 use crate::core::source_resolver::zip_entry_content;
 use crate::input::source::{InputSource, InputSourceKind};
+use crate::readers::zip_entry::ambiguous_name;
 
 #[derive(Debug, Clone)]
 pub struct ZipInputSource {
@@ -35,6 +37,7 @@ impl InputSource for ZipInputSource {
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
 
         let mut objects = Vec::new();
+        let mut decoded_names = HashSet::new();
 
         for i in 0..archive.len() {
             let entry = archive
@@ -49,6 +52,9 @@ impl InputSource for ZipInputSource {
                 .name()
                 .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?
                 .into_owned();
+            if !decoded_names.insert(entry_name.clone()) {
+                return Err(ambiguous_name(&entry_name));
+            }
             let display_name = entry_name.clone();
             let size = entry.size();
             let access = if entry.compression() == zip::CompressionMethod::Stored {
