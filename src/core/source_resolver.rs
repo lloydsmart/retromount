@@ -6,6 +6,7 @@ use crate::core::reader::Reader;
 use crate::core::reader_handle::ReaderHandle;
 use crate::core::source::SourceRef;
 use crate::readers::dir_reader::DirReader;
+use crate::readers::zip_entry::resolve_entry_index;
 use crate::readers::zip_reader::ZipReader;
 
 pub fn filesystem_content(path: &Path) -> io::Result<InputContent> {
@@ -92,9 +93,8 @@ pub fn resolve_source_ref(source: &SourceRef) -> io::Result<InputContent> {
         let file = std::fs::File::open(archive_path)?;
         let mut archive = zip::ZipArchive::new(file)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-        let entry = archive
-            .by_name(entry_name)
-            .map_err(|error| io::Error::new(io::ErrorKind::NotFound, error))?;
+        let index = resolve_entry_index(&archive, entry_name)?;
+        let entry = archive.by_index(index)?;
         let access = if entry.compression() == zip::CompressionMethod::Stored {
             InputAccess::RandomAccess
         } else {

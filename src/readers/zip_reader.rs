@@ -3,6 +3,7 @@ use std::io::{Read, Result, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use crate::core::reader::Reader;
+use crate::readers::zip_entry::resolve_entry_index;
 
 pub struct ZipReader {
     archive_path: PathBuf,
@@ -16,7 +17,8 @@ impl ZipReader {
     pub fn open(archive_path: &Path, entry_name: &str) -> Result<Self> {
         let file = File::open(archive_path)?;
         let mut archive = zip::ZipArchive::new(file)?;
-        let entry = archive.by_name(entry_name)?;
+        let index = resolve_entry_index(&archive, entry_name)?;
+        let entry = archive.by_index(index)?;
 
         let is_stored = entry.compression() == zip::CompressionMethod::Stored;
         let data_start = entry.data_start();
@@ -55,7 +57,8 @@ impl Reader for ZipReader {
 
         let file = File::open(&self.archive_path)?;
         let mut archive = zip::ZipArchive::new(file)?;
-        let mut entry = archive.by_name(&self.entry_name)?;
+        let index = resolve_entry_index(&archive, &self.entry_name)?;
+        let mut entry = archive.by_index(index)?;
 
         // Compressed ZIP entries are stream-oriented, so we cannot seek
         // directly to an offset in the decompressed data. Instead, discard

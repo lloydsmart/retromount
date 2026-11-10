@@ -4,4 +4,5 @@ pub mod inline_reader;
 pub mod interleaved_sector_reader;
 pub mod range_reader;
 pub mod raw_cd_sector_reader;
+pub(crate) mod zip_entry;
 pub mod zip_reader;
