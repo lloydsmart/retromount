@@ -126,7 +126,14 @@ impl Filesystem for RetromountFuseFs {
         reply.attr(&TTL, &attr);
     }
 
-    fn open(&self, _req: &Request, ino: INodeNo, _flags: OpenFlags, reply: ReplyOpen) {
+    fn open(
+        &self,
+        _req: &Request,
+        ino: INodeNo,
+        _flags: OpenFlags,
+        _kill_suid_gid: bool,
+        reply: ReplyOpen,
+    ) {
         if self.session.file(ino.0).is_none() {
             reply.error(fuser::Errno::EISDIR);
             return;
